@@ -85,7 +85,8 @@ namespace ParkingLotTool.Tools
                 try
                 {
                     var r = _avVorplanTask.GetAwaiter().GetResult();
-                    if (r.Revision == _geometryRevision && !_avVorplanAbbruch.IsCancellationRequested)
+                    if (r != null && r.Revision == _geometryRevision
+                        && !_avVorplanAbbruch.IsCancellationRequested)
                         _avVorplan = r;
                 }
                 catch (OperationCanceledException) { }
@@ -107,13 +108,28 @@ namespace ParkingLotTool.Tools
             {
                 var faden = Thread.CurrentThread;
                 var vorher = faden.Priority;
+                /*
+                 * DER ABBRUCH ENDET HIER, NICHT ALS AUSNAHME.
+                 *
+                 * `VerwerfeVorplanung` bricht ab und vergisst den Task. Lief
+                 * die Ausnahme hinaus, hat sie niemand mehr abgeholt; der
+                 * Finalizer meldete sie dann als "Unobserved exception"
+                 * (CRITICAL im Spiel, 2026-09-27 beim Ziehen einer Zone).
+                 * Jeder Fehler wird deshalb im Task selbst beendet.
+                 */
                 try
                 {
                     faden.Priority = ThreadPriority.BelowNormal;
                     return BerechneVorplan(eingabe, token);
                 }
+                catch (OperationCanceledException) { return null; }
+                catch (Exception fehler)
+                {
+                    Mod.log.Error(fehler, "PLT-Autoversorgung Vorplanung fehlgeschlagen.");
+                    return null;
+                }
                 finally { faden.Priority = vorher; }
-            }, token);
+            });
         }
 
         private void VerwerfeVorplanung()
