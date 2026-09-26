@@ -49,8 +49,14 @@ namespace ParkingLotTool.Tools
             var species=assets.Select(a=>new VegetationSpecies {Id=a.Id,Tree=a.Tree,Spacing=a.Spacing}).ToArray();
             ParkingVegetation.Dichtefaktor = Mod.Optionen?.Vegetationsdichte ?? 1f;
             var plan=ParkingVegetation.Plan(grass,options,species);
+            if (ParkingLotLiveLog.Aktiv)
+            {
+                _vorschauPflanzenkandidaten = plan.Candidates;
+                _vorschauPflanzenplaetze = plan.Plants.Count;
+            }
             _overlay.SetVegetation(plan,species,_terrainSystem);
         }
+        private int _vorschauPflanzenkandidaten, _vorschauPflanzenplaetze;
         // Nur eigene neu erzeugte Temp-Baeume: Alter unmittelbar vor Apply festlegen.
         private readonly System.Collections.Generic.Dictionary<(Entity, float2), Game.Objects.Tree> _vegetationTreeStates = new();
         private readonly System.Collections.Generic.HashSet<(Entity, float2)> _vegetationPlanned = new();

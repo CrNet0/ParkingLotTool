@@ -66,7 +66,7 @@ namespace ParkingLotTool.Tools
             internal float HalbeBreiteGeplant;
             /** Das Gassen-Prefab, fuer seine eigene Breite. */
             internal Entity Gassenprefab;
-            /** Breite, mit der die Vorflaeche gerechnet wird (settings.Ai). */
+            /** Breite, mit der die Vorflaeche gerechnet wird. */
             internal float Vorflaechenbreite;
             /** Geplante Fahrtrichtung des NetCourse. */
             internal bool FaehrtHinaus;
@@ -256,7 +256,7 @@ namespace ParkingLotTool.Tools
                 + (nachbar < float.MaxValue
                     ? $"naechster Knoten {nachbar:F1} m"
                     : "kein zweiter Knoten in der Naehe")
-                + BreitenSatz(plan) + GassenbreitenSatz(plan)
+                + BreitenSatz(plan) + GassenbreitenSatz(plan, knoten)
                 + MuendungsSatz(plan, knoten)
                 + HoehenSatz(plan, knoten)
                 + NachbarschaftSatz(plan, knoten) + ".");
@@ -486,31 +486,29 @@ namespace ParkingLotTool.Tools
             return math.distance(links.xz, rechts.xz);
         }
 
-        /**
-         * DIE GASSE GEGEN IHRE VORFLAECHE.
-         *
-         * `Entrance.Breite()` kennt drei Faelle - einspurig, Fussweg, sonst -
-         * und "sonst" heisst: die Fahrgassenbreite aus den Einstellungen. Die
-         * Gasse faellt in diesen Fall, obwohl sie eine echte Strasse mit
-         * eigener Breite ist. Ist sie breiter als ihre Vorflaeche, bleibt an
-         * ihren Flanken Gras stehen; mit einem Winkelunterschied wird daraus
-         * ein einseitiger Keil.
-         *
-         * Genau das steht auf dem Bild des Nutzers vom 2026-09-18. Diese
-         * Zeile sagt, ob die Rechnung dazu passt.
-         */
-        private string GassenbreitenSatz(Gassenplan plan)
+        /** Fahrbahn der gebauten Gasse gegen den sichtbaren Vorflaechenbelag. */
+        private string GassenbreitenSatz(Gassenplan plan, Entity knoten)
         {
-            if (plan.Gassenprefab == Entity.Null
-                || !EntityManager.Exists(plan.Gassenprefab)
-                || !EntityManager.HasComponent<NetGeometryData>(plan.Gassenprefab))
+            if (knoten == Entity.Null || plan.Gassenprefab == Entity.Null)
                 return string.Empty;
-            var gasse = EntityManager
-                .GetComponentData<NetGeometryData>(plan.Gassenprefab).m_DefaultWidth;
-            var fehlt = gasse - plan.Vorflaechenbreite;
-            return $"; Gasse {gasse:F2} m breit, Vorflaeche "
-                + $"{plan.Vorflaechenbreite:F2} m"
-                + (fehlt > 0.05f
+            var kante = GassenkanteAn(knoten, plan.Gassenprefab);
+            if (kante == Entity.Null || !EntityManager.HasComponent<Composition>(kante))
+                return string.Empty;
+            var komposition = EntityManager.GetComponentData<Composition>(kante).m_Edge;
+            if (komposition == Entity.Null
+                || !EntityManager.HasBuffer<NetCompositionCarriageway>(komposition))
+                return string.Empty;
+            var spuren = EntityManager.GetBuffer<NetCompositionCarriageway>(komposition);
+            var fahrbahn = 0f;
+            foreach (var spur in spuren)
+                fahrbahn = math.max(fahrbahn, spur.m_Width);
+            if (fahrbahn <= 0f) return string.Empty;
+            var aufweitung = Flaechenaufweitung();
+            var sichtbar = plan.Vorflaechenbreite + 2f * aufweitung;
+            var fehlt = fahrbahn - sichtbar;
+            return $"; Fahrbahn {fahrbahn:F2} m, Vorflaeche sichtbar "
+                + $"{sichtbar:F2} m (Polygon {plan.Vorflaechenbreite:F2} m)"
+                + (fehlt > 0.20f
                     ? $" (VORFLAECHE ZU SCHMAL um {fehlt:F2} m)" : string.Empty);
         }
 

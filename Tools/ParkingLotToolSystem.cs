@@ -72,6 +72,7 @@ namespace ParkingLotTool.Tools
         private float3[] _buildWorldSite;
         private DateTime _buildStartedUtc;
         private long _buildStartedTimestamp;
+        private long[] _buildComputeTicks;
 
         public override string toolID => ToolId;
 
@@ -1165,7 +1166,19 @@ namespace ParkingLotTool.Tools
                 + string.Join(" | ", site.Select(p =>
                     $"{p.x.ToString("0.#####", CultureInfo.InvariantCulture)} / "
                     + $"{p.y.ToString("0.#####", CultureInfo.InvariantCulture)}")));
-            _buildTask = Task.Run(() => ParkingGeometry.Build(site, settings));
+            _buildComputeTicks = null;
+            if (ParkingLotLiveLog.Aktiv)
+            {
+                var rechenzeit = new long[1];
+                _buildComputeTicks = rechenzeit;
+                _buildTask = Task.Run(() =>
+                {
+                    var start = Stopwatch.GetTimestamp();
+                    try { return ParkingGeometry.Build(site, settings); }
+                    finally { rechenzeit[0] = Stopwatch.GetTimestamp() - start; }
+                });
+            }
+            else _buildTask = Task.Run(() => ParkingGeometry.Build(site, settings));
             // Der Nutzer konnte bis zum 2026-08-21 nicht unterscheiden, ob
             // gerechnet wird oder ob sich der Generator weigert - im Panel
             // stand in beiden Faellen noch das Ergebnis von vorher.
@@ -1265,12 +1278,14 @@ namespace ParkingLotTool.Tools
             var site = _buildSite;
             var worldSite = _buildWorldSite;
             var startedUtc = _buildStartedUtc;
+            var computeTicks = _buildComputeTicks;
             var elapsedMilliseconds = (Stopwatch.GetTimestamp() - _buildStartedTimestamp)
                 * 1000d / Stopwatch.Frequency;
             _buildTask = null;
             _buildSettings = null;
             _buildSite = null;
             _buildWorldSite = null;
+            _buildComputeTicks = null;
 
             try
             {
@@ -1301,12 +1316,26 @@ namespace ParkingLotTool.Tools
                     + " | gras " + layout.GrassSurface.Length
                     + " | asphalt " + layout.AsphaltSurface.Length
                     + " | warnungen " + layout.Warnings.Length);
+                var messen = ParkingLotLiveLog.Aktiv;
+                var uebernahmeStart = messen ? Stopwatch.GetTimestamp() : 0L;
+                var bytesVorher = messen ? GC.GetAllocatedBytesForCurrentThread() : 0L;
+                var gcVorher = messen ? GC.CollectionCount(0) : 0;
+                if (messen)
+                {
+                    Flaechennetz?.BeginneUebernahmeMessung();
+                    // Ohne Vegetation setzt niemand die Zahlen - sonst
+                    // stuenden die der vorigen Vorschau in der Zeile.
+                    _vorschauPflanzenkandidaten = _vorschauPflanzenplaetze = 0;
+                }
                 ErgaenzeVorflaechen(layout, settings, site);
+                var nachVorflaechen = messen ? Stopwatch.GetTimestamp() : 0L;
                 RememberCompletedPreview(site, worldSite, settings, layout,
                     revision, startedUtc, DateTime.UtcNow, elapsedMilliseconds);
+                var nachAblage = messen ? Stopwatch.GetTimestamp() : 0L;
                 _overlay.SetLayout(layout, settings, _terrainSystem,
                     _vorflaechenSicht, _vorflaechenArt, FuellungAlsNetz,
                     _uiSystem?.Buchtsymbole ?? true);
+                var nachOverlay = messen ? Stopwatch.GetTimestamp() : 0L;
                 /*
                  * ERST DIE PFLANZEN SAMMELN, DANN FUETTERN.
                  *
@@ -1317,9 +1346,12 @@ namespace ParkingLotTool.Tools
                  * *"hatte nirgends einen Kreis gesehen."*
                  */
                 SetVegetationPreview(layout);
+                var nachPflanzen = messen ? Stopwatch.GetTimestamp() : 0L;
                 FuettereFlaechennetz(layout);
+                var nachNetz = messen ? Stopwatch.GetTimestamp() : 0L;
                 SetAreaPreviewLayout(layout, settings);
                 CaptureEditBaselineIfNeeded(layout);
+                var nachFlaechenablage = messen ? Stopwatch.GetTimestamp() : 0L;
                 _uiSystem?.ShowResult(layout, PolygonArea(site));
                 _uiSystem?.SetStatus(T($"{layout.Stalls} Stellplätze berechnet.", $"{layout.Stalls} stalls calculated."));
                 /*
@@ -1337,6 +1369,7 @@ namespace ParkingLotTool.Tools
                 // Derselbe Lauf, andere Leserschaft: die Statusleiste filtert,
                 // der Meldereiter nicht. Siehe `SetzeBaubefund`.
                 _uiSystem?.SetzeBaubefund(layout, PolygonArea(site));
+                var nachUi = messen ? Stopwatch.GetTimestamp() : 0L;
                 // MIT DEN ECHTEN ZAHLEN AUS DEM SPIEL. Ein CPU-Profil des
                 // Prototyps unter node sagt wenig ueber Mono; diese Zeile misst
                 // dort, wo es zaehlt.
@@ -1363,6 +1396,30 @@ namespace ParkingLotTool.Tools
                     + (layout.TeilflaechenVerbindungen > 0
                         ? $"ja ({layout.TeilflaechenVerbindungen})" : "nein"));
                 LogSurfaceHealth(layout);
+                if (messen)
+                {
+                    var ende = Stopwatch.GetTimestamp();
+                    var bytes = GC.GetAllocatedBytesForCurrentThread() - bytesVorher;
+                    var gc = GC.CollectionCount(0) - gcVorher;
+                    var netzstand = Flaechennetz?.EndeUebernahmeMessung() ?? "kein netz";
+                    ParkingLotLiveLog.Zeile("vorschau-uebernahme stand " + revision
+                        + " | hintergrund " + (computeTicks == null ? "-"
+                            : ParkingLotLiveLog.Zahl(
+                                computeTicks[0] * 1000d / Stopwatch.Frequency))
+                        + " ms | vorflaechen " + UebernahmeMs(nachVorflaechen - uebernahmeStart)
+                        + " ms | ablage " + UebernahmeMs(nachAblage - nachVorflaechen)
+                        + " ms | overlay " + UebernahmeMs(nachOverlay - nachAblage)
+                        + " ms | pflanzenplan " + UebernahmeMs(nachPflanzen - nachOverlay)
+                        + " ms | flaechennetz " + UebernahmeMs(nachNetz - nachPflanzen)
+                        + " ms | flaechenspeicher " + UebernahmeMs(nachFlaechenablage - nachNetz)
+                        + " ms | ui " + UebernahmeMs(nachUi - nachFlaechenablage)
+                        + " ms | log " + UebernahmeMs(ende - nachUi)
+                        + " ms | summe " + UebernahmeMs(ende - uebernahmeStart)
+                        + " ms | kandidaten " + _vorschauPflanzenkandidaten
+                        + " | plaetze " + _vorschauPflanzenplaetze
+                        + " | " + netzstand + " | alloc " + bytes
+                        + " B | gc0 " + gc);
+                }
             }
             catch (Exception exception)
             {
@@ -1430,6 +1487,9 @@ namespace ParkingLotTool.Tools
                 }
             }
         }
+
+        private static string UebernahmeMs(long ticks)
+            => ParkingLotLiveLog.Zahl(ticks * 1000d / Stopwatch.Frequency);
 
         /**
          * Ab wann ein Parkplatz gross genug ist, dass der Bau spuerbar

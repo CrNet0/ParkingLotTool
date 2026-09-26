@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Game;
+using System.Diagnostics;
 using Game.Simulation;
 using ParkingLotTool.Geometry;
 using Unity.Entities;
@@ -137,6 +138,40 @@ namespace ParkingLotTool.Tools
         private int _teilAktiv;
 
         private int _letzteDreiecke = -1;
+        private bool _messeUebernahme;
+        private int _messGruppen, _messPuffer, _messStriche, _messPflanzen;
+        private long _messPufferBytes;
+        private List<(int Ringe, int Dreiecke, bool Limit, long Hoehe,
+            long Tri, long Teil, long Upload)> _messNetze;
+
+        internal void BeginneUebernahmeMessung()
+        {
+            _messeUebernahme = true;
+            _messGruppen = _messPuffer = _messStriche = _messPflanzen = 0;
+            _messPufferBytes = 0;
+            _messNetze = new List<(int, int, bool, long, long, long, long)>();
+        }
+
+        internal string EndeUebernahmeMessung()
+        {
+            _messeUebernahme = false;
+            var ms = 1000d / Stopwatch.Frequency;
+            for (var i = 0; i < _messNetze.Count; i++)
+            {
+                var n = _messNetze[i];
+                ParkingLotLiveLog.Zeile("vorschau-uebernahme gruppe " + (i + 1)
+                    + " | ringe " + n.Ringe + " | dreiecke " + n.Dreiecke
+                    + " | limit " + n.Limit
+                    + " | hoehen-warten " + ParkingLotLiveLog.Zahl(n.Hoehe * ms, 2)
+                    + " ms | triangulieren " + ParkingLotLiveLog.Zahl(n.Tri * ms, 2)
+                    + " ms | unterteilen " + ParkingLotLiveLog.Zahl(n.Teil * ms, 2)
+                    + " ms | mesh-upload " + ParkingLotLiveLog.Zahl(n.Upload * ms, 2) + " ms");
+            }
+            _messNetze = null;
+            return "linien " + _messStriche + " | pflanzen gezeichnet "
+                + _messPflanzen + " | netzgruppen " + _messGruppen
+                + " | puffer neu " + _messPuffer + "/" + _messPufferBytes + " B";
+        }
 
         [Preserve]
         protected override void OnCreate()
@@ -297,6 +332,12 @@ namespace ParkingLotTool.Tools
                 _pflanzen.Puffer.Release();
                 _pflanzen.Puffer = null;
             }
+            if (_messeUebernahme && _pflanzen.Puffer == null)
+            {
+                _messPuffer++;
+                _messPufferBytes += (long)anzahl * System.Runtime.InteropServices
+                    .Marshal.SizeOf(typeof(Game.Rendering.OverlayRenderSystem.CustomMeshdData));
+            }
             _pflanzen.Puffer ??= new ComputeBuffer(anzahl, System.Runtime
                 .InteropServices.Marshal.SizeOf(typeof(Game.Rendering
                     .OverlayRenderSystem.CustomMeshdData)));
@@ -326,6 +367,7 @@ namespace ParkingLotTool.Tools
             // Ueber dem Belag, unter dem Zoning - dieselbe Skala wie dort.
             _pflanzen.Material.SetFloat("_TransparentSortPriority", -96f);
             _pflanzenAnzahl = anzahl;
+            if (_messeUebernahme) _messPflanzen = anzahl;
 
             MeldePflanzen(vorher, "gezeichnet", pflanzen.Count);
         }
@@ -411,6 +453,12 @@ namespace ParkingLotTool.Tools
                 _striche.Puffer.Release();
                 _striche.Puffer = null;
             }
+            if (_messeUebernahme && _striche.Puffer == null)
+            {
+                _messPuffer++;
+                _messPufferBytes += (long)gueltig * System.Runtime.InteropServices
+                    .Marshal.SizeOf(typeof(Game.Rendering.OverlayRenderSystem.CustomMeshdData));
+            }
             _striche.Puffer ??= new ComputeBuffer(gueltig, System.Runtime
                 .InteropServices.Marshal.SizeOf(typeof(Game.Rendering
                     .OverlayRenderSystem.CustomMeshdData)));
@@ -427,6 +475,7 @@ namespace ParkingLotTool.Tools
             _striche.Huelle = new Bounds(mitteH,
                 math.max(max - min, new float3(1f)) + new float3(8f));
             _stricheAnzahl = gueltig;
+            if (_messeUebernahme) _messStriche = gueltig;
             MeldeStriche(vorher, striche.Count);
         }
 
@@ -629,6 +678,12 @@ namespace ParkingLotTool.Tools
                 m_CustomMeshType = (int)Game.Rendering.OverlayRenderSystem
                     .CustomMeshType.Plane,
             };
+            if (_messeUebernahme && gruppe.Puffer == null)
+            {
+                _messPuffer++;
+                _messPufferBytes += System.Runtime.InteropServices.Marshal.SizeOf(
+                    typeof(Game.Rendering.OverlayRenderSystem.CustomMeshdData));
+            }
             gruppe.Puffer ??= new ComputeBuffer(1, System.Runtime
                 .InteropServices.Marshal.SizeOf(typeof(Game.Rendering
                     .OverlayRenderSystem.CustomMeshdData)));
@@ -677,27 +732,39 @@ namespace ParkingLotTool.Tools
          */
         private void BaueNetz(Netzgruppe gruppe, float2[][] ringe)
         {
+            var messen = _messeUebernahme;
+            var start = messen ? Stopwatch.GetTimestamp() : 0L;
             var hoehen = _terrain.GetHeightData(waitForPending: true);
+            var nachHoehe = messen ? Stopwatch.GetTimestamp() : 0L;
             var punkte = new List<Vector3>();
             var dreiecke = new List<int>();
+            var triTicks = 0L;
+            var teilTicks = 0L;
+            var ringzahl = 0;
 
             foreach (var ring in ringe)
             {
                 if (ring == null || ring.Length < 3) continue;
+                if (messen) ringzahl++;
+                var vorTri = messen ? Stopwatch.GetTimestamp() : 0L;
                 var netz = Cs2Triangulierung.Netz(ring);
                 if (netz == null && ring.Length == 4)
                     netz = new[] { 0, 1, 2, 0, 2, 3 };
+                if (messen) triTicks += Stopwatch.GetTimestamp() - vorTri;
                 if (netz == null) continue;
+                var vorTeil = messen ? Stopwatch.GetTimestamp() : 0L;
                 for (var i = 0; i + 2 < netz.Length; i += 3)
                 {
                     if (dreiecke.Count / 3 >= MaxDreiecke) break;
                     Unterteile(ring[netz[i]], ring[netz[i + 1]],
                         ring[netz[i + 2]], ref hoehen, punkte, dreiecke);
                 }
+                if (messen) teilTicks += Stopwatch.GetTimestamp() - vorTeil;
             }
 
             if (punkte.Count == 0) { gruppe.Netz = null; return; }
 
+            var vorUpload = messen ? Stopwatch.GetTimestamp() : 0L;
             gruppe.Netz ??= new Mesh { hideFlags = HideFlags.HideAndDontSave };
             gruppe.Netz.Clear();
             gruppe.Netz.indexFormat = punkte.Count > 65000
@@ -706,6 +773,13 @@ namespace ParkingLotTool.Tools
             gruppe.Netz.SetVertices(punkte);
             gruppe.Netz.SetTriangles(dreiecke, 0);
             gruppe.Netz.RecalculateBounds();
+            if (messen)
+            {
+                _messGruppen++;
+                _messNetze.Add((ringzahl, dreiecke.Count / 3,
+                    dreiecke.Count / 3 >= MaxDreiecke, nachHoehe - start,
+                    triTicks, teilTicks, Stopwatch.GetTimestamp() - vorUpload));
+            }
         }
 
         /**
