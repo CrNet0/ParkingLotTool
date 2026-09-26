@@ -57,6 +57,10 @@ namespace ParkingLotTool.Tools
         {
             var uhr = Stopwatch.GetTimestamp();
             if (layout?.NetLine == null || settings == null || _netSearchSystem == null) return null;
+            // Dieselbe Entscheidung wie beim Abriss, auch fuer erhaltene
+            // Zoningnetze - aber ohne den Bauzustand zu setzen.
+            var erhalten = new HashSet<Entity>();
+            if (IsEditing) SammleErhalteneZoningteile(erhalten, false);
             var strom = FindeVersorgungsprefab(true);
             var wasser = FindeVersorgungsprefab(false);
             if (strom == Entity.Null || wasser == Entity.Null) return null;
@@ -145,6 +149,10 @@ namespace ParkingLotTool.Tools
                     || !EntityManager.HasComponent<Edge>(entity)
                     || !EntityManager.HasComponent<Curve>(entity)
                     || !EntityManager.HasComponent<PrefabRef>(entity)) continue;
+                // Beim Edit werden die Netze des alten Lots vor dem Neubau
+                // geloescht. Sie duerfen weder Ziel noch Hindernis sein.
+                if (IsEditing && !erhalten.Contains(entity)
+                    && VorplanGehoertZumEditLot(entity)) continue;
                 var prefab = EntityManager.GetComponentData<PrefabRef>(entity).m_Prefab;
                 var road = EntityManager.HasComponent<RoadData>(prefab);
                 var kabel = EntityManager.HasComponent<ElectricityConnectionData>(prefab)
@@ -166,6 +174,22 @@ namespace ParkingLotTool.Tools
             }
             r.SchnappschussMs = VorplanMillis(Stopwatch.GetTimestamp() - uhr);
             return r;
+        }
+
+        private bool VorplanGehoertZumEditLot(Entity entity)
+        {
+            var traeger = EntityManager.HasComponent<ParkingLotCarrierReference>(_editLot)
+                ? EntityManager.GetComponentData<ParkingLotCarrierReference>(_editLot).Carrier
+                : Entity.Null;
+            var gesehen = new HashSet<Entity>();
+            while (entity != Entity.Null && gesehen.Add(entity)
+                && EntityManager.Exists(entity))
+            {
+                if (entity == _editLot || entity == traeger) return true;
+                if (!EntityManager.HasComponent<Owner>(entity)) break;
+                entity = EntityManager.GetComponentData<Owner>(entity).m_Owner;
+            }
+            return false;
         }
 
         private static VorplanErgebnis BerechneVorplan(VorplanEingabe e, CancellationToken token)

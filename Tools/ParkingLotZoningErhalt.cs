@@ -32,11 +32,21 @@ namespace ParkingLotTool.Tools
 
         private void PlaneZoningerhalt()
         {
-            _erhalteneZoningteile.Clear();
-            _zoningErhalten = false;
+            _zoningErhalten = SammleErhalteneZoningteile(_erhalteneZoningteile, true);
+        }
+
+        /**
+         * Welche Zoningteile des bearbeiteten Parkplatzes bleiben stehen?
+         * Ohne Nebenwirkung auf den Bau: die Vorplanung der Leitungen fragt
+         * das waehrend des Bearbeitens laufend (`melden: false`), der Bau
+         * genau einmal ueber `PlaneZoningerhalt`.
+         */
+        private bool SammleErhalteneZoningteile(HashSet<Entity> ziel, bool melden)
+        {
+            ziel.Clear();
             if (!IsEditing || _areaPreviewLayout == null || !ZoningErhalt.Gleich(
                 _alteZoningkurse, Zoningkurse(_areaPreviewLayout), _altesZoningprefab,
-                _uiSystem.CurrentSettings().Zoningstrasse)) return;
+                _uiSystem.CurrentSettings().Zoningstrasse)) return false;
 
             using var teile = _editOwnerParts.ToEntityArray(Allocator.Temp);
             foreach (var teil in teile)
@@ -49,10 +59,10 @@ namespace ParkingLotTool.Tools
                 var prefab = EntityManager.GetComponentData<PrefabRef>(teil).m_Prefab;
                 if (!_prefabSystem.TryGetPrefab<PrefabBase>(prefab, out var asset)
                     || asset.name != "PLT Zoningstrasse (" + _altesZoningprefab + ")") continue;
-                _erhalteneZoningteile.Add(teil);
+                ziel.Add(teil);
                 var edge = EntityManager.GetComponentData<Edge>(teil);
-                _erhalteneZoningteile.Add(edge.m_Start);
-                _erhalteneZoningteile.Add(edge.m_End);
+                ziel.Add(edge.m_Start);
+                ziel.Add(edge.m_End);
             }
             /*
              * ERHALTEN NUR, WENN AUCH DIE SEITEN STIMMEN.
@@ -63,7 +73,7 @@ namespace ParkingLotTool.Tools
              * umgeschaltet, kaeme die Aenderung nie an. Dann wird neu gebaut.
              */
             MerkeZoningSeitenGrundlage();
-            foreach (var teil in _erhalteneZoningteile)
+            foreach (var teil in ziel)
             {
                 if (!EntityManager.HasComponent<Edge>(teil)
                     || !EntityManager.HasComponent<Curve>(teil)) continue;
@@ -72,16 +82,18 @@ namespace ParkingLotTool.Tools
                         out var linksAus, out var rechtsAus, out _)) continue;
                 if (LiestSeite(teil, true) == linksAus
                     && LiestSeite(teil, false) == rechtsAus) continue;
-                Mod.log.Info("PLT-Vorbauzettel Zoningerhalt: Strassenplan gleich, "
-                    + "aber eine Seite wurde umgeschaltet - die Zoningstrassen "
-                    + "werden neu gebaut.");
-                _erhalteneZoningteile.Clear();
+                if (melden)
+                    Mod.log.Info("PLT-Vorbauzettel Zoningerhalt: Strassenplan gleich, "
+                        + "aber eine Seite wurde umgeschaltet - die Zoningstrassen "
+                        + "werden neu gebaut.");
+                ziel.Clear();
                 break;
             }
-            _zoningErhalten = _erhalteneZoningteile.Count > 0;
-            Mod.log.Info("PLT-Vorbauzettel Zoningerhalt: unveraenderter Strassenplan; "
-                + _erhalteneZoningteile.Count + " bestehende Kanten/Knoten erhalten. "
-                + "Zonenbloecke und Gebaeude werden nicht neu erzeugt.");
+            if (melden)
+                Mod.log.Info("PLT-Vorbauzettel Zoningerhalt: unveraenderter Strassenplan; "
+                    + ziel.Count + " bestehende Kanten/Knoten erhalten. "
+                    + "Zonenbloecke und Gebaeude werden nicht neu erzeugt.");
+            return ziel.Count > 0;
         }
 
         private void UebertrageZoningbestand(Entity old, Entity next, Entity carrier)

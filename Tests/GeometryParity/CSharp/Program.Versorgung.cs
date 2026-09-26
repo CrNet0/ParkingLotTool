@@ -166,6 +166,16 @@ internal static partial class Program
             ohneZiel.Ziele.Add(erstes); ohneZiel.Ziele.Add(zweites);
             Pruefe(!VersorgungstrassenPlan.PruefeVorplan(ohneZiel, vor, out _, out _),
                 "geloeschte Zielkante verwirft Vorplan");
+            var geteiltesStadtziel = new Versorgungseingabe { Strombreite = 1,
+                Wasserbreite = 1, Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
+            geteiltesStadtziel.Eigene.Add(zweites);
+            geteiltesStadtziel.Hinderniskanten.Add(zweites);
+            geteiltesStadtziel.Ziele.Add(Kante(300, 43.702f, true,
+                vor.Ziel.y - 8, vor.Ziel.y + 8));
+            Pruefe(VersorgungstrassenPlan.PruefeVorplan(geteiltesStadtziel,
+                vor, out var nachTeilung, out _)
+                && nachTeilung.Beste.Zielkante.Id == 300,
+                "Stadtziel bleibt nach Kanten-Teilung am Ort erkennbar");
             var fremderStart = new Versorgungsvorplan { ZielId = vor.ZielId,
                 OffeneTeile = 1,
                 Start = erstes.Position(0.5f).xz, Ziel = vor.Ziel,
@@ -242,6 +252,21 @@ internal static partial class Program
                     vorEigen, out var bestaetigtEigen, out _)
                     && bestaetigtEigen.Beste.Zielkante == anStadt,
                     "eigenes Ziel wird nach dem Bau eindeutig zugeordnet");
+                var eigenesGeteilt = new Versorgungseingabe { Strombreite = 1,
+                    Wasserbreite = 1, Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
+                eigenesGeteilt.Eigene.Add(quelle);
+                eigenesGeteilt.Hinderniskanten.Add(quelle);
+                var zielteil = Kante(111, 20, false,
+                    vorEigen.Ziel.y - 8, vorEigen.Ziel.y + 8);
+                zielteil.KnotenAnStadt = true;
+                eigenesGeteilt.Eigene.Add(zielteil);
+                eigenesGeteilt.Hinderniskanten.Add(zielteil);
+                eigenesGeteilt.Ziele.Add(quelle);
+                eigenesGeteilt.Ziele.Add(zielteil);
+                Pruefe(VersorgungstrassenPlan.PruefeVorplan(eigenesGeteilt,
+                    vorEigen, out var nachEigenerTeilung, out _)
+                    && nachEigenerTeilung.Beste.Zielkante == zielteil,
+                    "eigenes Ziel bleibt nach Kanten-Teilung erkennbar");
             }
         }
         Versorgungseingabe DreiNetze(float stadtX = -100)
@@ -280,11 +305,6 @@ internal static partial class Program
         }
         if (folge.Count == 2)
         {
-            var neuerKonkurrent = DreiNetze(-47);
-            Pruefe(!VersorgungstrassenPlan.PruefeVorplan(neuerKonkurrent,
-                folge[0], out _, out var reihenfolgeGrund)
-                && reihenfolgeGrund == "anderes offenes Netz hat kuerzere Trasse",
-                "neues kuerzeres Konkurrenznetz verwirft die Reihenfolge");
             var mutation = new Versorgungsvorplan { ZielId = folge[0].ZielId,
                 OffeneTeile = folge[0].OffeneTeile, Start = folge[0].Start,
                 Ziel = folge[0].Ziel, Laenge = folge[0].Laenge + 5,

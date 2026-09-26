@@ -54,6 +54,10 @@ namespace ParkingLotTool.Tools
         private int _avVorplanRevision = -1;
         private int _avVorplanUiRevision = -1;
         private long _avVorplanRuhigSeit;
+        private long _avVorplanTaskSeit;
+        private string _avVorplanGrund = "noch nicht gestartet";
+        private string _avVorplanFehler;
+        private string _avVorplanLetzteAenderung;
         private const double VorplanRuheMs = 750;
 
         private static double VorplanMillis(long ticks)
@@ -63,17 +67,27 @@ namespace ParkingLotTool.Tools
         {
             // Waehrend der Materialisierung gehoert der fertige Vorplan noch
             // zum bestaetigten Stand. Erst am Apply wird er uebernommen.
-            if (_buildStage != BuildStage.Idle) return;
+            if (_buildStage != BuildStage.Idle)
+            { _avVorplanGrund = "Bauphase " + _buildStage; return; }
             var uiRevision = _uiSystem?.Revision ?? 0;
             if (!_closed || _layoutDirty || _buildTask != null || _areaPreviewLayout == null
                 || _dragPoint >= 0 || _dragEntrance >= 0
                 || Mod.Optionen?.AutomatischVersorgung != true)
             {
+                _avVorplanGrund = !_closed ? "Werkzeug/Polygon offen"
+                    : _layoutDirty ? "Vorschau nach Geometrie-/UI-Aenderung ausstehend"
+                    : _buildTask != null ? "Vorschau rechnet noch"
+                    : _areaPreviewLayout == null ? "keine Vorschau"
+                    : _dragPoint >= 0 || _dragEntrance >= 0 ? "Eingabe wird gezogen"
+                    : "Automatik abgeschaltet";
                 VerwerfeVorplanung();
                 return;
             }
             if (_avVorplanRevision != _geometryRevision || _avVorplanUiRevision != uiRevision)
             {
+                _avVorplanGrund = $"durch Aenderung verworfen (Geometrie "
+                    + $"{_avVorplanRevision}->{_geometryRevision}, UI {_avVorplanUiRevision}->{uiRevision})";
+                _avVorplanLetzteAenderung = _avVorplanGrund;
                 VerwerfeVorplanung();
                 _avVorplanRevision = _geometryRevision;
                 _avVorplanUiRevision = uiRevision;
@@ -87,22 +101,36 @@ namespace ParkingLotTool.Tools
                     var r = _avVorplanTask.GetAwaiter().GetResult();
                     if (r != null && r.Revision == _geometryRevision
                         && !_avVorplanAbbruch.IsCancellationRequested)
-                        _avVorplan = r;
+                    { _avVorplan = r; _avVorplanGrund = "fertig"; }
+                    else _avVorplanGrund = _avVorplanFehler ?? "Rechnung abgebrochen oder veraltet";
                 }
-                catch (OperationCanceledException) { }
-                catch (Exception e) { Mod.log.Error(e, "PLT-Autoversorgung Vorplanung fehlgeschlagen."); }
+                catch (OperationCanceledException) { _avVorplanGrund = "Rechnung abgebrochen"; }
+                catch (Exception e) { _avVorplanGrund = "Fehler: " + e.GetType().Name;
+                    Mod.log.Error(e, "PLT-Autoversorgung Vorplanung fehlgeschlagen."); }
                 _avVorplanTask = null;
             }
             if (_avVorplanTask != null || _avVorplan != null
-                || VorplanMillis(Stopwatch.GetTimestamp() - _avVorplanRuhigSeit) < VorplanRuheMs) return;
+                || VorplanMillis(Stopwatch.GetTimestamp() - _avVorplanRuhigSeit) < VorplanRuheMs)
+            {
+                if (_avVorplanTask != null) _avVorplanGrund = $"rechnet seit "
+                    + $"{VorplanMillis(Stopwatch.GetTimestamp() - _avVorplanTaskSeit):F1} ms";
+                else if (_avVorplan == null) _avVorplanGrund = $"Ruhezeit "
+                    + $"{VorplanMillis(Stopwatch.GetTimestamp() - _avVorplanRuhigSeit):F1}/{VorplanRuheMs:F0} ms"
+                    + (_avVorplanLetzteAenderung == null ? "" : ", " + _avVorplanLetzteAenderung);
+                return;
+            }
 
             var eingabe = LeseVorplanSchnappschuss(_areaPreviewLayout, _areaPreviewSettings);
             if (eingabe == null)
             {
+                _avVorplanGrund = "Schnappschuss nicht lesbar";
                 _avVorplanRuhigSeit = Stopwatch.GetTimestamp();
                 return;
             }
             _avVorplanAbbruch = new CancellationTokenSource();
+            _avVorplanFehler = null;
+            _avVorplanTaskSeit = Stopwatch.GetTimestamp();
+            _avVorplanGrund = "Rechnung gestartet";
             var token = _avVorplanAbbruch.Token;
             _avVorplanTask = Task.Run(() =>
             {
@@ -125,6 +153,7 @@ namespace ParkingLotTool.Tools
                 catch (OperationCanceledException) { return null; }
                 catch (Exception fehler)
                 {
+                    _avVorplanFehler = "Fehler: " + fehler.GetType().Name;
                     Mod.log.Error(fehler, "PLT-Autoversorgung Vorplanung fehlgeschlagen.");
                     return null;
                 }
@@ -142,13 +171,21 @@ namespace ParkingLotTool.Tools
 
         private void MerkeVorplanungBeimBau()
         {
+            var grund = _avVorplanGrund;
+            if (_avVorplanTask != null && !_avVorplanTask.IsCompleted)
+                grund = $"rechnet seit {VorplanMillis(Stopwatch.GetTimestamp() - _avVorplanTaskSeit):F1} ms";
             if (_avVorplanTask != null && _avVorplanTask.IsCompleted)
             {
                 try { _avVorplan = _avVorplanTask.GetAwaiter().GetResult(); }
-                catch (Exception) { _avVorplan = null; }
+                catch (Exception e) { _avVorplan = null; _avVorplanFehler = "Fehler: " + e.GetType().Name; }
+                if (_avVorplan == null) grund = _avVorplanFehler ?? "Rechnung ohne Ergebnis";
             }
+            var uiRevision = _uiSystem?.Revision ?? 0;
             _avVorplanBeimBau = _avVorplan != null && _avVorplan.Revision == _geometryRevision
-                && _avVorplanUiRevision == (_uiSystem?.Revision ?? 0) ? _avVorplan : null;
+                && _avVorplanUiRevision == uiRevision ? _avVorplan : null;
+            _avVorplanGrund = _avVorplanBeimBau != null ? "fertig" : _avVorplan != null
+                ? $"beim Bau verworfen: Revision Geometrie {_avVorplan.Revision}/{_geometryRevision}, "
+                    + $"UI {_avVorplanUiRevision}/{uiRevision}" : grund;
             _avVorplanIndex = 0;
             _avVorplanRueckfallGrund = null;
             VerwerfeVorplanung();
@@ -167,7 +204,7 @@ namespace ParkingLotTool.Tools
             var vor = _avVorplanBeimBau;
             if (vor == null)
             {
-                Mod.log.Info("PLT-Autoversorgung VORPLAN: fehlte oder veraltet; Schnappschuss - ms; Istplanung "
+                Mod.log.Info($"PLT-Autoversorgung VORPLAN: fehlte oder veraltet ({_avVorplanGrund}); Schnappschuss - ms; Istplanung "
                     + (ist.Gefunden ? $"{ist.Laenge:F3} m, Zielkante {ist.Zielkante}." : "ohne Trasse."));
                 return;
             }

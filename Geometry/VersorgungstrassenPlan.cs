@@ -150,28 +150,6 @@ namespace ParkingLotTool.Geometry
                 && math.distance(lot, k.Position(1).xz) + 0.001f >= reserve;
         }
 
-        private static float UntereLaengenschranke(Versorgungsgruppe g)
-        {
-            var von = new float2(float.MaxValue);
-            var bis = new float2(float.MinValue);
-            foreach (var k in g.Kanten)
-                foreach (var p in new[] { k.Startpunkt.xz, k.SteuerungB,
-                    k.SteuerungC, k.Endpunkt.xz })
-                { von = math.min(von, p); bis = math.max(bis, p); }
-            var minimum = float.MaxValue;
-            foreach (var z in g.Ziele)
-            {
-                var zvon = math.min(math.min(z.Startpunkt.xz, z.SteuerungB),
-                    math.min(z.SteuerungC, z.Endpunkt.xz));
-                var zbis = math.max(math.max(z.Startpunkt.xz, z.SteuerungB),
-                    math.max(z.SteuerungC, z.Endpunkt.xz));
-                var delta = math.max(new float2(0),
-                    math.max(von - zbis, zvon - bis));
-                minimum = math.min(minimum, math.length(delta));
-            }
-            return minimum;
-        }
-
         // Die Istpruefung und die Wahl verwenden dieselben Startkanten und Tore.
         private static HashSet<int> Startkanten(Versorgungsgruppe g, float3 p, out int startknoten)
         {
@@ -384,17 +362,32 @@ namespace ParkingLotTool.Geometry
             grund = "Netz ausgereizt";
             if (g.Ausgereizt) return false;
             Versorgungskante ziel = null;
+            var mehrdeutig = false;
             foreach (var k in g.Ziele)
             {
-                if (vor.ZielEigene ? !k.Stadt && math.distance(k.Projektion(vor.Ziel).xz, vor.Ziel) <= 0.1f
-                    : k.Stadt && k.Id == vor.ZielId)
+                if (k.Stadt == !vor.ZielEigene
+                    && math.distance(k.Projektion(vor.Ziel).xz, vor.Ziel) <= 0.1f)
                 {
-                    if (ziel != null) { grund = "Zielkante nicht eindeutig"; return false; }
+                    if (k.Id == vor.ZielId) { ziel = k; mehrdeutig = false; break; }
+                    if (ziel != null) mehrdeutig = true;
                     ziel = k;
                 }
             }
+            if (mehrdeutig) { grund = "Zielkante nicht eindeutig"; return false; }
             grund = "Zielkante fehlt oder ist nicht erlaubt";
-            if (ziel == null) return false;
+            if (ziel == null)
+            {
+                foreach (var k in e.Ziele)
+                    if (k.Stadt == !vor.ZielEigene
+                        && math.distance(k.Projektion(vor.Ziel).xz, vor.Ziel) <= 0.1f)
+                    {
+                        grund = vor.ZielEigene && g.Kanten.Contains(k)
+                            ? "Ziel liegt inzwischen im Startnetz"
+                            : "Ziel am Ort ist fuer dieses Teil nicht erlaubt";
+                        break;
+                    }
+                return false;
+            }
             var start = default(float3);
             var abstand = float.MaxValue;
             foreach (var k in g.Kanten)
@@ -442,22 +435,17 @@ namespace ParkingLotTool.Geometry
                 Startkanten = new List<int>(startkanten), Punkte = punkte,
                 Stromweg = strom, Wasserweg = wasser, Laenge = laenge,
                 Hindernisweg = vor.Hindernisweg };
-            // Die Vorschau hat diese globale Reihenfolge gewaehlt. Bei
-            // abweichender gebauter Geometrie darf ein anderes offenes Netz
-            // sie nicht inzwischen ueberholt haben.
-            foreach (var anderer in aus.Gruppen)
-            {
-                if (anderer == g || anderer.AnStadt || anderer.Ausgereizt
-                    || anderer.Ziele.Count == 0) continue;
-                // Bezierkurven liegen in der Huelle ihrer Steuerpunkte. Ist
-                // schon deren Mindestabstand groesser, kann kein Weg gewinnen.
-                if (UntereLaengenschranke(anderer) > laenge + 0.002f) continue;
-                anderer.Weg = WaehleGruppe(e, anderer, laenge + 0.002f);
-                if (anderer.Weg == null) continue;
-                if (anderer.Weg.Laenge < laenge || (anderer.Weg.Laenge == laenge
-                    && aus.Gruppen.IndexOf(anderer) < aus.Gruppen.IndexOf(g)))
-                { grund = "anderes offenes Netz hat kuerzere Trasse"; return false; }
-            }
+            /*
+             * KEINE KONKURRENZSUCHE UEBER DIE ANDEREN NETZE.
+             *
+             * Welche Zone zuerst verbunden wird, hat der Vorplan entschieden.
+             * Zwischen Vorplan und Bau ist unser Werkzeug aktiv, die Stadt
+             * kann sich also nicht aendern; gebaut und geplant unterscheiden
+             * sich nur um Zentimeter. Eine erneute Wegesuche fuer jedes
+             * andere Netz kostete bei mehreren Zonen genau die Zeit, die der
+             * Vorplan sparen soll (267 ms am 2026-09-27). Ob DIESE Trasse
+             * gebaut werden darf, prueft alles oberhalb vollstaendig.
+             */
             aus.Beste = g.Weg;
             grund = null;
             return true;

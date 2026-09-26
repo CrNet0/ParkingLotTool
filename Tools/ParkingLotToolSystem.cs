@@ -341,6 +341,12 @@ namespace ParkingLotTool.Tools
             PflegeNacharbeit();
             if (m_ToolSystem.activeTool != this)
             {
+                if (_buildStage == BuildStage.Idle && !_buildRequestedWhenReady
+                    && (_avVorplanTask != null || _avVorplan != null))
+                {
+                    _avVorplanGrund = "Werkzeug zu";
+                    VerwerfeVorplanung();
+                }
                 PflegeAutoVersorgung();
                 // Nach Speichern/Laden darf die reine Messtaste auch dann
                 // arbeiten, wenn CS2 inzwischen sein Auswahlwerkzeug aktiviert

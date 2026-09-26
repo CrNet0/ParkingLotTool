@@ -61,7 +61,7 @@ namespace ParkingLotTool.Tools
                 // nur, dass nichts mehr zu tun ist.
                 Mod.log.Info(_avVorplanRueckfallGrund != null
                     ? $"PLT-Autoversorgung VORPLAN: verworfen ({_avVorplanRueckfallGrund}); volle Wahl."
-                    : vor == null ? "PLT-Autoversorgung VORPLAN: fehlte oder veraltet; volle Wahl."
+                    : vor == null ? $"PLT-Autoversorgung VORPLAN: fehlte oder veraltet ({_avVorplanGrund}); volle Wahl."
                     : vor.Gefunden ? "PLT-Autoversorgung VORPLAN: alle Trassen verwendet; volle Wahl zur Bestaetigung."
                     : "PLT-Autoversorgung VORPLAN: ohne Trasse; volle Wahl zur Bestaetigung.");
                 aus = VersorgungstrassenPlan.Waehle(e);
