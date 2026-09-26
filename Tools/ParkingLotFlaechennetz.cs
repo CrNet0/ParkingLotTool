@@ -70,8 +70,18 @@ namespace ParkingLotTool.Tools
          */
         private const float MaxKante = 8f;
 
-        /** Notbremse, damit eine entartete Flaeche nicht den Bildaufbau frisst. */
-        private const int MaxDreiecke = 60000;
+        /**
+         * NOTBREMSE, damit eine entartete Flaeche nicht den Bildaufbau frisst.
+         *
+         * Bis 2026-09-26 stand hier 60.000. Am Parkplatz mit 11.902 Buchten
+         * erreichte schon die normale Asphaltflaeche diese Zahl, der Aufbau
+         * brach ab, und ein Teil des Belags fehlte in der Vorschau. Das Netz
+         * kann 32-Bit-Indizes (siehe `indexFormat` unten); die Grenze war
+         * also kuenstlich. Jetzt greift sie nur noch bei echtem Unsinn - und
+         * meldet sich dann im Log, statt still Flaeche wegzulassen.
+         */
+        private const int MaxDreiecke = 400000;
+        private bool _grenzeGemeldet;
 
         private TerrainSystem _terrain;
         private Material _vorlage;
@@ -773,6 +783,12 @@ namespace ParkingLotTool.Tools
             gruppe.Netz.SetVertices(punkte);
             gruppe.Netz.SetTriangles(dreiecke, 0);
             gruppe.Netz.RecalculateBounds();
+            if (dreiecke.Count / 3 >= MaxDreiecke && !_grenzeGemeldet)
+            {
+                _grenzeGemeldet = true;
+                Mod.log.Warn($"PLT-Flaechennetz: Notbremse bei {MaxDreiecke} Dreiecken "
+                    + $"({ringe.Length} Ringe) - ein Teil der Flaeche fehlt in der Vorschau.");
+            }
             if (messen)
             {
                 _messGruppen++;
