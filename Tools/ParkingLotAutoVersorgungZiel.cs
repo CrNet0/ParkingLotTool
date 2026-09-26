@@ -12,6 +12,23 @@ namespace ParkingLotTool.Tools
 {
     public sealed partial class ParkingLotToolSystem
     {
+        private bool AvAnschlussLayer(Entity strassenprefab, Entity leitung,
+            out bool strasseAktualisiert, out bool knotenVerbunden)
+        {
+            var strasse = EntityManager.GetComponentData<NetData>(strassenprefab);
+            var netz = EntityManager.GetComponentData<NetData>(leitung);
+            var lokal = EntityManager.GetComponentData<LocalConnectData>(leitung);
+            // GenerateNodesSystem.EdgeIterator und
+            // GenerateEdgesSystem.FindNodeConnections pruefen verschiedene
+            // Layerpaare. Ein Zwischenstueck kann auch ohne ConnectedNode
+            // direkt an einem Strassenknoten entstehen.
+            strasseAktualisiert = (lokal.m_Layers & strasse.m_ConnectLayers) != 0
+                && (netz.m_ConnectLayers & strasse.m_LocalConnectLayers) != 0;
+            knotenVerbunden = (netz.m_ConnectLayers & strasse.m_ConnectLayers) != 0
+                && (lokal.m_Layers & strasse.m_LocalConnectLayers) != 0;
+            return strasseAktualisiert;
+        }
+
         private bool AvZieltor(Entity strasse, Entity leitung, float2 ende,
             out float t, out float abstand)
         {
@@ -22,9 +39,7 @@ namespace ParkingLotTool.Tools
             if (!EntityManager.HasComponent<NetGeometryData>(prefab)
                 || !EntityManager.HasComponent<NetData>(prefab)) return false;
             var g = EntityManager.GetComponentData<NetGeometryData>(prefab);
-            var n = EntityManager.GetComponentData<NetData>(prefab);
             var lc = EntityManager.GetComponentData<LocalConnectData>(leitung);
-            var ln = EntityManager.GetComponentData<NetData>(leitung);
             var lg = EntityManager.GetComponentData<NetGeometryData>(leitung);
             var b = EntityManager.GetComponentData<Curve>(strasse).m_Bezier;
             abstand = MathUtils.Distance(b.xz, ende, out t);
@@ -37,7 +52,7 @@ namespace ParkingLotTool.Tools
             }
             return VersorgungskursPruefung.Anschluss(abstand, g.m_DefaultWidth,
                 lg.m_DefaultWidth, lc.m_SearchDistance,
-                (lc.m_Layers & n.m_ConnectLayers) != 0 && (ln.m_ConnectLayers & n.m_LocalConnectLayers) != 0);
+                AvAnschlussLayer(prefab, leitung, out _, out _));
         }
 
         private void AvMesseZielumfeld(AvKurs kurs, Entity knoten)
@@ -50,27 +65,34 @@ namespace ParkingLotTool.Tools
             var breite = EntityManager.GetComponentData<NetGeometryData>(kurs.Prefab).m_DefaultWidth;
             var zielprefab = EntityManager.GetComponentData<PrefabRef>(ziel).m_Prefab;
             var zg = EntityManager.GetComponentData<NetGeometryData>(zielprefab);
-            var zn = EntityManager.GetComponentData<NetData>(zielprefab);
-            var ln = EntityManager.GetComponentData<NetData>(kurs.Prefab);
+            AvAnschlussLayer(zielprefab, kurs.Prefab, out var aktualisiert, out var verbunden);
             var hoehe = MathUtils.Position(EntityManager.GetComponentData<Curve>(ziel).m_Bezier, t).y - p.y;
-            var temps = 0; var verbindungen = 0;
+            var temps = 0;
             using var kanten = AvTempQuery().ToEntityArray(Allocator.Temp);
             foreach (var e in kanten)
             {
                 var temp = EntityManager.GetComponentData<Temp>(e);
                 if (temp.m_Original != ziel) continue;
                 temps++;
+                var edge = EntityManager.GetComponentData<Edge>(e);
+                var gemeinsam = edge.m_Start == knoten || edge.m_End == knoten;
+                var eintraege = 0;
+                var verbindungen = 0;
                 if (EntityManager.HasBuffer<ConnectedNode>(e))
                     foreach (var n in EntityManager.GetBuffer<ConnectedNode>(e, true))
+                    {
+                        eintraege++;
                         if (n.m_Node == knoten) verbindungen++;
+                    }
                 AvZieltor(e, kurs.Prefab, p.xz, out var tt, out var da);
                 Mod.log.Info($"PLT-Autoversorgung ZIEL-TEMP [{kurs.Name}]: {e}, Flags {temp.m_Flags}, "
-                    + $"t {tt:F5}, Achsabstand {da:F3} m, ConnectedNode-Treffer {verbindungen}.");
+                    + $"t {tt:F5}, Achsabstand {da:F3} m, gemeinsamer Knoten {(gemeinsam ? 1 : 0)}, "
+                    + $"ConnectedNode {verbindungen}/{eintraege}.");
             }
             Mod.log.Info($"PLT-Autoversorgung ZIELTORE [{kurs.Name}]: Original {ziel}, "
                 + $"Knoten {knoten}, LocalConnect {(EntityManager.HasComponent<LocalConnect>(knoten) ? 1 : 0)}, "
-                + $"Temp-Strassen {temps}, Layer hin/zurueck {((lc.m_Layers & zn.m_ConnectLayers) != 0 ? 1 : 0)}/"
-                + $"{((ln.m_ConnectLayers & zn.m_LocalConnectLayers) != 0 ? 1 : 0)}, "
+                + $"Temp-Strassen {temps}, Layer Strasse/ConnectedNode "
+                + $"{(aktualisiert ? 1 : 0)}/{(verbunden ? 1 : 0)}, "
                 + $"t {t:F5}, Randabstand {abstand - zg.m_DefaultWidth / 2:F3} m / "
                 + $"Suchradius {math.max(0, breite / 2 + lc.m_SearchDistance):F3} m, "
                 + $"Hoehe {hoehe:F3} m / Fenster {lc.m_HeightRange.min:F3}..{lc.m_HeightRange.max:F3}, "

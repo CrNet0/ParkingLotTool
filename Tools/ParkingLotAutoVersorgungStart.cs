@@ -176,7 +176,6 @@ namespace ParkingLotTool.Tools
         private void AvMesseStartumfeld(AvKurs kurs, Entity leitungsknoten)
         {
             var lc = EntityManager.GetComponentData<LocalConnectData>(kurs.Prefab);
-            var netz = EntityManager.GetComponentData<NetData>(kurs.Prefab);
             var geo = EntityManager.GetComponentData<NetGeometryData>(kurs.Prefab);
             var radius = math.max(0, geo.m_DefaultWidth / 2 + lc.m_SearchDistance);
             var tempStrassen = 0;
@@ -191,8 +190,8 @@ namespace ParkingLotTool.Tools
                 var edge = EntityManager.GetComponentData<Edge>(e);
                 if (kurs.Trasse.Startkanten == null || !kurs.Trasse.Startkanten.Contains(e)) continue;
                 var prefab = EntityManager.GetComponentData<PrefabRef>(e).m_Prefab;
-                var s = EntityManager.GetComponentData<NetData>(prefab);
                 var g = EntityManager.GetComponentData<NetGeometryData>(prefab);
+                AvAnschlussLayer(prefab, kurs.Prefab, out var aktualisiert, out var verbunden);
                 var b = EntityManager.GetComponentData<Curve>(e).m_Bezier;
                 var abstand = MathUtils.Distance(b.xz, kurs.Start.xz, out var t);
                 if ((g.m_Flags & GeometryFlags.NoEdgeConnection) != 0)
@@ -202,8 +201,7 @@ namespace ParkingLotTool.Tools
                 }
                 var hoehe = MathUtils.Position(b, t).y - kurs.Start.y;
                 Mod.log.Info($"PLT-Autoversorgung STARTTORE [{kurs.Name}]: Kante {e}, "
-                    + $"Layer hin/zurueck {((lc.m_Layers & s.m_ConnectLayers) != 0 ? 1 : 0)}/"
-                    + $"{((netz.m_ConnectLayers & s.m_LocalConnectLayers) != 0 ? 1 : 0)}, "
+                    + $"Layer Strasse/ConnectedNode {(aktualisiert ? 1 : 0)}/{(verbunden ? 1 : 0)}, "
                     + $"Randabstand {abstand - g.m_DefaultWidth / 2:F3} m / Suchradius {radius:F3} m, "
                     + $"Hoehe {hoehe:F3} m / Fenster {lc.m_HeightRange.min:F3}..{lc.m_HeightRange.max:F3} m.");
             }
