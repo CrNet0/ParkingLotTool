@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using Colossal.Mathematics;
 using Game.Common;
 using Game.Net;
@@ -32,7 +33,36 @@ namespace ParkingLotTool.Tools
                 return trassen;
             }
             var e = AvLeseIstEingabe(traeger, zielstrassen, _avAlleEigenen);
-            var aus = VersorgungstrassenPlan.Waehle(e);
+            Versorgungsauswahl aus;
+            var vor = _avVorplanBeimBau;
+            if (!_avVorplanGemeldet && vor?.Gefunden == true)
+            {
+                var uhr = Stopwatch.StartNew();
+                var trasse = new Versorgungsvorplan { ZielId = vor.Zielkennung,
+                    ZielEigene = vor.ZielEigene, Start = vor.Start, Ziel = vor.Ziel,
+                    Laenge = vor.Laenge, Hindernisweg = vor.Hindernisweg,
+                    Punkte = vor.Weg, Stromweg = vor.Stromweg, Wasserweg = vor.Wasserweg };
+                if (VersorgungstrassenPlan.PruefeVorplan(e, trasse, out aus, out var grund))
+                {
+                    Mod.log.Info($"PLT-Autoversorgung VORPLAN: verwendet; Pruefung Hauptfaden "
+                        + $"{uhr.Elapsed.TotalMilliseconds:F2} ms.");
+                    _avVorplanGemeldet = true;
+                    _avVorplanBeimBau = null;
+                }
+                else
+                {
+                    Mod.log.Info($"PLT-Autoversorgung VORPLAN: verworfen ({grund}); "
+                        + $"Pruefung Hauptfaden {uhr.Elapsed.TotalMilliseconds:F2} ms.");
+                    aus = VersorgungstrassenPlan.Waehle(e);
+                }
+            }
+            else
+            {
+                if (!_avVorplanGemeldet)
+                    Mod.log.Info("PLT-Autoversorgung VORPLAN: verworfen (fehlte oder ohne Trasse); "
+                        + "Pruefung Hauptfaden 0,00 ms.");
+                aus = VersorgungstrassenPlan.Waehle(e);
+            }
             _avLetzteIstEingabe = aus;
             var gemesseneHuellen = aus.Beste?.Gruppe;
             if (gemesseneHuellen == null)

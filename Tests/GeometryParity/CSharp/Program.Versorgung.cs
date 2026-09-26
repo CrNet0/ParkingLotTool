@@ -113,9 +113,9 @@ internal static partial class Program
         // Nachstellung des Falls 26.09.: zwei Netze, das erste schon per
         // Knoten an der Stadt, das zweite mit einer 43,702-m-Geraden.
         Versorgungskante Kante(int id, float x, bool stadt = false,
-            float z0 = 0, float z1 = 10)
+            float z0 = 0, float z1 = 10, float y = 0)
         {
-            var a = new float3(x, 0, z0); var b = new float3(x, 0, z1);
+            var a = new float3(x, y, z0); var b = new float3(x, y, z1);
             return new Versorgungskante { Id = id, Startknoten = id * 2,
                 Endknoten = id * 2 + 1, Startpunkt = a, Endpunkt = b,
                 SteuerungB = math.lerp(a, b, 1f / 3).xz,
@@ -123,7 +123,7 @@ internal static partial class Program
                 Position = t => math.lerp(a, b, t),
                 Projektion = p => {
                     var q = Versorgungsnetz.Projektion(p, a.xz, b.xz);
-                    return new float3(q.x, 0, q.y);
+                    return new float3(q.x, y, q.y);
                 },
                 Breite = stadt ? 8 : 4, Versorgung = true,
                 Stadt = stadt, Stromtor = true, Wassertor = true,
@@ -144,6 +144,103 @@ internal static partial class Program
             && math.abs(plan.Beste.Laenge - 43.702f) < 0.01f
             && plan.Beste.Startknoten != 0,
             "gemeinsamer Kern findet 43,702-m-Trasse vom zweiten Netz");
+        if (plan.Beste != null)
+        {
+            var w = plan.Beste;
+            var vor = new Versorgungsvorplan { ZielId = w.Zielkante.Id,
+                Start = w.Start.xz, Ziel = w.Ziel.xz, Laenge = w.Laenge,
+                Hindernisweg = w.Hindernisweg, Punkte = new List<float2>(w.Punkte),
+                Stromweg = new List<float2>(w.Stromweg),
+                Wasserweg = new List<float2>(w.Wasserweg) };
+            Pruefe(VersorgungstrassenPlan.PruefeVorplan(ePlan, vor, out var bestaetigt, out _)
+                && bestaetigt.Beste != null
+                && bestaetigt.Beste.Zielkante == w.Zielkante
+                && math.distance(bestaetigt.Beste.Start.xz, w.Start.xz) < 0.001f
+                && math.distance(bestaetigt.Beste.Ziel.xz, w.Ziel.xz) < 0.001f
+                && math.abs(bestaetigt.Beste.Laenge - w.Laenge) < 0.001f,
+                "gueltiger Vorplan liefert dieselbe Trasse wie die Wahl");
+            var ohneZiel = new Versorgungseingabe { Strombreite = 1, Wasserbreite = 1,
+                Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
+            ohneZiel.Eigene.AddRange(ePlan.Eigene);
+            ohneZiel.Hinderniskanten.AddRange(ePlan.Hinderniskanten);
+            ohneZiel.Ziele.Add(erstes); ohneZiel.Ziele.Add(zweites);
+            Pruefe(!VersorgungstrassenPlan.PruefeVorplan(ohneZiel, vor, out _, out _),
+                "geloeschte Zielkante verwirft Vorplan");
+            var fremderStart = new Versorgungsvorplan { ZielId = vor.ZielId,
+                Start = erstes.Position(0.5f).xz, Ziel = vor.Ziel,
+                Laenge = vor.Laenge, Punkte = vor.Punkte,
+                Stromweg = vor.Stromweg, Wasserweg = vor.Wasserweg };
+            Pruefe(!VersorgungstrassenPlan.PruefeVorplan(ePlan, fremderStart, out _, out _),
+                "Startpunkt auf fremdem Netz verwirft Vorplan");
+            var mitHindernis = new Versorgungseingabe { Strombreite = 1, Wasserbreite = 1,
+                Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
+            mitHindernis.Eigene.AddRange(ePlan.Eigene);
+            mitHindernis.Hinderniskanten.AddRange(ePlan.Hinderniskanten);
+            mitHindernis.Hinderniskanten.Add(Kante(4, 20, false, -20, 30));
+            mitHindernis.Ziele.AddRange(ePlan.Ziele);
+            Pruefe(!VersorgungstrassenPlan.PruefeVorplan(mitHindernis, vor, out _, out _),
+                "neues Hindernis durch Trasse verwirft Vorplan");
+            var mitUmweg = VersorgungstrassenPlan.Waehle(mitHindernis).Beste;
+            Pruefe(mitUmweg != null && mitUmweg.Hindernisweg,
+                "Hindernis erzwingt einen gefundenen Umweg");
+            if (mitUmweg != null && mitUmweg.Hindernisweg)
+            {
+                var vorUmweg = new Versorgungsvorplan { ZielId = mitUmweg.Zielkante.Id,
+                    Start = mitUmweg.Start.xz, Ziel = mitUmweg.Ziel.xz,
+                    Laenge = mitUmweg.Laenge, Hindernisweg = true,
+                    Punkte = mitUmweg.Punkte, Stromweg = mitUmweg.Stromweg,
+                    Wasserweg = mitUmweg.Wasserweg };
+                Pruefe(VersorgungstrassenPlan.PruefeVorplan(mitHindernis,
+                    vorUmweg, out var bestaetigterUmweg, out _)
+                    && bestaetigterUmweg.Beste != null
+                    && bestaetigterUmweg.Beste.Hindernisweg,
+                    "gueltiger Hindernisweg wird uebernommen");
+            }
+            var mitHoehen = new Versorgungseingabe { Strombreite = 1, Wasserbreite = 1,
+                Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
+            var gebauterStart = Kante(2, 0, false, 0, 10, 5);
+            var gebautesZiel = Kante(3, 43.702f, true, 10, 11, 8);
+            mitHoehen.Eigene.Add(gebauterStart);
+            mitHoehen.Hinderniskanten.Add(gebauterStart);
+            mitHoehen.Ziele.Add(gebautesZiel);
+            var hoehenOk = VersorgungstrassenPlan.PruefeVorplan(mitHoehen, vor,
+                out var erhoeht, out _);
+            Pruefe(hoehenOk
+                && math.abs(erhoeht.Beste.Start.y - 5) < 0.001f
+                && math.abs(erhoeht.Beste.Ziel.y - 8) < 0.001f,
+                "Isthoehen kommen aus den gebauten Kurven");
+            var zweiOffene = new Versorgungseingabe { Strombreite = 1, Wasserbreite = 1,
+                Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
+            zweiOffene.Eigene.Add(zweites);
+            zweiOffene.Eigene.Add(Kante(5, -50));
+            zweiOffene.Hinderniskanten.AddRange(zweiOffene.Eigene);
+            zweiOffene.Ziele.Add(stadtziel);
+            Pruefe(!VersorgungstrassenPlan.PruefeVorplan(zweiOffene, vor, out _, out _),
+                "zweites offenes Netz erzwingt volle Wahl");
+            var eigenesZiel = new Versorgungseingabe { Strombreite = 1, Wasserbreite = 1,
+                Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
+            var quelle = Kante(10, 0);
+            var anStadt = Kante(11, 20); anStadt.KnotenAnStadt = true;
+            eigenesZiel.Eigene.Add(quelle); eigenesZiel.Eigene.Add(anStadt);
+            eigenesZiel.Hinderniskanten.AddRange(eigenesZiel.Eigene);
+            eigenesZiel.Ziele.Add(quelle); eigenesZiel.Ziele.Add(anStadt);
+            eigenesZiel.Ziele.Add(Kante(12, 100, true));
+            var eigenerWeg = VersorgungstrassenPlan.Waehle(eigenesZiel).Beste;
+            Pruefe(eigenerWeg != null && eigenerWeg.Zielkante == anStadt,
+                "Wahl findet Ziel auf eigenem, stadtverbundenem Netz");
+            if (eigenerWeg != null && eigenerWeg.Zielkante == anStadt)
+            {
+                var vorEigen = new Versorgungsvorplan { ZielId = -11, ZielEigene = true,
+                    Start = eigenerWeg.Start.xz, Ziel = eigenerWeg.Ziel.xz,
+                    Laenge = eigenerWeg.Laenge, Hindernisweg = eigenerWeg.Hindernisweg,
+                    Punkte = eigenerWeg.Punkte, Stromweg = eigenerWeg.Stromweg,
+                    Wasserweg = eigenerWeg.Wasserweg };
+                Pruefe(VersorgungstrassenPlan.PruefeVorplan(eigenesZiel,
+                    vorEigen, out var bestaetigtEigen, out _)
+                    && bestaetigtEigen.Beste.Zielkante == anStadt,
+                    "eigenes Ziel wird nach dem Bau eindeutig zugeordnet");
+            }
+        }
         Console.WriteLine($"Versorgungskurse: {pruefungen} Pruefungen, {fehler} Fehler.");
         return fehler == 0 ? 0 : 1;
     }

@@ -33,8 +33,11 @@ namespace ParkingLotTool.Tools
         {
             internal int Revision;
             internal Entity Zielkante;
+            internal int Zielkennung;
             internal float2 Start, Ziel;
             internal float Laenge;
+            internal List<float2> Weg, Stromweg, Wasserweg;
+            internal bool Hindernisweg;
             internal string Grund;
             internal double SchnappschussMs, RechnungMs;
             internal int Starts, Ziele, Huellen;

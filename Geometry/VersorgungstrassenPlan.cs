@@ -75,6 +75,17 @@ namespace ParkingLotTool.Geometry
         internal List<float2> Stromweg, Wasserweg;
         internal float Laenge;
         internal bool Hindernisweg;
+        internal List<float2> Punkte;
+    }
+
+    internal sealed class Versorgungsvorplan
+    {
+        internal int ZielId;
+        internal bool ZielEigene;
+        internal float2 Start, Ziel;
+        internal float Laenge;
+        internal bool Hindernisweg;
+        internal List<float2> Punkte, Stromweg, Wasserweg;
     }
 
     internal static class VersorgungstrassenPlan
@@ -82,7 +93,79 @@ namespace ParkingLotTool.Geometry
         internal static bool ZielErlaubt(bool stadt, int zielTeil, int meinTeil)
             => stadt || (zielTeil >= 0 && zielTeil != meinTeil);
 
+        // Die Istpruefung und die Wahl verwenden dieselben Startkanten und Tore.
+        private static HashSet<int> Startkanten(Versorgungsgruppe g, float3 p, out int startknoten)
+        {
+            startknoten = 0;
+            foreach (var k in g.Kanten)
+            {
+                if (k.Startknoten != 0 && math.distance(k.Startpunkt, p) <= 0.1f)
+                { startknoten = k.Startknoten; break; }
+                if (k.Endknoten != 0 && math.distance(k.Endpunkt, p) <= 0.1f)
+                { startknoten = k.Endknoten; break; }
+            }
+            var ids = new HashSet<int>();
+            foreach (var k in g.Kanten)
+                if ((startknoten != 0 && (k.Startknoten == startknoten
+                    || k.Endknoten == startknoten))
+                    || math.distance(k.Projektion(p.xz).xz, p.xz) <= 0.1f) ids.Add(k.Id);
+            return ids;
+        }
+
+        private static void Hindernisse(Versorgungseingabe e,
+            out List<Versorgungsweg.Hindernis> hindernisse,
+            out List<Versorgungsweg.Hindernis> aufgeweitet)
+        {
+            hindernisse = new List<Versorgungsweg.Hindernis>();
+            aufgeweitet = new List<Versorgungsweg.Hindernis>();
+            var achse = VersorgungskursPruefung.Achsabstand(e.Strombreite, e.Wasserbreite);
+            void Huelle(List<Versorgungsweg.Hindernis> liste, Versorgungskante k, float zugabe)
+            {
+                Versorgungsweg.Bogen(liste, k.Id, k.Position(0).xz,
+                    k.SteuerungB, k.SteuerungC, k.Position(1).xz,
+                    k.Breite / 2 + e.Sicherheitszugabe + zugabe, querbar: k.Querbar);
+            }
+            var erweiterung = math.max(e.Strombreite, e.Wasserbreite) / 2 + achse;
+            foreach (var k in e.Hinderniskanten)
+            { PruefeAbbruch(e); Huelle(hindernisse, k, math.max(e.Strombreite, e.Wasserbreite) / 2);
+                Huelle(aufgeweitet, k, erweiterung); }
+            foreach (var k in e.Leitungen)
+            { PruefeAbbruch(e); Huelle(hindernisse, k, math.max(e.Strombreite, e.Wasserbreite) / 2);
+                Huelle(aufgeweitet, k, erweiterung); }
+        }
+
+        private static bool Wege(Versorgungseingabe e, Versorgungsgruppe g,
+            Versorgungskante ziel, HashSet<int> startstrassen,
+            List<Versorgungsweg.Hindernis> hindernisse, List<float2> weg,
+            out List<float2> strom, out List<float2> wasser)
+        {
+            bool Tor(Versorgungskante k, float2 p, bool istStrom)
+                => (istStrom ? k.Stromtor : k.Wassertor)
+                    && VersorgungskursPruefung.Anschluss(k.Abstand(p), k.Breite,
+                        istStrom ? e.Strombreite : e.Wasserbreite,
+                        istStrom ? k.Stromfang : k.Wasserfang, true);
+            return Versorgungsweg.Spuren(weg, e.Strombreite, e.Wasserbreite,
+                hindernisse, startstrassen, e.Anschlussbereich, out strom, out wasser,
+                (p, s) => Tor(ziel, p, s),
+                ziel.Stadt ? null : new HashSet<int> { ziel.Id },
+                (p, s) => g.Kanten.Exists(k => startstrassen.Contains(k.Id) && Tor(k, p, s)));
+        }
+
         internal static Versorgungsauswahl Waehle(Versorgungseingabe e)
+        {
+            var aus = Bereite(e);
+            foreach (var g in aus.Gruppen)
+            {
+                PruefeAbbruch(e);
+                if (g.AnStadt || g.Ausgereizt || g.Ziele.Count == 0) continue;
+                g.Weg = WaehleGruppe(e, g, aus.Beste?.Laenge + 0.002f ?? e.Suchgrenze);
+                if (g.Weg != null && (aus.Beste == null ||
+                    g.Weg.Laenge < aus.Beste.Laenge)) aus.Beste = g.Weg;
+            }
+            return aus;
+        }
+
+        private static Versorgungsauswahl Bereite(Versorgungseingabe e)
         {
             var aus = new Versorgungsauswahl();
             aus.EigeneKanten = e.Eigene.Count;
@@ -152,12 +235,92 @@ namespace ParkingLotTool.Geometry
                     var zielTeil = gruppeVon.TryGetValue(z.Id, out var i) ? Finde(i) : -1;
                     if (ZielErlaubt(z.Stadt, zielTeil, g.Teil)) g.Ziele.Add(z);
                 }
-                if (g.Ziele.Count == 0) continue;
-                g.Weg = WaehleGruppe(e, g, aus.Beste?.Laenge + 0.002f ?? e.Suchgrenze);
-                if (g.Weg != null && (aus.Beste == null ||
-                    g.Weg.Laenge < aus.Beste.Laenge)) aus.Beste = g.Weg;
             }
             return aus;
+        }
+
+        internal static bool PruefeVorplan(Versorgungseingabe e, Versorgungsvorplan vor,
+            out Versorgungsauswahl aus, out string grund)
+        {
+            aus = Bereite(e);
+            grund = "unvollstaendige Trasse";
+            if (vor?.Punkte == null || vor.Punkte.Count < 2
+                || vor.Stromweg == null || vor.Wasserweg == null) return false;
+            // Bei genau einem offenen Teil kann kein anderes Netz die globale Wahl gewinnen.
+            // Auch ein ausgereiztes Netz zaehlt: dessen Zustand wird unten gesondert geprueft.
+            Versorgungsgruppe g = null;
+            foreach (var kandidat in aus.Gruppen)
+                if (!kandidat.AnStadt)
+                {
+                    if (g != null) { grund = "mehrere offene Netze"; return false; }
+                    g = kandidat;
+                }
+            grund = "kein offenes Netz";
+            if (g == null) return false;
+            grund = "Netz ausgereizt";
+            if (g.Ausgereizt) return false;
+            Versorgungskante ziel = null;
+            foreach (var k in g.Ziele)
+            {
+                if (vor.ZielEigene ? !k.Stadt && math.distance(k.Projektion(vor.Ziel).xz, vor.Ziel) <= 0.1f
+                    : k.Stadt && k.Id == vor.ZielId)
+                {
+                    if (ziel != null) { grund = "Zielkante nicht eindeutig"; return false; }
+                    ziel = k;
+                }
+            }
+            grund = "Zielkante fehlt oder ist nicht erlaubt";
+            if (ziel == null) return false;
+            var start = default(float3);
+            var abstand = float.MaxValue;
+            foreach (var k in g.Kanten)
+            {
+                var p = k.Projektion(vor.Start);
+                var d = math.distance(p.xz, vor.Start);
+                if (d < abstand) { abstand = d; start = p; }
+            }
+            grund = "Startpunkt liegt nicht auf offenem Versorgungsnetz";
+            if (abstand > 0.1f) return false;
+            var startkanten = Startkanten(g, start, out var startknoten);
+            if (startkanten.Count == 0) return false;
+            var ende = ziel.Projektion(vor.Ziel);
+            grund = "Zielpunkt weicht ab";
+            if (math.distance(ende.xz, vor.Ziel) > 0.1f) return false;
+            var punkte = new List<float2>(vor.Punkte);
+            grund = "Wegenden weichen ab";
+            if (math.distance(punkte[0], vor.Start) > 0.1f
+                || math.distance(punkte[punkte.Count - 1], vor.Ziel) > 0.1f) return false;
+            punkte[0] = start.xz;
+            punkte[punkte.Count - 1] = ende.xz;
+            var laenge = 0f;
+            for (var i = 1; i < punkte.Count; i++) laenge += math.distance(punkte[i - 1], punkte[i]);
+            grund = "Weglaenge weicht ab";
+            if (!math.isfinite(laenge) || math.abs(laenge - vor.Laenge) > 0.2f) return false;
+            Hindernisse(e, out var hindernisse, out var aufgeweitet);
+            g.Huellen = aufgeweitet.Count;
+            foreach (var h in aufgeweitet)
+            { g.Ecken += h.Ring.Length; if (h.Querbar) g.QuerbareHuellen++; }
+            if (vor.Hindernisweg)
+            {
+                var achse = VersorgungskursPruefung.Achsabstand(e.Strombreite, e.Wasserbreite);
+                var zielstrassen = ziel.Stadt ? null : new HashSet<int> { ziel.Id };
+                for (var i = 1; i < punkte.Count; i++)
+                    if (!Versorgungsweg.Frei(punkte[i - 1], punkte[i], aufgeweitet,
+                        i == 1 ? startkanten : null, e.Anschlussbereich + achse,
+                        i == punkte.Count - 1 ? zielstrassen : null))
+                    { grund = "Hindernisweg gesperrt"; return false; }
+            }
+            grund = "Tore oder Spuren gesperrt";
+            if (!Wege(e, g, ziel, startkanten, hindernisse, punkte,
+                out var strom, out var wasser)) return false;
+            g.Weg = new Versorgungstrassenweg { Gruppe = g, Zielkante = ziel,
+                Start = start, Ziel = ende, Startknoten = startknoten,
+                Startkanten = new List<int>(startkanten), Punkte = punkte,
+                Stromweg = strom, Wasserweg = wasser, Laenge = laenge,
+                Hindernisweg = vor.Hindernisweg };
+            aus.Beste = g.Weg;
+            grund = null;
+            return true;
         }
 
         internal static List<Versorgungsgruppe> Gruppen(List<Versorgungskante> tragende,
@@ -225,22 +388,7 @@ namespace ParkingLotTool.Geometry
             var startstrassen = new HashSet<int>[g.Starts.Count];
             var startknoten = new int[g.Starts.Count];
             for (var i = 0; i < g.Starts.Count; i++)
-            {
-                var p = g.Starts[i];
-                foreach (var k in g.Kanten)
-                {
-                    if (k.Startknoten != 0 && math.distance(k.Startpunkt, p) <= 0.1f)
-                    { startknoten[i] = k.Startknoten; break; }
-                    if (k.Endknoten != 0 && math.distance(k.Endpunkt, p) <= 0.1f)
-                    { startknoten[i] = k.Endknoten; break; }
-                }
-                var ids = new HashSet<int>();
-                foreach (var k in g.Kanten)
-                    if ((startknoten[i] != 0 && (k.Startknoten == startknoten[i]
-                        || k.Endknoten == startknoten[i]))
-                        || math.distance(k.Projektion(p.xz).xz, p.xz) <= 0.1f) ids.Add(k.Id);
-                startstrassen[i] = ids;
-            }
+                startstrassen[i] = Startkanten(g, g.Starts[i], out startknoten[i]);
             IEnumerable<Versorgungsweg.Ziel> Ziele(float2 p)
             {
                 for (var i = 0; i < g.Ziele.Count; i++)
@@ -253,39 +401,14 @@ namespace ParkingLotTool.Geometry
                 }
             }
             var achse = VersorgungskursPruefung.Achsabstand(e.Strombreite, e.Wasserbreite);
-            var hindernisse = new List<Versorgungsweg.Hindernis>();
-            var aufgeweitet = new List<Versorgungsweg.Hindernis>();
-            void Huelle(List<Versorgungsweg.Hindernis> liste, Versorgungskante k, float zugabe)
-            {
-                Versorgungsweg.Bogen(liste, k.Id, k.Position(0).xz,
-                    k.SteuerungB, k.SteuerungC, k.Position(1).xz,
-                    k.Breite / 2 + e.Sicherheitszugabe + zugabe, querbar: k.Querbar);
-            }
-            var erweiterung = math.max(e.Strombreite, e.Wasserbreite) / 2 + achse;
-            foreach (var k in e.Hinderniskanten)
-            { PruefeAbbruch(e); Huelle(hindernisse, k, math.max(e.Strombreite, e.Wasserbreite) / 2);
-                Huelle(aufgeweitet, k, erweiterung); }
-            foreach (var k in e.Leitungen)
-            { PruefeAbbruch(e); Huelle(hindernisse, k, math.max(e.Strombreite, e.Wasserbreite) / 2);
-                Huelle(aufgeweitet, k, erweiterung); }
+            Hindernisse(e, out var hindernisse, out var aufgeweitet);
             g.Huellen = aufgeweitet.Count;
             foreach (var h in aufgeweitet)
             { g.Ecken += h.Ring.Length; if (h.Querbar) g.QuerbareHuellen++; }
-            bool Tor(Versorgungskante k, float2 p, bool strom)
-                => (strom ? k.Stromtor : k.Wassertor)
-                    && VersorgungskursPruefung.Anschluss(k.Abstand(p), k.Breite,
-                        strom ? e.Strombreite : e.Wasserbreite,
-                        strom ? k.Stromfang : k.Wasserfang, true);
             bool Wege(List<float2> weg, int si, int zi,
                 out List<float2> strom, out List<float2> wasser)
-            {
-                var ziel = g.Ziele[zi];
-                return Versorgungsweg.Spuren(weg, e.Strombreite, e.Wasserbreite,
-                    hindernisse, startstrassen[si], e.Anschlussbereich, out strom, out wasser,
-                    (p, s) => Tor(ziel, p, s),
-                    ziel.Stadt ? null : new HashSet<int> { ziel.Id },
-                    (p, s) => g.Kanten.Exists(k => startstrassen[si].Contains(k.Id) && Tor(k, p, s)));
-            }
+                => VersorgungstrassenPlan.Wege(e, g, g.Ziele[zi], startstrassen[si],
+                    hindernisse, weg, out strom, out wasser);
             var punkte = g.Starts.ConvertAll(p => p.xz);
             g.Gerade = Versorgungsnetz.Gerade(punkte, Ziele,
                 (i, z) => Wege(new List<float2> { punkte[i], z.Punkt }, i, z.Index,
@@ -311,7 +434,8 @@ namespace ParkingLotTool.Geometry
             var weg = new Versorgungstrassenweg { Gruppe = g, Zielkante = zielkante,
                 Start = g.Starts[r.Start], Ziel = zielkante.Projektion(r.Punkte[r.Punkte.Count - 1]),
                 Startknoten = startknoten[r.Start], Laenge = r.Laenge,
-                Hindernisweg = r == g.Umweg, Startkanten = new List<int>() };
+                Hindernisweg = r == g.Umweg, Startkanten = new List<int>(),
+                Punkte = new List<float2>(r.Punkte) };
             foreach (var k in g.Kanten)
                 if (startstrassen[r.Start].Contains(k.Id)) weg.Startkanten.Add(k.Id);
             Wege(r.Punkte, r.Start, r.Ziel, out weg.Stromweg, out weg.Wasserweg);
