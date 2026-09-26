@@ -148,6 +148,7 @@ internal static partial class Program
         {
             var w = plan.Beste;
             var vor = new Versorgungsvorplan { ZielId = w.Zielkante.Id,
+                OffeneTeile = 1,
                 Start = w.Start.xz, Ziel = w.Ziel.xz, Laenge = w.Laenge,
                 Hindernisweg = w.Hindernisweg, Punkte = new List<float2>(w.Punkte),
                 Stromweg = new List<float2>(w.Stromweg),
@@ -167,6 +168,7 @@ internal static partial class Program
             Pruefe(!VersorgungstrassenPlan.PruefeVorplan(ohneZiel, vor, out _, out _),
                 "geloeschte Zielkante verwirft Vorplan");
             var fremderStart = new Versorgungsvorplan { ZielId = vor.ZielId,
+                OffeneTeile = 1,
                 Start = erstes.Position(0.5f).xz, Ziel = vor.Ziel,
                 Laenge = vor.Laenge, Punkte = vor.Punkte,
                 Stromweg = vor.Stromweg, Wasserweg = vor.Wasserweg };
@@ -186,6 +188,7 @@ internal static partial class Program
             if (mitUmweg != null && mitUmweg.Hindernisweg)
             {
                 var vorUmweg = new Versorgungsvorplan { ZielId = mitUmweg.Zielkante.Id,
+                    OffeneTeile = 1,
                     Start = mitUmweg.Start.xz, Ziel = mitUmweg.Ziel.xz,
                     Laenge = mitUmweg.Laenge, Hindernisweg = true,
                     Punkte = mitUmweg.Punkte, Stromweg = mitUmweg.Stromweg,
@@ -231,6 +234,7 @@ internal static partial class Program
             if (eigenerWeg != null && eigenerWeg.Zielkante == anStadt)
             {
                 var vorEigen = new Versorgungsvorplan { ZielId = -11, ZielEigene = true,
+                    OffeneTeile = 1,
                     Start = eigenerWeg.Start.xz, Ziel = eigenerWeg.Ziel.xz,
                     Laenge = eigenerWeg.Laenge, Hindernisweg = eigenerWeg.Hindernisweg,
                     Punkte = eigenerWeg.Punkte, Stromweg = eigenerWeg.Stromweg,
@@ -239,6 +243,65 @@ internal static partial class Program
                     vorEigen, out var bestaetigtEigen, out _)
                     && bestaetigtEigen.Beste.Zielkante == anStadt,
                     "eigenes Ziel wird nach dem Bau eindeutig zugeordnet");
+            }
+        }
+        Versorgungseingabe DreiNetze()
+        {
+            var e = new Versorgungseingabe { Strombreite = 1, Wasserbreite = 1,
+                Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
+            var amKnoten = Kante(30, -100); amKnoten.KnotenAnStadt = true;
+            var abseits = Kante(31, 0);
+            var zumEigenen = Kante(32, -25);
+            e.Eigene.Add(amKnoten); e.Eigene.Add(abseits); e.Eigene.Add(zumEigenen);
+            e.Hinderniskanten.AddRange(e.Eigene);
+            e.Ziele.AddRange(e.Eigene);
+            e.Ziele.Add(Kante(33, 20, true));
+            return e;
+        }
+        var folge = VersorgungstrassenPlan.PlaneFolge(DreiNetze(), out var anfang);
+        Pruefe(anfang.PerKnotenAnStadt == 1 && anfang.OffeneTeile == 2
+            && folge.Count == 2 && !folge[0].ZielEigene && folge[1].ZielEigene,
+            "drei getrennte Netze: Stadtknoten, Stadttrasse, danach eigenes Ziel");
+        var istFolge = DreiNetze();
+        for (var i = 0; i < folge.Count; i++)
+        {
+            var volleWahl = VersorgungstrassenPlan.Waehle(istFolge).Beste;
+            var trasse = folge[i];
+            Pruefe(volleWahl != null && volleWahl.Zielkante.Id == trasse.ZielId
+                && math.distance(volleWahl.Start.xz, trasse.Start) < 0.01f
+                && math.distance(volleWahl.Ziel.xz, trasse.Ziel) < 0.01f
+                && math.abs(volleWahl.Laenge - trasse.Laenge) < 0.01f
+                && !trasse.AnderesNetzKuerzer,
+                $"Vorplan-Folge entspricht voller Wahl bei Verbindung {i + 1}");
+            Pruefe(VersorgungstrassenPlan.PruefeVorplan(istFolge, trasse,
+                out var bestaetigt, out _) && bestaetigt.Beste.Zielkante.Id == trasse.ZielId,
+                $"gebaute Eingabe nimmt Vorplan-Trasse {i + 1} an");
+            istFolge.Verbindungen.Add((volleWahl.Start.xz, volleWahl.Ziel.xz,
+                volleWahl.Zielkante.Stadt));
+        }
+        if (folge.Count == 2)
+        {
+            var neuerKonkurrent = DreiNetze();
+            neuerKonkurrent.Ziele.Add(Kante(34, -28, true));
+            Pruefe(!VersorgungstrassenPlan.PruefeVorplan(neuerKonkurrent,
+                folge[0], out _, out var reihenfolgeGrund)
+                && reihenfolgeGrund == "anderes offenes Netz hat kuerzere Trasse",
+                "neues kuerzeres Konkurrenznetz verwirft die Reihenfolge");
+            var mutation = new Versorgungsvorplan { ZielId = folge[0].ZielId,
+                OffeneTeile = folge[0].OffeneTeile, Start = folge[0].Start,
+                Ziel = folge[0].Ziel, Laenge = folge[0].Laenge + 5,
+                Punkte = folge[0].Punkte, Stromweg = folge[0].Stromweg,
+                Wasserweg = folge[0].Wasserweg };
+            var rueckfall = DreiNetze();
+            Pruefe(!VersorgungstrassenPlan.PruefeVorplan(rueckfall, mutation,
+                out _, out _), "Mutation der ersten Trasse wird verworfen");
+            for (var i = 0; i < folge.Count; i++)
+            {
+                var voll = VersorgungstrassenPlan.Waehle(rueckfall).Beste;
+                Pruefe(voll != null && voll.Zielkante.Id == folge[i].ZielId,
+                    $"nach Mutation volle Wahl fuer Anlauf {i + 1}");
+                rueckfall.Verbindungen.Add((voll.Start.xz, voll.Ziel.xz,
+                    voll.Zielkante.Stadt));
             }
         }
         Console.WriteLine($"Versorgungskurse: {pruefungen} Pruefungen, {fehler} Fehler.");

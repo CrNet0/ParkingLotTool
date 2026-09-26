@@ -31,19 +31,17 @@ namespace ParkingLotTool.Tools
 
         private sealed class VorplanErgebnis
         {
+            internal readonly List<Versorgungsvorplan> Trassen = new List<Versorgungsvorplan>();
             internal int Revision;
             internal Entity Zielkante;
-            internal int Zielkennung;
             internal float2 Start, Ziel;
             internal float Laenge;
-            internal List<float2> Weg, Stromweg, Wasserweg;
-            internal bool Hindernisweg;
             internal string Grund;
             internal double SchnappschussMs, RechnungMs;
             internal int Starts, Ziele, Huellen;
             internal int EigeneKanten, AlleZiele, Hinderniskanten, Fremdleitungen;
-            internal bool HatTrasse, ZielEigene;
-            internal bool Gefunden => HatTrasse;
+            internal bool ZielEigene;
+            internal bool Gefunden => Trassen.Count > 0;
         }
 
         private Task<VorplanErgebnis> _avVorplanTask;
@@ -51,6 +49,8 @@ namespace ParkingLotTool.Tools
         private VorplanErgebnis _avVorplan;
         private VorplanErgebnis _avVorplanBeimBau;
         private bool _avVorplanGemeldet;
+        private int _avVorplanIndex;
+        private string _avVorplanRueckfallGrund;
         private int _avVorplanRevision = -1;
         private int _avVorplanUiRevision = -1;
         private long _avVorplanRuhigSeit;
@@ -133,7 +133,15 @@ namespace ParkingLotTool.Tools
             }
             _avVorplanBeimBau = _avVorplan != null && _avVorplan.Revision == _geometryRevision
                 && _avVorplanUiRevision == (_uiSystem?.Revision ?? 0) ? _avVorplan : null;
+            _avVorplanIndex = 0;
+            _avVorplanRueckfallGrund = null;
             VerwerfeVorplanung();
+        }
+
+        private void VerwerfeRestvorplan(string grund)
+        {
+            _avVorplanBeimBau = null;
+            _avVorplanRueckfallGrund = grund;
         }
 
         private void MeldeVorplanung(Versorgungstrasse ist)
@@ -141,7 +149,6 @@ namespace ParkingLotTool.Tools
             if (_avVorplanGemeldet) return;
             _avVorplanGemeldet = true;
             var vor = _avVorplanBeimBau;
-            _avVorplanBeimBau = null;
             if (vor == null)
             {
                 Mod.log.Info("PLT-Autoversorgung VORPLAN: fehlte oder veraltet; Schnappschuss - ms; Istplanung "

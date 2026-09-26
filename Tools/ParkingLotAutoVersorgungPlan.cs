@@ -35,36 +35,35 @@ namespace ParkingLotTool.Tools
             var e = AvLeseIstEingabe(traeger, zielstrassen, _avAlleEigenen);
             Versorgungsauswahl aus;
             var vor = _avVorplanBeimBau;
-            if (!_avVorplanGemeldet && vor?.Gefunden == true)
+            var nummer = _avVorplanIndex + 1;
+            if (vor?.Gefunden == true && _avVorplanIndex < vor.Trassen.Count)
             {
                 var uhr = Stopwatch.StartNew();
-                var trasse = new Versorgungsvorplan { ZielId = vor.Zielkennung,
-                    ZielEigene = vor.ZielEigene, Start = vor.Start, Ziel = vor.Ziel,
-                    Laenge = vor.Laenge, Hindernisweg = vor.Hindernisweg,
-                    Punkte = vor.Weg, Stromweg = vor.Stromweg, Wasserweg = vor.Wasserweg };
+                var trasse = vor.Trassen[_avVorplanIndex];
                 if (VersorgungstrassenPlan.PruefeVorplan(e, trasse, out aus, out var grund))
                 {
-                    Mod.log.Info($"PLT-Autoversorgung VORPLAN: verwendet; Pruefung Hauptfaden "
+                    Mod.log.Info($"PLT-Autoversorgung VORPLAN: verwendet (Trasse {nummer}/{vor.Trassen.Count}); Pruefung Hauptfaden "
                         + $"{uhr.Elapsed.TotalMilliseconds:F2} ms.");
-                    _avVorplanGemeldet = true;
-                    _avVorplanBeimBau = null;
+                    _avVorplanIndex++;
                 }
                 else
                 {
-                    Mod.log.Info($"PLT-Autoversorgung VORPLAN: verworfen ({grund}); "
+                    Mod.log.Info($"PLT-Autoversorgung VORPLAN: verworfen ({grund}, Trasse {nummer}/{vor.Trassen.Count}); "
                         + $"Pruefung Hauptfaden {uhr.Elapsed.TotalMilliseconds:F2} ms.");
+                    VerwerfeRestvorplan(grund);
                     aus = VersorgungstrassenPlan.Waehle(e);
                 }
             }
             else
             {
-                // Ohne Trasse heisst meist: laut Vorplanung ist keine Leitung
-                // noetig. Das ist kein Verwerfen - die Vergleichszeile danach
-                // sagt, ob die Istplanung das bestaetigt.
-                if (!_avVorplanGemeldet)
-                    Mod.log.Info(vor == null
-                        ? "PLT-Autoversorgung VORPLAN: fehlte oder veraltet; volle Wahl."
-                        : "PLT-Autoversorgung VORPLAN: ohne Trasse; volle Wahl zur Bestaetigung.");
+                // Nur ein echter Rueckfall heisst "verworfen". Ohne Trasse oder
+                // nach der letzten verwendeten Trasse bestaetigt die volle Wahl
+                // nur, dass nichts mehr zu tun ist.
+                Mod.log.Info(_avVorplanRueckfallGrund != null
+                    ? $"PLT-Autoversorgung VORPLAN: verworfen ({_avVorplanRueckfallGrund}); volle Wahl."
+                    : vor == null ? "PLT-Autoversorgung VORPLAN: fehlte oder veraltet; volle Wahl."
+                    : vor.Gefunden ? "PLT-Autoversorgung VORPLAN: alle Trassen verwendet; volle Wahl zur Bestaetigung."
+                    : "PLT-Autoversorgung VORPLAN: ohne Trasse; volle Wahl zur Bestaetigung.");
                 aus = VersorgungstrassenPlan.Waehle(e);
             }
             _avLetzteIstEingabe = aus;

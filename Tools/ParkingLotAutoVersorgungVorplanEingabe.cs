@@ -235,7 +235,7 @@ namespace ParkingLotTool.Tools
                 return r;
             }
             e.Plan.Abgebrochen = () => token.IsCancellationRequested;
-            var aus = VersorgungstrassenPlan.Waehle(e.Plan);
+            r.Trassen.AddRange(VersorgungstrassenPlan.PlaneFolge(e.Plan, out var aus));
             r.EigeneKanten = aus.EigeneKanten;
             r.AlleZiele = aus.AlleZiele;
             r.Hinderniskanten = aus.Hinderniskanten;
@@ -251,15 +251,9 @@ namespace ParkingLotTool.Tools
             {
                 var w = aus.Beste;
                 r.Start = w.Start.xz; r.Ziel = w.Ziel.xz;
-                r.Zielkennung = w.Zielkante.Id;
                 if (e.Entitaeten.TryGetValue(w.Zielkante.Id, out var ziel)) r.Zielkante = ziel;
-                r.HatTrasse = true;
                 r.ZielEigene = !w.Zielkante.Stadt;
                 r.Laenge = w.Laenge;
-                r.Weg = new List<float2>(w.Punkte);
-                r.Stromweg = new List<float2>(w.Stromweg);
-                r.Wasserweg = new List<float2>(w.Wasserweg);
-                r.Hindernisweg = w.Hindernisweg;
                 r.Grund = "Layoutachsen und Welt-Schnappschuss";
             }
             else if (aus.Gruppen.TrueForAll(gruppe => gruppe.AnStadt))

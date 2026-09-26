@@ -258,6 +258,7 @@ namespace ParkingLotTool.Tools
                 {
                     if (vergangen > AutoVersorgungLotFrames)
                     {
+                        VerwerfeRestvorplan("Apply nicht bestaetigt");
                         Mod.log.Warn($"PLT-Autoversorgung: Apply nach {vergangen} Frames noch offen; "
                             + $"{_avNochOffeneNetze} weitere Netze koennen nicht starten. "
                             + "Werkzeug wird freigegeben; Abnahme der angewandten Kurse bleibt offen.");
@@ -281,8 +282,11 @@ namespace ParkingLotTool.Tools
                  */
                 foreach (var trasse in _avTrassen) AvMerkeAngewandt(trasse);
                 if (zustand != VersorgungsapplyZustand.Dauerhaft)
+                {
+                    VerwerfeRestvorplan("Apply nicht dauerhaft");
                     Mod.log.Warn("PLT-Autoversorgung: Temp-Zyklus beendet, aber Dauerhaftigkeit "
                         + "NICHT bestaetigt; Einzelzustand siehe APPLY-NACHWEIS. Kein blinder Neubau.");
+                }
                 else
                     /*
                      * ERST JETZT DIE ZUORDNUNG SCHREIBEN.
@@ -446,6 +450,8 @@ namespace ParkingLotTool.Tools
             if (_avPhase != AvPhase.Idle) return;
             var gescheitert = _avNetzstand.Count;
             if (_avNochOffeneNetze <= 0 && gescheitert == 0) return;
+
+            VerwerfeRestvorplan("Werkzeug zwischen Anlaeufen geschlossen");
 
             Mod.log.Info("PLT-Autoversorgung: Werkzeug wieder geoeffnet, "
                 + $"{_avNochOffeneNetze} offene(s) Netz(e) werden fortgesetzt"
@@ -652,6 +658,7 @@ namespace ParkingLotTool.Tools
             }
             if (_avHatPlan)
             {
+                VerwerfeRestvorplan("Werkzeug zwischen Anlaeufen gewechselt");
                 /*
                  * NICHT VERLOREN, NUR VERTAGT.
                  *
@@ -683,6 +690,7 @@ namespace ParkingLotTool.Tools
 
         private void AvFehler(string grund)
         {
+            VerwerfeRestvorplan(grund);
             /*
              * ZUERST MERKEN, DANN AUFRAEUMEN.
              *

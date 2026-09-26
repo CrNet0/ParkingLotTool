@@ -86,12 +86,66 @@ namespace ParkingLotTool.Geometry
         internal float Laenge;
         internal bool Hindernisweg;
         internal List<float2> Punkte, Stromweg, Wasserweg;
+        internal int OffeneTeile;
+        internal bool AnderesNetzKuerzer;
     }
 
     internal static class VersorgungstrassenPlan
     {
+        internal static List<Versorgungsvorplan> PlaneFolge(Versorgungseingabe e,
+            out Versorgungsauswahl erste)
+        {
+            var folge = new List<Versorgungsvorplan>();
+            erste = null;
+            var limit = e.Eigene.Count;
+            for (var i = 0; i < limit; i++)
+            {
+                PruefeAbbruch(e);
+                var aus = Waehle(e);
+                if (i == 0) erste = aus;
+                var w = aus.Beste;
+                if (w == null) break;
+                var kuerzer = false;
+                foreach (var g in aus.Gruppen)
+                    if (!g.AnStadt && g != w.Gruppe && g.Weg != null
+                        && g.Weg.Laenge < w.Laenge - 0.002f) kuerzer = true;
+                folge.Add(new Versorgungsvorplan { ZielId = w.Zielkante.Id,
+                    ZielEigene = !w.Zielkante.Stadt, Start = w.Start.xz, Ziel = w.Ziel.xz,
+                    Laenge = w.Laenge, Hindernisweg = w.Hindernisweg,
+                    Punkte = new List<float2>(w.Punkte), Stromweg = new List<float2>(w.Stromweg),
+                    Wasserweg = new List<float2>(w.Wasserweg), OffeneTeile = aus.OffeneTeile,
+                    AnderesNetzKuerzer = kuerzer });
+                // Dieselbe Merkung wie nach einem erfolgreichen Apply: die
+                // Verbindung aendert die Teile vor der naechsten Wahl.
+                e.Verbindungen.Add((w.Start.xz, w.Ziel.xz, w.Zielkante.Stadt));
+            }
+            return folge;
+        }
+
         internal static bool ZielErlaubt(bool stadt, int zielTeil, int meinTeil)
             => stadt || (zielTeil >= 0 && zielTeil != meinTeil);
+
+        private static float UntereLaengenschranke(Versorgungsgruppe g)
+        {
+            var von = new float2(float.MaxValue);
+            var bis = new float2(float.MinValue);
+            foreach (var k in g.Kanten)
+                foreach (var p in new[] { k.Startpunkt.xz, k.SteuerungB,
+                    k.SteuerungC, k.Endpunkt.xz })
+                { von = math.min(von, p); bis = math.max(bis, p); }
+            var minimum = float.MaxValue;
+            foreach (var z in g.Ziele)
+            {
+                var zvon = math.min(math.min(z.Startpunkt.xz, z.SteuerungB),
+                    math.min(z.SteuerungC, z.Endpunkt.xz));
+                var zbis = math.max(math.max(z.Startpunkt.xz, z.SteuerungB),
+                    math.max(z.SteuerungC, z.Endpunkt.xz));
+                var delta = math.max(new float2(0),
+                    math.max(von - zbis, zvon - bis));
+                minimum = math.min(minimum, math.length(delta));
+            }
+            return minimum;
+        }
 
         // Die Istpruefung und die Wahl verwenden dieselben Startkanten und Tore.
         private static HashSet<int> Startkanten(Versorgungsgruppe g, float3 p, out int startknoten)
@@ -246,13 +300,15 @@ namespace ParkingLotTool.Geometry
             grund = "unvollstaendige Trasse";
             if (vor?.Punkte == null || vor.Punkte.Count < 2
                 || vor.Stromweg == null || vor.Wasserweg == null) return false;
-            // Bei genau einem offenen Teil kann kein anderes Netz die globale Wahl gewinnen.
-            // Auch ein ausgereiztes Netz zaehlt: dessen Zustand wird unten gesondert geprueft.
+            grund = "andere Reihenfolge der offenen Netze";
+            if (vor.OffeneTeile != aus.OffeneTeile || vor.AnderesNetzKuerzer)
+                return false;
             Versorgungsgruppe g = null;
             foreach (var kandidat in aus.Gruppen)
-                if (!kandidat.AnStadt)
+                if (!kandidat.AnStadt && kandidat.Kanten.Exists(k =>
+                    math.distance(k.Projektion(vor.Start).xz, vor.Start) <= 0.1f))
                 {
-                    if (g != null) { grund = "mehrere offene Netze"; return false; }
+                    if (g != null) { grund = "Startnetz nicht eindeutig"; return false; }
                     g = kandidat;
                 }
             grund = "kein offenes Netz";
@@ -318,6 +374,22 @@ namespace ParkingLotTool.Geometry
                 Startkanten = new List<int>(startkanten), Punkte = punkte,
                 Stromweg = strom, Wasserweg = wasser, Laenge = laenge,
                 Hindernisweg = vor.Hindernisweg };
+            // Die Vorschau hat diese globale Reihenfolge gewaehlt. Bei
+            // abweichender gebauter Geometrie darf ein anderes offenes Netz
+            // sie nicht inzwischen ueberholt haben.
+            foreach (var anderer in aus.Gruppen)
+            {
+                if (anderer == g || anderer.AnStadt || anderer.Ausgereizt
+                    || anderer.Ziele.Count == 0) continue;
+                // Bezierkurven liegen in der Huelle ihrer Steuerpunkte. Ist
+                // schon deren Mindestabstand groesser, kann kein Weg gewinnen.
+                if (UntereLaengenschranke(anderer) > laenge + 0.002f) continue;
+                anderer.Weg = WaehleGruppe(e, anderer, laenge + 0.002f);
+                if (anderer.Weg == null) continue;
+                if (anderer.Weg.Laenge < laenge || (anderer.Weg.Laenge == laenge
+                    && aus.Gruppen.IndexOf(anderer) < aus.Gruppen.IndexOf(g)))
+                { grund = "anderes offenes Netz hat kuerzere Trasse"; return false; }
+            }
             aus.Beste = g.Weg;
             grund = null;
             return true;
