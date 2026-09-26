@@ -120,11 +120,9 @@ namespace ParkingLotTool.Tools
             _avStromprefab = strom;
             _avWasserprefab = wasser;
             _avWasserbreite = EntityManager.GetComponentData<NetGeometryData>(wasser).m_DefaultWidth;
-            _avAchsabstand = VersorgungskursPruefung.Achsabstand(_avStrombreite, _avWasserbreite);
             AvErfasseStadtpfade();
             // Erst wissen, was im Weg liegt - dann die Huellen bauen.
             SammleFremdleitungen(_avAlleEigenen);
-            _avHindernisse = AvHindernisse(_avAlleEigenen, math.max(_avStrombreite, _avWasserbreite) / 2);
             _avAusstehend.Clear();
             _avAusstehend.AddRange(WaehleVersorgungstrassen(traeger));
             MeldeVorplanung(_avAusstehend.Count > 0 ? _avAusstehend[0] : default);

@@ -47,308 +47,27 @@ namespace ParkingLotTool.Tools
         private const float AutoVersorgungSuchradius = 128f;
 
         /**
-         * Sucht Start und Ziel der automatischen Versorgungsleitung.
-         *
-         * Liefert eine Trasse mit `Gefunden == false`, wenn es keine
-         * brauchbare Gegenstelle gibt. Das ist kein Fehler - der Parkplatz
-         * bleibt gebaut, es gibt nur keinen Anschluss.
-         */
-        private List<Versorgungstrasse> WaehleVersorgungstrassen(
-            Entity traeger)
-        {
-            var trassen = new List<Versorgungstrasse>();
-
-            var unsere = SammleUnsereKanten(traeger);
-            if (unsere.Count == 0)
-            {
-                Mod.log.Warn("PLT-Autoversorgung: der Traeger hat keine "
-                    + "eigenen Strassenkanten - kein Startpunkt bestimmbar.");
-                return trassen;
-            }
-
-            var fremde = SammleZielstrassen(unsere);
-            if (!fremde.Exists(z => !EntityManager.HasComponent<Owner>(z.Kante)))
-            {
-                _avNochOffeneNetze = 0;
-                Mod.log.Info("PLT-Autoversorgung: keine Stadtstrasse im Suchfeld; keine Leitungen angelegt.");
-                return trassen;
-            }
-
-            /*
-             * JEDE GRUPPE BRAUCHT IHRE EIGENE LEITUNG.
-             *
-             * Ansage des Nutzers am 2026-09-05: *"wichtig ist auch dass
-             * Strassen bzw Gebiete die einzeln stehen bzw nicht mit anderen
-             * verbunden sind auch eine Verbindung bekommen."* Astra hatte
-             * denselben Fall auf seiner Liste: ein Anschluss ist kein Nachweis
-             * fuer alle Gruppen.
-             *
-             * Zwei Strassenstuecke gehoeren zur selben Gruppe, wenn sie sich
-             * einen KNOTEN teilen. Genau entlang dieser Verbindungen leitet
-             * CS2 Strom und Wasser weiter - geometrische Naehe allein
-             * verbindet nichts.
-             */
-            var versorgbare = unsere.FindAll(KanteNimmtVersorgung);
-            var gruppen = SammleVersorgungsgruppen(versorgbare);
-            Mod.log.Info($"PLT-Autoversorgung: {unsere.Count - versorgbare.Count} Fahrgassen-/Pfadkanten ohne Versorgungsbedarf; "
-                + $"{versorgbare.Count} versorgungsfaehige Kanten. Pfade verbinden keine Versorgungsgruppen.");
-            Mod.log.Info($"PLT-Autoversorgung: {unsere.Count} eigene Kante(n) "
-                + $"bilden {gruppen.Count} getrennte(s) Netz(e); Anschlussbedarf wird je Netz geprueft.");
-
-            /*
-             * WARUM EIN NETZ UEBERSPRUNGEN WIRD, GEHOERT IN DEN BAUZETTEL.
-             *
-             * Bisher sprangen hier stille `continue` - und wenn am Ende ein
-             * Netz ohne Leitung dastand, war nicht zu sehen, ob es fertig war,
-             * ob es gescheitert war oder ob es nie drankam.
-             */
-            var teile = AvErmittleTeile(gruppen);
-            Mod.log.Info($"PLT-Autoversorgung TEILE: {gruppen.Count} eigene(s) Netz(e), "
-                + $"{teile.OffeneTeile()} davon noch nicht an der Stadt, "
-                + $"{_avPerKnotenAnStadt} per Knoten an einer Stadtstrasse. Verbunden wird "
-                + "immer nur zwischen zwei Teilen, die nicht zusammenhaengen - "
-                + "ein Teil ohne Stadtanschluss hat am Ende nur noch Stadtstrassen als Ziel.");
-            _avNochOffeneNetze = 0;
-            var besteLaenge = float.MaxValue;
-            for (var g = 0; g < gruppen.Count; g++)
-            {
-                var netzname = $"Netz {g + 1}/{gruppen.Count}";
-                if (teile.AnDerStadt(g))
-                {
-                    Mod.log.Info($"PLT-Autoversorgung {netzname}: haengt am "
-                        + "Stadtnetz - nichts zu tun.");
-                    continue;
-                }
-                var stand = AvStandFuer(gruppen[g], false);
-                if (stand != null && stand.Versuche >= AutoVersorgungHoechstversuche)
-                {
-                    Mod.log.Warn($"PLT-Autoversorgung {netzname}: {stand.Versuche} Anlaeufe "
-                        + $"ueber {stand.GesperrteZiele.Count} verschiedene Ziele, alle "
-                        + "abgewiesen. Dieses Netz bleibt ohne Leitung - beim naechsten "
-                        + "Oeffnen des Werkzeugs wird es erneut versucht.");
-                    continue;
-                }
-                _avNochOffeneNetze++;
-                var trasse = WaehleTrasseFuerGruppe(gruppen[g], _avAlleEigenen, fremde,
-                    netzname, stand?.GesperrteZiele, teile.Finde(g), teile, besteLaenge + 0.002f);
-                if (trasse.Gefunden)
-                {
-                    trasse.Startnetz = gruppen[g];
-                    trassen.Add(trasse);
-                    besteLaenge = math.min(besteLaenge, trasse.Laenge);
-                }
-            }
-            trassen.Sort((a, b) => a.Laenge.CompareTo(b.Laenge));
-            if (trassen.Count > 1) trassen.RemoveRange(1, trassen.Count - 1);
-            if (trassen.Count == 1)
-            {
-                /*
-                 * HIER STAND `foreach (var e in trassen[0].Startnetz)
-                 * _avVersucht.Add(e);`
-                 *
-                 * Das Netz galt damit schon als abgehakt, bevor auch nur eine
-                 * Definition stand. Scheiterte der Apply, war es fuer den
-                 * ganzen Lauf verloren. Gemerkt wird jetzt erst, wenn wirklich
-                 * etwas passiert ist - `AvMerkeAngewandt` nach dem Apply,
-                 * `AvMerkeFehlschlag` bei einem Fehler.
-                 */
-                _avNochOffeneNetze--;
-                var t = trassen[0];
-                Mod.log.Info($"PLT-Autoversorgung AUSWAHL: {t.Herkunft}, {t.Laenge:F3} m, "
-                    + $"Start ({t.Start.x:F2}/{t.Start.z:F2}), Ziel {t.Zielkante} ({t.Ziel.x:F2}/{t.Ziel.z:F2}), "
-                    + $"{(t.Startknoten == Entity.Null ? 1 : 0)} Kantenstart; {_avNochOffeneNetze} weitere offene Netze.");
-            }
-            else AvMesseNetzabdeckung();
-            return trassen;
-        }
-
-        /**
-         * Sucht Start und Ziel fuer EIN zusammenhaengendes Strassennetz.
-         *
-         * Hindernis ist dabei immer das GESAMTE eigene Netz, nicht nur die
-         * eigene Gruppe: eine Leitung darf auch nicht unter den Strassen einer
-         * anderen Gruppe entlanglaufen.
-         */
-        private Versorgungstrasse WaehleTrasseFuerGruppe(
-            List<Entity> gruppe,
-            List<Entity> unsere,
-            List<(Entity Kante, Bezier4x3 Bogen)> fremde,
-            string name,
-            System.Collections.Generic.ICollection<Entity> gesperrteZiele,
-            int meinTeil,
-            AvTeile teile, float maxLaenge)
-        {
-            var ergebnis = new Versorgungstrasse { Zielkante = Entity.Null };
-            var versorgbar = 0;
-            foreach (var e in gruppe) if (KanteNimmtVersorgung(e)) versorgbar++;
-            if (versorgbar == 0)
-            {
-                Mod.log.Info($"PLT-Autoversorgung {name}: {gruppe.Count} Kante(n), "
-                    + "0 versorgungsfaehige Strassen; Fahrgassen benoetigen keinen automatischen Anschluss.");
-                return ergebnis;
-            }
-            if (fremde.Count == 0)
-            {
-                Mod.log.Warn($"PLT-Autoversorgung {name}: {versorgbar} versorgungsfaehige Strassen, "
-                    + $"aber 0 Zielstrassen innerhalb {AutoVersorgungSuchradius:F0} m. Anschluss fehlt.");
-                return ergebnis;
-            }
-
-            /*
-             * JEDES ANDERE TEIL DARF ZIEL SEIN - AUCH EIN EIGENES.
-             *
-             * Bis zum 2026-09-16 stand hier `AvZielHatStadtpfad`: ein eigenes
-             * Netz war nur dann Ziel, wenn CS2 es schon selbst am Stadtnetz
-             * fuehrte. Diese Auskunft kostete vier Sekunden Wartezeit je Netz -
-             * 8,2 von 9,2 Sekunden eines Laufs.
-             *
-             * `AvZielErlaubt` fragt stattdessen nach der Zugehoerigkeit, und
-             * die kenne ich sofort: eine fremde Strasse immer, ein eigenes Netz
-             * nur aus einem anderen Teil. Damit sind zwei Zonen untereinander
-             * verbindbar, bevor irgendetwas an der Stadt haengt - und weil ein
-             * Teil ohne Stadt am Ende nur noch Stadtstrassen als Ziel hat, geht
-             * am Schluss immer eine Leitung nach draussen.
-             */
-            var ziele = fremde.FindAll(z => !gruppe.Contains(z.Kante)
-                && (gesperrteZiele == null || !gesperrteZiele.Contains(z.Kante))
-                && AvZielErlaubt(z.Kante, meinTeil, teile));
-            var gesperrt = gesperrteZiele == null ? 0 : gesperrteZiele.Count;
-            if (gesperrt > 0)
-                Mod.log.Info($"PLT-Autoversorgung {name}: {ziele.Count} Ziele uebrig, "
-                    + $"{gesperrt} aus frueheren Anlaeufen gesperrt.");
-            /*
-             * OHNE ZIEL WIRD NICHT GESUCHT.
-             *
-             * `AvUmweg` baut einen Sichtbarkeitsgraphen ueber alle Huellen -
-             * beim Parkplatz des Nutzers 219 Huellen, 1671 Knoten, 22
-             * Sekunden. Das lohnt sich nur, wenn es etwas zu erreichen gibt.
-             * Ist die Zielliste leer, steht die Antwort schon fest, und die
-             * Suche wuerde sie nur teuer bestaetigen.
-             */
-            if (ziele.Count == 0)
-            {
-                Mod.log.Warn($"PLT-Autoversorgung {name}: {fremde.Count} Kante(n) im "
-                    + "Suchfeld, aber keine davon ist ein erlaubtes Ziel - entweder "
-                    + "liegt keine fremde Strasse in Reichweite, oder alle gefundenen "
-                    + "gehoeren schon zu diesem Teil. Dieses Netz bleibt ohne Leitung; "
-                    + "es wird nicht nach einem Weg gesucht.");
-                return ergebnis;
-            }
-            var starts = SammleGruppenpunkte(gruppe, ziele);
-            // Letzter Bau 19.09.: Netz 3 kostete >500 ms fuer 67 m, obwohl
-            // Netz 2 mit 1,35 m gewann. Nur moegliche Verbesserungen pruefen.
-            // Kein Cache ueber Apply hinweg: geaenderte Netze bleiben sichtbar.
-            VersucheKandidaten(starts, ziele, gruppe, name + ": Kante/Knoten", ref ergebnis, maxLaenge);
-            AvUmweg(starts, gruppe, unsere, ziele, name, ref ergebnis,
-                ergebnis.Gefunden ? math.min(maxLaenge, ergebnis.Laenge + 0.002f) : maxLaenge);
-            if (!ergebnis.Gefunden && maxLaenge < float.MaxValue)
-                Mod.log.Info($"PLT-Autoversorgung {name}: keine bessere Trasse innerhalb {maxLaenge:F3} m; "
-                    + "Netz bleibt fuer den naechsten Anschluss offen.");
-            else if (!ergebnis.Gefunden)
-                Mod.log.Warn($"PLT-Autoversorgung {name}: {starts.Count} Starts, "
-                    + $"{ziele.Count} erlaubte Ziele, 0 zulaessige Trassen. Dieses Netz "
-                    + "bleibt ohne Leitung - es gibt Ziele, aber keinen Weg, der an "
-                    + "allen Hindernissen vorbeifuehrt.");
-            return ergebnis;
-        }
-
-        /**
          * Zerlegt unsere Kanten in zusammenhaengende Netze.
          *
          * Verbunden heisst: gemeinsamer Knoten. Das ist dieselbe Bedingung,
          * nach der CS2 Strom und Wasser weiterleitet.
          */
-        private List<List<Entity>> SammleVersorgungsgruppen(
-            List<Entity> unsere)
+        private List<List<Entity>> SammleVersorgungsgruppen(List<Entity> unsere)
         {
+            var kanten = new List<Versorgungskante>();
+            var entitaeten = new Dictionary<int, Entity>();
+            foreach (var entity in unsere)
+            {
+                var edge = EntityManager.GetComponentData<Edge>(entity);
+                kanten.Add(new Versorgungskante { Id = entity.Index,
+                    Startknoten = edge.m_Start == Entity.Null ? 0 : edge.m_Start.Index + 1,
+                    Endknoten = edge.m_End == Entity.Null ? 0 : edge.m_End.Index + 1 });
+                entitaeten[entity.Index] = entity;
+            }
             var gruppen = new List<List<Entity>>();
-            var offen = new HashSet<Entity>(unsere);
-            var knotenZuKanten = new Dictionary<Entity, List<Entity>>();
-            for (var i = 0; i < unsere.Count; i++)
-            {
-                var kd = EntityManager
-                    .GetComponentData<Game.Net.Edge>(unsere[i]);
-                foreach (var knoten in new[] { kd.m_Start, kd.m_End })
-                {
-                    if (knoten == Entity.Null) continue;
-                    if (!knotenZuKanten.TryGetValue(knoten, out var liste))
-                    {
-                        liste = new List<Entity>();
-                        knotenZuKanten[knoten] = liste;
-                    }
-                    liste.Add(unsere[i]);
-                }
-            }
-
-            while (offen.Count > 0)
-            {
-                var start = Entity.Null;
-                foreach (var e in offen) { start = e; break; }
-                offen.Remove(start);
-                var gruppe = new List<Entity> { start };
-                // Bewusst eine Liste als Stapel: `Stack<T>` gibt es in
-                // dieser Umgebung in zwei Assemblies, und der Verweis waere
-                // mehrdeutig.
-                var stapel = new List<Entity> { start };
-                while (stapel.Count > 0)
-                {
-                    var oben = stapel[stapel.Count - 1];
-                    stapel.RemoveAt(stapel.Count - 1);
-                    var kd = EntityManager
-                        .GetComponentData<Game.Net.Edge>(oben);
-                    foreach (var knoten in new[] { kd.m_Start, kd.m_End })
-                    {
-                        if (knoten == Entity.Null) continue;
-                        if (!knotenZuKanten.TryGetValue(knoten, out var liste))
-                            continue;
-                        for (var i = 0; i < liste.Count; i++)
-                        {
-                            if (!offen.Remove(liste[i])) continue;
-                            gruppe.Add(liste[i]);
-                            stapel.Add(liste[i]);
-                        }
-                    }
-                }
-                gruppen.Add(gruppe);
-            }
+            foreach (var gruppe in VersorgungstrassenPlan.Gruppen(kanten))
+                gruppen.Add(gruppe.Kanten.ConvertAll(k => entitaeten[k.Id]));
             return gruppen;
-        }
-
-        /**
-         * Vergleicht alle Start-/Zielkombinationen ohne Vorrang fuer Sackgassen.
-         *
-         * Sortiert wird nach Laenge: der kuerzeste zulaessige Weg gewinnt.
-         * "Zulaessig" ist die harte Bedingung des Nutzers, nicht ein Wunsch -
-         * deshalb wird ein kuerzerer, aber kreuzender Weg verworfen und nicht
-         * etwa bevorzugt.
-         */
-        private bool VersucheKandidaten(
-            List<float3> kandidaten,
-            List<(Entity Kante, Bezier4x3 Bogen)> fremde,
-            List<Entity> gruppe,
-            string herkunft,
-            ref Versorgungstrasse ergebnis, float maxLaenge)
-        {
-            var startCache = new HashSet<int>[kandidaten.Count];
-            var r = Versorgungsnetz.Gerade(kandidaten.ConvertAll(p => p.xz), p => AvZielpunkte(p, fremde),
-                (i, z) => AvWege(new List<float2> { kandidaten[i].xz, z.Punkt },
-                    startCache[i] ?? (startCache[i] = AvStartstrassen(kandidaten[i], gruppe)),
-                    fremde[z.Index].Kante, out _, out _), maxLaenge);
-            if (r.Punkte == null || (ergebnis.Gefunden && !Versorgungsnetz.Kuerzer(r.Laenge, ergebnis.Laenge))) return false;
-            var start = kandidaten[r.Start]; var ziel = fremde[r.Ziel];
-            MathUtils.Distance(ziel.Bogen.xz, r.Punkte[1], out var t);
-            var startstrassen = AvStartstrassen(start, gruppe);
-            AvWege(r.Punkte, startstrassen, ziel.Kante, out var strom, out var wasser);
-            ergebnis = new Versorgungstrasse {
-                Start = start, Startknoten = AvStartknoten(start, gruppe),
-                Startkanten = gruppe.FindAll(e => startstrassen.Contains(e.Index)),
-                Zielkante = ziel.Kante, Ziel = MathUtils.Position(ziel.Bogen, t),
-                Herkunft = herkunft, Laenge = r.Laenge, Stromweg = strom, Wasserweg = wasser };
-            Mod.log.Info($"PLT-Autoversorgung GERADE [{herkunft}]: {kandidaten.Count} Starts, "
-                + $"{r.Zielpruefungen} Kombinationen, kuerzeste zulaessige Gerade {r.Laenge:F3} m; "
-                + $"Start ({start.x:F2}/{start.z:F2}), Ziel {ziel.Kante}, "
-                + $"eigene Zielstrasse {(EntityManager.HasComponent<Owner>(ziel.Kante) ? 1 : 0)}. Graphwege werden noch verglichen.");
-            return true;
         }
 
         /** Alle dauerhaften Strassenkanten unseres Traegers. */
@@ -376,13 +95,6 @@ namespace ParkingLotTool.Tools
         }
 
         /**
-         * Freie Enden unseres Netzes.
-         *
-         * Ein Knoten, an dem genau EINE Kante haengt, ist eine Sackgasse.
-         * Gezaehlt werden nur unsere eigenen Kanten - eine Sackgasse, die
-         * bereits an einer fremden Strasse haengt, ist keine mehr.
-         */
-        /**
          * NICHT JEDE UNSERER STRASSEN NIMMT EINE LEITUNG AN.
          *
          * GEMESSEN am 2026-09-05, 23:26. Drei Netze, drei verschiedene
@@ -409,52 +121,17 @@ namespace ParkingLotTool.Tools
             if (!EntityManager.HasComponent<PrefabRef>(kante)) return false;
             var prefab = EntityManager
                 .GetComponentData<PrefabRef>(kante).m_Prefab;
+            return AvPrefabNimmtVersorgung(prefab);
+        }
+
+        private bool AvPrefabNimmtVersorgung(Entity prefab)
+        {
             if (!EntityManager.HasComponent<NetData>(prefab)) return false;
             var ebenen = EntityManager
                 .GetComponentData<NetData>(prefab).m_LocalConnectLayers;
             return (ebenen & Layer.PowerlineLow) != 0
                 && (ebenen & Layer.WaterPipe) != 0
                 && (ebenen & Layer.SewagePipe) != 0;
-        }
-
-        /** Liegt am Knoten eine Kante dieser Gruppe, die Versorgung annimmt? */
-        private bool KnotenNimmtVersorgung(Entity knoten, HashSet<Entity> gruppe)
-        {
-            if (!EntityManager.HasBuffer<ConnectedEdge>(knoten)) return false;
-            var angehaengt = EntityManager
-                .GetBuffer<ConnectedEdge>(knoten, true);
-            for (var i = 0; i < angehaengt.Length; i++)
-                if (gruppe.Contains(angehaengt[i].m_Edge)
-                    && KanteNimmtVersorgung(angehaengt[i].m_Edge)) return true;
-            return false;
-        }
-
-        // Der Lauf 20:35 zeigt Start/Ziel 0/1 auch an inneren Knoten.
-        // Die Auswahl bewahrt ihre Entity; die Vorschauanmeldung ist separat.
-        private List<float3> SammleGruppenpunkte(
-            List<Entity> gruppe,
-            List<(Entity Kante, Bezier4x3 Bogen)> fremde)
-        {
-            var knoten = AvKantenpunkte(gruppe, fremde);
-            var mitglieder = new HashSet<Entity>(gruppe);
-            var gesehen = new HashSet<Entity>();
-            for (var i = 0; i < gruppe.Count; i++)
-            {
-                var kd = EntityManager
-                    .GetComponentData<Game.Net.Edge>(gruppe[i]);
-                foreach (var n in new[] { kd.m_Start, kd.m_End })
-                {
-                    if (n == Entity.Null || !EntityManager.Exists(n)) continue;
-                    if (!gesehen.Add(n)) continue;
-                    // Nur Knoten an versorgungsfaehigen Kanten -
-                    // siehe `KanteNimmtVersorgung`.
-                    if (!KnotenNimmtVersorgung(n, mitglieder)) continue;
-                    if (!EntityManager.HasComponent<Game.Net.Node>(n)) continue;
-                    knoten.Add(EntityManager
-                        .GetComponentData<Game.Net.Node>(n).m_Position);
-                }
-            }
-            return knoten;
         }
 
         /**

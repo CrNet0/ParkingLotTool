@@ -110,6 +110,40 @@ internal static partial class Program
         }
         PruefeVersorgungsFehlermuster(Pruefe);
         PruefeVersorgungsRinge(Pruefe);
+        // Nachstellung des Falls 26.09.: zwei Netze, das erste schon per
+        // Knoten an der Stadt, das zweite mit einer 43,702-m-Geraden.
+        Versorgungskante Kante(int id, float x, bool stadt = false,
+            float z0 = 0, float z1 = 10)
+        {
+            var a = new float3(x, 0, z0); var b = new float3(x, 0, z1);
+            return new Versorgungskante { Id = id, Startknoten = id * 2,
+                Endknoten = id * 2 + 1, Startpunkt = a, Endpunkt = b,
+                SteuerungB = math.lerp(a, b, 1f / 3).xz,
+                SteuerungC = math.lerp(a, b, 2f / 3).xz,
+                Position = t => math.lerp(a, b, t),
+                Projektion = p => {
+                    var q = Versorgungsnetz.Projektion(p, a.xz, b.xz);
+                    return new float3(q.x, 0, q.y);
+                },
+                Breite = stadt ? 8 : 4, Versorgung = true,
+                Stadt = stadt, Stromtor = true, Wassertor = true,
+                Stromfang = 1, Wasserfang = 1 };
+        }
+        var ePlan = new Versorgungseingabe { Strombreite = 1, Wasserbreite = 1,
+            Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
+        var erstes = Kante(1, -100); erstes.KnotenAnStadt = true;
+        var zweites = Kante(2, 0);
+        var stadtziel = Kante(3, 43.702f, true, 10, 11);
+        ePlan.Eigene.Add(erstes); ePlan.Eigene.Add(zweites);
+        ePlan.Hinderniskanten.Add(erstes); ePlan.Hinderniskanten.Add(zweites);
+        ePlan.Ziele.Add(erstes); ePlan.Ziele.Add(zweites); ePlan.Ziele.Add(stadtziel);
+        var plan = VersorgungstrassenPlan.Waehle(ePlan);
+        Pruefe(plan.Gruppen.Count == 2 && plan.PerKnotenAnStadt == 1
+            && plan.OffeneTeile == 1, "zwei Netze, eines per Knoten an Stadt");
+        Pruefe(plan.Beste != null && plan.Beste.Zielkante == stadtziel
+            && math.abs(plan.Beste.Laenge - 43.702f) < 0.01f
+            && plan.Beste.Startknoten != 0,
+            "gemeinsamer Kern findet 43,702-m-Trasse vom zweiten Netz");
         Console.WriteLine($"Versorgungskurse: {pruefungen} Pruefungen, {fehler} Fehler.");
         return fehler == 0 ? 0 : 1;
     }

@@ -308,10 +308,11 @@ namespace ParkingLotTool.Tools
             if (!EntityManager.Exists(ziel) || EntityManager.HasComponent<Deleted>(ziel)
                 || EntityManager.HasComponent<Temp>(ziel)) return false;
             if (!KanteNimmtVersorgung(ziel)) return false;
-            if (!EntityManager.HasComponent<Owner>(ziel)) return true;
+            if (!EntityManager.HasComponent<Owner>(ziel))
+                return VersorgungstrassenPlan.ZielErlaubt(true, -1, meinTeil);
             var g = teile.GruppeVon(ziel);
-            if (g < 0) return false;
-            return teile.Finde(g) != meinTeil;
+            return VersorgungstrassenPlan.ZielErlaubt(false,
+                g < 0 ? -1 : teile.Finde(g), meinTeil);
         }
 
         /** Der Stand dieses Netzes, auf Wunsch neu angelegt. */
@@ -379,45 +380,5 @@ namespace ParkingLotTool.Tools
                     : "Damit ist dieses Netz fuer diesen Lauf durch."));
         }
 
-        private HashSet<int> AvZielstrassen(Entity ziel)
-            => EntityManager.HasComponent<Owner>(ziel) ? new HashSet<int> { ziel.Index } : null;
-
-        private bool AvStarttor(HashSet<int> strassen, float2 p, bool strom)
-        {
-            foreach (var e in _avAlleEigenen)
-                if (strassen.Contains(e.Index) && AvZieltor(e, strom ? _avStromprefab : _avWasserprefab,
-                    p, out _, out _)) return true;
-            return false;
-        }
-
-        private List<float3> AvKantenpunkte(List<Entity> gruppe, List<(Entity Kante, Bezier4x3 Bogen)> ziele)
-        {
-            var r = new List<float3>();
-            void Merke(Bezier4x3 b, float2 p)
-            {
-                MathUtils.Distance(b.xz, p, out var t);
-                var punkt = MathUtils.Position(b, t);
-                foreach (var alt in r) if (math.distance(alt, punkt) < 0.01f) return;
-                r.Add(punkt);
-            }
-            foreach (var e in gruppe)
-            {
-                if (!KanteNimmtVersorgung(e) || !EntityManager.HasComponent<Curve>(e)) continue;
-                var b = EntityManager.GetComponentData<Curve>(e).m_Bezier;
-                Merke(b, MathUtils.Position(b, 0.5f).xz);
-                foreach (var ziel in ziele)
-                {
-                    float2 Projektion(Bezier4x3 kurve, float2 p)
-                    {
-                        MathUtils.Distance(kurve.xz, p, out var t);
-                        return MathUtils.Position(kurve, t).xz;
-                    }
-                    foreach (var p in Versorgungsnetz.Kantenpunkte(t => MathUtils.Position(b, t).xz,
-                        p => Projektion(b, p), t => MathUtils.Position(ziel.Bogen, t).xz,
-                        p => Projektion(ziel.Bogen, p))) Merke(b, p);
-                }
-            }
-            return r;
-        }
     }
 }
