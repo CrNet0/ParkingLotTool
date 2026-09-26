@@ -1318,7 +1318,10 @@ namespace ParkingLotTool.Tools
                     + " | warnungen " + layout.Warnings.Length);
                 var messen = ParkingLotLiveLog.Aktiv;
                 var uebernahmeStart = messen ? Stopwatch.GetTimestamp() : 0L;
-                var bytesVorher = messen ? GC.GetAllocatedBytesForCurrentThread() : 0L;
+                // Unitys Mono liefert fuer GetAllocatedBytesForCurrentThread immer 0
+                // (Live-Log 2026-09-26: "alloc 0 B" bei 3,3 s Arbeit) - also der
+                // grobe Heapstand; eine GC im Bild verfaelscht ihn, gc0 sagt dann Bescheid.
+                var bytesVorher = messen ? GC.GetTotalMemory(false) : 0L;
                 var gcVorher = messen ? GC.CollectionCount(0) : 0;
                 if (messen)
                 {
@@ -1399,7 +1402,7 @@ namespace ParkingLotTool.Tools
                 if (messen)
                 {
                     var ende = Stopwatch.GetTimestamp();
-                    var bytes = GC.GetAllocatedBytesForCurrentThread() - bytesVorher;
+                    var bytes = GC.GetTotalMemory(false) - bytesVorher;
                     var gc = GC.CollectionCount(0) - gcVorher;
                     var netzstand = Flaechennetz?.EndeUebernahmeMessung() ?? "kein netz";
                     ParkingLotLiveLog.Zeile("vorschau-uebernahme stand " + revision

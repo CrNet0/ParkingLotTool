@@ -372,6 +372,7 @@ namespace ParkingLotTool.Tools
             Sammle(layout.AisleQuad);
             Sammle(layout.CrossQuad);
             Sammle(layout.EntranceQuad);
+            BaueStrassenraster(strassen);
 
             foreach (var run in ParkingBayRuns.Merge(layout, settings))
             {
@@ -396,17 +397,17 @@ namespace ParkingLotTool.Tools
                 var b1 = laengs ? q[2] : q[3];
 
                 // Die beiden Laengsseiten und die beiden Enden.
-                Strich(a0, a1, farbe, strassen);
-                Strich(b0, b1, farbe, strassen);
-                Strich(a0, b0, farbe, strassen);
-                Strich(a1, b1, farbe, strassen);
+                Strich(a0, a1, farbe);
+                Strich(b0, b1, farbe);
+                Strich(a0, b0, farbe);
+                Strich(a1, b1, farbe);
 
                 // Und die Trennlinien dazwischen, eine je Buchtgrenze.
                 for (var i = 1; i < run.Bays; i++)
                 {
                     var t = (float)i / run.Bays;
                     Strich(math.lerp(a0, a1, t), math.lerp(b0, b1, t),
-                        farbe, strassen);
+                        farbe);
                 }
             }
         }
@@ -417,13 +418,51 @@ namespace ParkingLotTool.Tools
         /** Weltpunkt samt Gelaendehoehe - wird je Lauf aus `SetLayout` gesetzt. */
         private Func<float2, float3> _weltpunkt;
 
-        private void Strich(float2 a, float2 b, Color farbe,
-                            List<float2[]> strassen)
+        /**
+         * STRASSEN NACH ORT, NICHT ALS LISTE.
+         *
+         * Live-Log 2026-09-26, 9056 Buchten: das Overlay brauchte 3,2 s im
+         * Uebernahmebild - fast die ganze Spitze. `Strich` pruefte jeden der
+         * rund 15.000 Striche gegen JEDES Strassenrechteck des Parkplatzes,
+         * gut hundert Millionen Kantenrechnungen. Ein Strich kann aber nur an
+         * Strassen in seiner Naehe liegen. Jedes Rechteck steht deshalb in
+         * allen Rasterzellen, die sein (um die Toleranz erweitertes)
+         * Hullrechteck beruehrt; der Strich fragt nur seine eigene Zelle.
+         */
+        private const float Strassenzelle = 16f;
+
+        private readonly Dictionary<long, List<float2[]>> _strassenraster = new();
+
+        private static long Zelle(int x, int z) => ((long)x << 32) ^ (uint)z;
+
+        private void BaueStrassenraster(List<float2[]> strassen)
+        {
+            _strassenraster.Clear();
+            foreach (var q in strassen)
+            {
+                var min = math.min(math.min(q[0], q[1]), math.min(q[2], q[3])) - 0.25f;
+                var max = math.max(math.max(q[0], q[1]), math.max(q[2], q[3])) + 0.25f;
+                var z0 = (int2)math.floor(min / Strassenzelle);
+                var z1 = (int2)math.floor(max / Strassenzelle);
+                for (var x = z0.x; x <= z1.x; x++)
+                    for (var z = z0.y; z <= z1.y; z++)
+                    {
+                        var k = Zelle(x, z);
+                        if (!_strassenraster.TryGetValue(k, out var liste))
+                            _strassenraster[k] = liste = new List<float2[]>();
+                        liste.Add(q);
+                    }
+            }
+        }
+
+        private void Strich(float2 a, float2 b, Color farbe)
         {
             if (math.distancesq(a, b) < 0.0001f) return;
             var mitte = (a + b) * 0.5f;
-            foreach (var strasse in strassen)
-                if (NahAnFlaeche(mitte, strasse)) return;
+            var zelle = (int2)math.floor(mitte / Strassenzelle);
+            if (_strassenraster.TryGetValue(Zelle(zelle.x, zelle.y), out var nah))
+                foreach (var strasse in nah)
+                    if (NahAnFlaeche(mitte, strasse)) return;
             _bays.Add(new Band(new Line3.Segment(
                     _weltpunkt(a), _weltpunkt(b)),
                 Strichbreite, Alpha(farbe, 0.9f)));
