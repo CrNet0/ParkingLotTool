@@ -58,9 +58,13 @@ namespace ParkingLotTool.Tools
             }
             else
             {
+                // Ohne Trasse heisst meist: laut Vorplanung ist keine Leitung
+                // noetig. Das ist kein Verwerfen - die Vergleichszeile danach
+                // sagt, ob die Istplanung das bestaetigt.
                 if (!_avVorplanGemeldet)
-                    Mod.log.Info("PLT-Autoversorgung VORPLAN: verworfen (fehlte oder ohne Trasse); "
-                        + "Pruefung Hauptfaden 0,00 ms.");
+                    Mod.log.Info(vor == null
+                        ? "PLT-Autoversorgung VORPLAN: fehlte oder veraltet; volle Wahl."
+                        : "PLT-Autoversorgung VORPLAN: ohne Trasse; volle Wahl zur Bestaetigung.");
                 aus = VersorgungstrassenPlan.Waehle(e);
             }
             _avLetzteIstEingabe = aus;
