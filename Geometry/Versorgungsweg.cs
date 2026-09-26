@@ -157,11 +157,14 @@ namespace ParkingLotTool.Geometry
         internal static Ergebnis Suche(List<float2> starts, List<Hindernis> hindernisse,
             Func<int, ISet<int>> startstrassen, Func<float2, IEnumerable<Ziel>> ziele,
             Func<List<float2>, int, bool> zulaessig, float ausgang = 8,
-            Func<int, ISet<int>> zielstrassen = null, float maxLaenge = float.MaxValue)
+            Func<int, ISet<int>> zielstrassen = null, float maxLaenge = float.MaxValue,
+            Func<bool> abgebrochen = null)
         {
             var r = new Ergebnis { Laenge = float.MaxValue };
             var punkte = new List<float2>(starts);
             foreach (var h in hindernisse)
+            {
+                if (abgebrochen?.Invoke() == true) return r;
                 foreach (var p in h.Ring)
                 {
                     // Kein kuerzerer Weg kann einen Knoten erreichen, der schon
@@ -176,6 +179,7 @@ namespace ParkingLotTool.Geometry
                         if (!k.Querbar && Innen(p, p, k.Ring)) { innen = true; break; }
                     if (!innen && !punkte.Contains(p)) punkte.Add(p);
                 }
+            }
             r.Knoten = punkte.Count;
             var distanz = new float[punkte.Count]; var vorher = new int[punkte.Count];
             var quelle = new int[punkte.Count]; var fertig = new bool[punkte.Count];
@@ -186,6 +190,7 @@ namespace ParkingLotTool.Geometry
             }
             for (var lauf = 0; lauf < punkte.Count; lauf++)
             {
+                if (abgebrochen?.Invoke() == true) return new Ergebnis { Laenge = float.MaxValue };
                 var u = -1;
                 for (var i = 0; i < punkte.Count; i++)
                     if (!fertig[i] && distanz[i] < float.MaxValue && (u < 0 || distanz[i] < distanz[u])) u = i;
@@ -194,6 +199,7 @@ namespace ParkingLotTool.Geometry
                 var freiStart = u < starts.Count ? startstrassen(u) : null;
                 foreach (var ziel in ziele(punkte[u]))
                 {
+                    if (abgebrochen?.Invoke() == true) return new Ergebnis { Laenge = float.MaxValue };
                     r.Zielpruefungen++;
                     var laenge = distanz[u] + math.distance(punkte[u], ziel.Punkt);
                     if (laenge > maxLaenge || laenge >= r.Laenge - Epsilon || !Frei(punkte[u], ziel.Punkt, hindernisse, freiStart, ausgang, zielstrassen?.Invoke(ziel.Index))) continue;
@@ -205,6 +211,8 @@ namespace ParkingLotTool.Geometry
                 }
                 for (var v = starts.Count; v < punkte.Count; v++)
                 {
+                    if ((v & 31) == 0 && abgebrochen?.Invoke() == true)
+                        return new Ergebnis { Laenge = float.MaxValue };
                     if (fertig[v]) continue;
                     var d = distanz[u] + math.distance(punkte[u], punkte[v]);
                     if (d >= distanz[v] - Epsilon || d > math.min(r.Laenge, maxLaenge)) continue;

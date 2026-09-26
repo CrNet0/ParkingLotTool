@@ -55,6 +55,14 @@ internal static partial class Program
         var umweg = Suche(sperren, start, new float2(10, 0));
         Pruefe(umweg.Punkte != null && umweg.Punkte.Count == 4 && math.abs(umweg.Laenge - 12f) < 0.01f,
             "Rechteck: kuerzester Umweg 12 m mit 3 Teilstrecken statt blockierter 10-m-Gerade");
+        var abbruchGerade = Versorgungsnetz.Gerade(new List<float2> { start },
+            _ => new[] { new Versorgungsweg.Ziel { Punkt = ende } }, (_, __) => true,
+            abgebrochen: () => true);
+        Pruefe(abbruchGerade.Punkte == null, "abgebrochene Geradensuche liefert keine Trasse");
+        var abbruchUmweg = Versorgungsweg.Suche(new List<float2> { start }, sperren,
+            _ => new HashSet<int>(), _ => new[] { new Versorgungsweg.Ziel { Punkt = ende } },
+            null, abgebrochen: () => true);
+        Pruefe(abbruchUmweg.Punkte == null, "abgebrochene Graphsuche liefert keine Trasse");
         Pruefe(!Versorgungsweg.Frei(start, new float2(10, 0), sperren), "durchgehende Hindernispruefung");
         Pruefe(Versorgungsweg.Frei(new float2(0, 3), new float2(10, 3), sperren), "Tangente an aufgeweiteter Grenze");
         Pruefe(!Versorgungsweg.Frei(start, new float2(10, 0),

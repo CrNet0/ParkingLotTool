@@ -85,6 +85,7 @@ namespace ParkingLotTool.Tools
             AvEntferneDefinitionen();
             _avKurse.Clear();
             _avHatPlan = false;
+            _avVorplanGemeldet = false;
             _avNetzstand.Clear();
             _avVerbindungen.Clear();
             _avFremdleitungen.Clear();
@@ -111,6 +112,7 @@ namespace ParkingLotTool.Tools
             var wasser = FindeVersorgungsprefab(false);
             if (strom == Entity.Null || wasser == Entity.Null)
             {
+                MeldeVorplanung(default);
                 AvFehler("mindestens 1 der 2 benoetigten Leitungsprefabs fehlt");
                 return;
             }
@@ -125,6 +127,7 @@ namespace ParkingLotTool.Tools
             _avHindernisse = AvHindernisse(_avAlleEigenen, math.max(_avStrombreite, _avWasserbreite) / 2);
             _avAusstehend.Clear();
             _avAusstehend.AddRange(WaehleVersorgungstrassen(traeger));
+            MeldeVorplanung(_avAusstehend.Count > 0 ? _avAusstehend[0] : default);
             Mod.log.Info($"PLT-Autoversorgung ZEIT: Planung {planzeit.Elapsed.TotalMilliseconds:F1} ms; "
                 + $"seit Bauauftrag {_avGesamtzeit?.Elapsed.TotalMilliseconds:F1} ms.");
             _avHatPlan = _avAusstehend.Count > 0;

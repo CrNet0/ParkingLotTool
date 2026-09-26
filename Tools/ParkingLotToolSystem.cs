@@ -373,6 +373,7 @@ namespace ParkingLotTool.Tools
             if (PflegeAutoVersorgung()) return RenderOverlay(deps);
 
             PollSettingsRevision();
+            PflegeVorplanung();
 
             // Nach Enter gehoeren die zwei bis drei Materialisierungs-Frames
             // demselben bestaetigten Stand. Ohne diese Sperre koennte ein
@@ -1841,6 +1842,7 @@ namespace ParkingLotTool.Tools
              * Diese Stelle durchlaeuft beides.
              */
             // Beim Umbau erst nach Commit und Abriss der alten Leitungen starten.
+            MerkeVorplanungBeimBau();
             if (!IsEditing) MerkeAutoVersorgung(_lotCarrier);
             /**
              * GEPLANT UND GESETZT SIND SEIT DEN FLAECHENSCHALTERN ZWEIERLEI.

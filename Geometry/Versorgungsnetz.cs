@@ -29,18 +29,23 @@ namespace ParkingLotTool.Geometry
 
         internal static Versorgungsweg.Ergebnis Gerade(List<float2> starts,
             Func<float2, IEnumerable<Versorgungsweg.Ziel>> ziele,
-            Func<int, Versorgungsweg.Ziel, bool> zulaessig, float maxLaenge = float.MaxValue)
+            Func<int, Versorgungsweg.Ziel, bool> zulaessig, float maxLaenge = float.MaxValue,
+            Func<bool> abgebrochen = null)
         {
             var r = new Versorgungsweg.Ergebnis { Laenge = float.MaxValue };
             for (var i = 0; i < starts.Count; i++)
+            {
+                if (abgebrochen?.Invoke() == true) return new Versorgungsweg.Ergebnis { Laenge = float.MaxValue };
                 foreach (var ziel in ziele(starts[i]))
                 {
+                    if (abgebrochen?.Invoke() == true) return new Versorgungsweg.Ergebnis { Laenge = float.MaxValue };
                     r.Zielpruefungen++;
                     var l = math.distance(starts[i], ziel.Punkt);
                     if (l > maxLaenge || !Kuerzer(l, r.Laenge) || !zulaessig(i, ziel)) continue;
                     r.Laenge = l; r.Start = i; r.Ziel = ziel.Index;
                     r.Punkte = new List<float2> { starts[i], ziel.Punkt };
                 }
+            }
             return r;
         }
 
