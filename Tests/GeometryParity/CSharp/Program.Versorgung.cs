@@ -110,8 +110,7 @@ internal static partial class Program
         }
         PruefeVersorgungsFehlermuster(Pruefe);
         PruefeVersorgungsRinge(Pruefe);
-        // Nachstellung des Falls 26.09.: zwei Netze, das erste schon per
-        // Knoten an der Stadt, das zweite mit einer 43,702-m-Geraden.
+        // Nachstellung einer 43,702-m-Geraden zur Stadtstrasse.
         Versorgungskante Kante(int id, float x, bool stadt = false,
             float z0 = 0, float z1 = 10, float y = 0)
         {
@@ -132,17 +131,17 @@ internal static partial class Program
         var ePlan = new Versorgungseingabe { Strombreite = 1, Wasserbreite = 1,
             Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
         var erstes = Kante(1, -100); erstes.KnotenAnStadt = true;
-        var zweites = Kante(2, 0);
-        var stadtziel = Kante(3, 43.702f, true, 10, 11);
-        ePlan.Eigene.Add(erstes); ePlan.Eigene.Add(zweites);
-        ePlan.Hinderniskanten.Add(erstes); ePlan.Hinderniskanten.Add(zweites);
-        ePlan.Ziele.Add(erstes); ePlan.Ziele.Add(zweites); ePlan.Ziele.Add(stadtziel);
+        var zweites = Kante(2, 0, false, -20, 40);
+        var stadtziel = Kante(3, 43.702f, true, 0, 30);
+        ePlan.Eigene.Add(zweites);
+        ePlan.Hinderniskanten.Add(zweites);
+        ePlan.Ziele.Add(zweites); ePlan.Ziele.Add(stadtziel);
         var plan = VersorgungstrassenPlan.Waehle(ePlan);
-        Pruefe(plan.Gruppen.Count == 2 && plan.PerKnotenAnStadt == 1
-            && plan.OffeneTeile == 1, "zwei Netze, eines per Knoten an Stadt");
+        Pruefe(plan.Gruppen.Count == 1 && plan.PerKnotenAnStadt == 0
+            && plan.OffeneTeile == 1, "ein offenes Netz vor Stadtanschluss");
         Pruefe(plan.Beste != null && plan.Beste.Zielkante == stadtziel
             && math.abs(plan.Beste.Laenge - 43.702f) < 0.01f
-            && plan.Beste.Startknoten != 0,
+            && plan.Beste.Startkanten.Count > 0,
             "gemeinsamer Kern findet 43,702-m-Trasse vom zweiten Netz");
         if (plan.Beste != null)
         {
@@ -178,7 +177,7 @@ internal static partial class Program
                 Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
             mitHindernis.Eigene.AddRange(ePlan.Eigene);
             mitHindernis.Hinderniskanten.AddRange(ePlan.Hinderniskanten);
-            mitHindernis.Hinderniskanten.Add(Kante(4, 20, false, -20, 30));
+            mitHindernis.Hinderniskanten.Add(Kante(4, 20, false, -5, 25));
             mitHindernis.Ziele.AddRange(ePlan.Ziele);
             Pruefe(!VersorgungstrassenPlan.PruefeVorplan(mitHindernis, vor, out _, out _),
                 "neues Hindernis durch Trasse verwirft Vorplan");
@@ -201,8 +200,8 @@ internal static partial class Program
             }
             var mitHoehen = new Versorgungseingabe { Strombreite = 1, Wasserbreite = 1,
                 Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
-            var gebauterStart = Kante(2, 0, false, 0, 10, 5);
-            var gebautesZiel = Kante(3, 43.702f, true, 10, 11, 8);
+            var gebauterStart = Kante(2, 0, false, -20, 40, 5);
+            var gebautesZiel = Kante(3, 43.702f, true, 0, 30, 8);
             mitHoehen.Eigene.Add(gebauterStart);
             mitHoehen.Hinderniskanten.Add(gebauterStart);
             mitHoehen.Ziele.Add(gebautesZiel);
@@ -245,11 +244,11 @@ internal static partial class Program
                     "eigenes Ziel wird nach dem Bau eindeutig zugeordnet");
             }
         }
-        Versorgungseingabe DreiNetze()
+        Versorgungseingabe DreiNetze(float stadtX = -100)
         {
             var e = new Versorgungseingabe { Strombreite = 1, Wasserbreite = 1,
                 Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
-            var amKnoten = Kante(30, -100); amKnoten.KnotenAnStadt = true;
+            var amKnoten = Kante(30, stadtX); amKnoten.KnotenAnStadt = true;
             var abseits = Kante(31, 0);
             var zumEigenen = Kante(32, -25);
             e.Eigene.Add(amKnoten); e.Eigene.Add(abseits); e.Eigene.Add(zumEigenen);
@@ -260,8 +259,8 @@ internal static partial class Program
         }
         var folge = VersorgungstrassenPlan.PlaneFolge(DreiNetze(), out var anfang);
         Pruefe(anfang.PerKnotenAnStadt == 1 && anfang.OffeneTeile == 2
-            && folge.Count == 2 && !folge[0].ZielEigene && folge[1].ZielEigene,
-            "drei getrennte Netze: Stadtknoten, Stadttrasse, danach eigenes Ziel");
+            && folge.Count == 2 && folge[0].ZielEigene && folge[1].ZielEigene,
+            "drei getrennte Netze: erst eigene Teile, kein weiterer Stadtanschluss");
         var istFolge = DreiNetze();
         for (var i = 0; i < folge.Count; i++)
         {
@@ -281,8 +280,7 @@ internal static partial class Program
         }
         if (folge.Count == 2)
         {
-            var neuerKonkurrent = DreiNetze();
-            neuerKonkurrent.Ziele.Add(Kante(34, -28, true));
+            var neuerKonkurrent = DreiNetze(-47);
             Pruefe(!VersorgungstrassenPlan.PruefeVorplan(neuerKonkurrent,
                 folge[0], out _, out var reihenfolgeGrund)
                 && reihenfolgeGrund == "anderes offenes Netz hat kuerzere Trasse",
@@ -304,6 +302,80 @@ internal static partial class Program
                     voll.Zielkante.Stadt));
             }
         }
+        Versorgungseingabe ZonenOhneStadtpfad(float stadtX = -15)
+        {
+            var e = new Versorgungseingabe { Strombreite = 1, Wasserbreite = 1,
+                Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
+            foreach (var (id, x) in new[] { (40, 0f), (41, 30f), (42, 70f) })
+            {
+                var k = Kante(id, x, false, 0, 30);
+                e.Eigene.Add(k); e.Hinderniskanten.Add(k); e.Ziele.Add(k);
+            }
+            e.Ziele.Add(Kante(43, stadtX, true, 0, 30));
+            return e;
+        }
+        var dreiZonen = VersorgungstrassenPlan.PlaneFolge(ZonenOhneStadtpfad(), out _);
+        Pruefe(dreiZonen.Count == 3 && dreiZonen[0].ZielEigene
+            && dreiZonen[1].ZielEigene && !dreiZonen[2].ZielEigene
+            && math.abs(dreiZonen[2].Start.x) < 0.01f,
+            "drei Zonen: zwei eigene Verbindungen, ein Stadtanschluss von Zone 0");
+        var stadtLockt = VersorgungstrassenPlan.PlaneFolge(ZonenOhneStadtpfad(-6), out _);
+        Pruefe(stadtLockt.Count == 3 && stadtLockt[0].ZielEigene
+            && stadtLockt[1].ZielEigene && !stadtLockt[2].ZielEigene,
+            "Mutation: naehere Stadtstrasse darf eigene Reihenfolge nicht ueberholen");
+        var nurStadtausweg = ZonenOhneStadtpfad(15);
+        nurStadtausweg.Eigene.RemoveAt(2);
+        nurStadtausweg.Hinderniskanten.RemoveAt(2);
+        nurStadtausweg.Ziele.RemoveAt(2);
+        nurStadtausweg.GesperrteZiele[40] = new HashSet<int> { 41 };
+        nurStadtausweg.GesperrteZiele[41] = new HashSet<int> { 40 };
+        var ausnahme = VersorgungstrassenPlan.PlaneFolge(nurStadtausweg, out _);
+        Pruefe(ausnahme.Count == 2 && !ausnahme[0].ZielEigene
+            && !ausnahme[1].ZielEigene,
+            "gesperrte eigene Ziele: zwei isolierte Teile brauchen Stadt-Rueckfall");
+        var stadtVorweg = ZonenOhneStadtpfad();
+        foreach (var k in stadtVorweg.Eigene)
+            stadtVorweg.GesperrteZiele[k.Id] = new HashSet<int>(
+                stadtVorweg.Eigene.FindAll(z => z.Id != k.Id).ConvertAll(z => z.Id));
+        var alterStadtvorplan = VersorgungstrassenPlan.PlaneFolge(stadtVorweg, out _);
+        Pruefe(alterStadtvorplan.Count > 0 && !alterStadtvorplan[0].ZielEigene
+            && !VersorgungstrassenPlan.PruefeVorplan(ZonenOhneStadtpfad(),
+                alterStadtvorplan[0], out _, out _),
+            "Mutation: Istplanung verwirft Stadtvorplan, wenn eigene Trasse frei wurde");
+        var schonAngeschlossen = new Versorgungseingabe { Strombreite = 1,
+            Wasserbreite = 1, Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
+        var gasse = Kante(50, 20, false, -20, 0);
+        gasse.Gasse = true; gasse.KnotenAnStadt = true;
+        var zoneMitGasse = Kante(51, 20, false, 0, 30);
+        zoneMitGasse.Startknoten = gasse.Endknoten;
+        var andereZone = Kante(52, 50, false, 0, 30);
+        schonAngeschlossen.Eigene.AddRange(new[] { gasse, zoneMitGasse, andereZone });
+        schonAngeschlossen.Hinderniskanten.AddRange(schonAngeschlossen.Eigene);
+        schonAngeschlossen.Ziele.AddRange(schonAngeschlossen.Eigene);
+        schonAngeschlossen.Ziele.Add(Kante(53, -20, true, 0, 30));
+        var gassenFolge = VersorgungstrassenPlan.PlaneFolge(schonAngeschlossen, out _);
+        Pruefe(gassenFolge.Count == 1 && gassenFolge[0].ZielEigene
+            && gassenFolge[0].ZielId == zoneMitGasse.Id,
+            "Gasse am Stadtknoten: nur Verbindung zur anderen Zone");
+        Pruefe(!VersorgungstrassenPlan.ZielErlaubt(false, 1, 0, true)
+            && VersorgungstrassenPlan.ZielErlaubt(false, 1, 0),
+            "Mutation: Gasse darf auch bei fremdem Teil kein Leitungsziel sein");
+        var kurzeKante = Kante(60, 20, true, 0, 6);
+        var langeKante = Kante(61, 20, true, 0, 30);
+        Pruefe(!VersorgungstrassenPlan.SpurendeImKanteninneren(kurzeKante,
+                new float2(20, 3))
+            && !VersorgungstrassenPlan.SpurendeImKanteninneren(langeKante,
+                new float2(20, 1))
+            && VersorgungstrassenPlan.SpurendeImKanteninneren(langeKante,
+                new float2(20, 10)),
+            "Mutation: Projektion nahe Kantenende gesperrt, innen erlaubt");
+        var kurzerAnschluss = new Versorgungseingabe { Strombreite = 1,
+            Wasserbreite = 1, Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
+        kurzerAnschluss.Eigene.Add(Kante(62, 0, false, 0, 30));
+        kurzerAnschluss.Hinderniskanten.AddRange(kurzerAnschluss.Eigene);
+        kurzerAnschluss.Ziele.Add(kurzeKante);
+        Pruefe(VersorgungstrassenPlan.Waehle(kurzerAnschluss).Beste == null,
+            "Mutation: kurze Zielkante akzeptiert keine Spur hinter ihrem Ende");
         Console.WriteLine($"Versorgungskurse: {pruefungen} Pruefungen, {fehler} Fehler.");
         return fehler == 0 ? 0 : 1;
     }

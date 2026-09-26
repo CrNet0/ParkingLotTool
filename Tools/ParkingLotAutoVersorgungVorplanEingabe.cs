@@ -124,8 +124,11 @@ namespace ParkingLotTool.Tools
                     : stueck.Kind == "cross" ? schmal : breit;
                 var eigene = FuegeHinzu(von, nach, prefab);
                 if (gasse && eigene != null)
+                {
+                    eigene.Gasse = true;
                     r.Gassen.Add((eigene, stueck.A, stueck.B,
                         Zufahrtsarten.FaehrtHinaus(stueck.Art)));
+                }
             }
             if (e.Eigene.Count == 0) return null;
             var baum = _netSearchSystem.GetNetSearchTree(true, out var deps);

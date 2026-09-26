@@ -82,8 +82,8 @@ namespace ParkingLotTool.Tools
                 + $"bilden {aus.Gruppen.Count} getrennte(s) Netz(e); Anschlussbedarf wird je Netz geprueft.");
             Mod.log.Info($"PLT-Autoversorgung TEILE: {aus.Gruppen.Count} eigene(s) Netz(e), "
                 + $"{aus.OffeneTeile} davon noch nicht an der Stadt, {aus.PerKnotenAnStadt} per Knoten an einer Stadtstrasse. "
-                + "Verbunden wird immer nur zwischen zwei Teilen, die nicht zusammenhaengen - "
-                + "ein Teil ohne Stadtanschluss hat am Ende nur noch Stadtstrassen als Ziel.");
+                + "Zuerst werden erreichbare eigene Teile verbunden; danach folgt bei Bedarf "
+                + "ein Stadtanschluss. Ohne eigenen Weg ist die Stadt der Rueckfall.");
             var entitaeten = new Dictionary<int, Entity>();
             foreach (var entity in _avAlleEigenen) entitaeten[entity.Index] = entity;
             foreach (var z in zielstrassen) entitaeten[z.Kante.Index] = z.Kante;
@@ -204,6 +204,7 @@ namespace ParkingLotTool.Tools
                 Breite = geo.m_DefaultWidth, NurEnden = (geo.m_Flags & GeometryFlags.NoEdgeConnection) != 0,
                 Versorgung = KanteNimmtVersorgung(e), Querbar = fahrgasse,
                 Stadt = !EntityManager.HasComponent<Owner>(e),
+                Gasse = GassenPrefab.Ist(_prefabSystem, prefab),
                 Stromfang = EntityManager.GetComponentData<LocalConnectData>(strom).m_SearchDistance,
                 Wasserfang = EntityManager.GetComponentData<LocalConnectData>(wasser).m_SearchDistance,
                 Stromtor = EntityManager.HasComponent<NetData>(prefab)

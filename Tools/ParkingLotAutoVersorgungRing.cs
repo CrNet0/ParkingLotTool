@@ -298,7 +298,8 @@ namespace ParkingLotTool.Tools
         /**
          * DARF DIESE KANTE ZIEL SEIN?
          *
-         * Eine fremde Strasse immer - sie bringt den Strom herein. Eine eigene
+         * Eine Stadtstrasse ist ein moegliches Ziel; die Reihenfolge entscheidet
+         * der gemeinsame Planer. Eine eigene
          * nur, wenn sie zu einem ANDEREN Teil gehoert: sonst entstuende ein
          * Ring, der an keiner Stadt haengt. Genau daran haengt die Forderung,
          * dass am Ende eine Zone nach draussen verbunden sein muss.
@@ -312,7 +313,10 @@ namespace ParkingLotTool.Tools
                 return VersorgungstrassenPlan.ZielErlaubt(true, -1, meinTeil);
             var g = teile.GruppeVon(ziel);
             return VersorgungstrassenPlan.ZielErlaubt(false,
-                g < 0 ? -1 : teile.Finde(g), meinTeil);
+                g < 0 ? -1 : teile.Finde(g), meinTeil,
+                EntityManager.HasComponent<PrefabRef>(ziel)
+                    && GassenPrefab.Ist(_prefabSystem,
+                        EntityManager.GetComponentData<PrefabRef>(ziel).m_Prefab));
         }
 
         /** Der Stand dieses Netzes, auf Wunsch neu angelegt. */

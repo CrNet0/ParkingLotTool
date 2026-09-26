@@ -14,6 +14,7 @@ namespace ParkingLotTool.Geometry
         internal float2 SteuerungB, SteuerungC;
         internal Func<float, float3> Position;
         internal Func<float2, float3> Projektion;
+        internal bool Gasse;
         internal float Breite, Stromfang, Wasserfang;
         internal bool Versorgung, Querbar, Stadt, NurEnden, Stromtor, Wassertor;
         internal bool FlussAnStadt, KnotenAnStadt;
@@ -122,8 +123,32 @@ namespace ParkingLotTool.Geometry
             return folge;
         }
 
-        internal static bool ZielErlaubt(bool stadt, int zielTeil, int meinTeil)
-            => stadt || (zielTeil >= 0 && zielTeil != meinTeil);
+        internal static bool ZielErlaubt(bool stadt, int zielTeil, int meinTeil,
+            bool gasse = false)
+            => !gasse && (stadt || (zielTeil >= 0 && zielTeil != meinTeil));
+
+        private static bool BrauchtEigenesZiel(Versorgungsauswahl aus)
+            => aus.OffeneTeile > 1 || (aus.OffeneTeile == 1
+                && aus.Gruppen.Exists(g => g.AnStadt));
+
+        private static void Zielstufe(Versorgungsauswahl aus, bool stadt)
+        {
+            foreach (var g in aus.Gruppen)
+            {
+                g.Ziele.RemoveAll(k => k.Stadt != stadt);
+                g.Weg = null;
+            }
+            aus.Beste = null;
+        }
+
+        internal static bool SpurendeImKanteninneren(Versorgungskante k, float2 p)
+        {
+            if (k.NurEnden) return true;
+            var lot = k.Projektion(p).xz;
+            var reserve = math.max(1f, k.Breite / 2);
+            return math.distance(lot, k.Position(0).xz) + 0.001f >= reserve
+                && math.distance(lot, k.Position(1).xz) + 0.001f >= reserve;
+        }
 
         private static float UntereLaengenschranke(Versorgungsgruppe g)
         {
@@ -195,6 +220,10 @@ namespace ParkingLotTool.Geometry
         {
             bool Tor(Versorgungskante k, float2 p, bool istStrom)
                 => (istStrom ? k.Stromtor : k.Wassertor)
+                    // Beide Parallelspuren brauchen auf der Kante Platz. Bei
+                    // Small Road (8 m) sind das 4 m je Ende; ein geklemmter
+                    // Projektionspunkt direkt am Ende reicht CS2 nicht.
+                    && SpurendeImKanteninneren(k, p)
                     && VersorgungskursPruefung.Anschluss(k.Abstand(p), k.Breite,
                         istStrom ? e.Strombreite : e.Wasserbreite,
                         istStrom ? k.Stromfang : k.Wasserfang, true);
@@ -208,6 +237,36 @@ namespace ParkingLotTool.Geometry
         internal static Versorgungsauswahl Waehle(Versorgungseingabe e)
         {
             var aus = Bereite(e);
+            if (BrauchtEigenesZiel(aus))
+            {
+                foreach (var g in aus.Gruppen) g.Ziele.RemoveAll(k => k.Stadt);
+                WaehleStufe(e, aus);
+                if (aus.Beste != null) return aus;
+                // Kein erlaubter Weg zu einem anderen eigenen Teil: erst
+                // jetzt darf ein sonst unversorgtes Teil direkt zur Stadt.
+                foreach (var g in aus.Gruppen)
+                {
+                    g.Ziele.Clear();
+                    if (g.AnStadt || g.Ausgereizt) continue;
+                    e.GesperrteZiele.TryGetValue(g.Kanten[0].Id, out var gesperrt);
+                    foreach (var z in e.Ziele)
+                        if (z.Stadt && gesperrt?.Contains(z.Id) != true
+                            && ZielErlaubt(z.Stadt, -1, g.Teil, z.Gasse))
+                            g.Ziele.Add(z);
+                    g.Weg = null;
+                    g.Starts.Clear();
+                    g.Gerade = null;
+                    g.Umweg = null;
+                }
+            }
+            else Zielstufe(aus, true);
+            WaehleStufe(e, aus);
+            return aus;
+        }
+
+        private static void WaehleStufe(Versorgungseingabe e, Versorgungsauswahl aus)
+        {
+            aus.Beste = null;
             foreach (var g in aus.Gruppen)
             {
                 PruefeAbbruch(e);
@@ -216,7 +275,6 @@ namespace ParkingLotTool.Geometry
                 if (g.Weg != null && (aus.Beste == null ||
                     g.Weg.Laenge < aus.Beste.Laenge)) aus.Beste = g.Weg;
             }
-            return aus;
         }
 
         private static Versorgungsauswahl Bereite(Versorgungseingabe e)
@@ -287,7 +345,7 @@ namespace ParkingLotTool.Geometry
                 {
                     if (g.Kanten.Contains(z) || gesperrt?.Contains(z.Id) == true) continue;
                     var zielTeil = gruppeVon.TryGetValue(z.Id, out var i) ? Finde(i) : -1;
-                    if (ZielErlaubt(z.Stadt, zielTeil, g.Teil)) g.Ziele.Add(z);
+                    if (ZielErlaubt(z.Stadt, zielTeil, g.Teil, z.Gasse)) g.Ziele.Add(z);
                 }
             }
             return aus;
@@ -303,6 +361,16 @@ namespace ParkingLotTool.Geometry
             grund = "andere Reihenfolge der offenen Netze";
             if (vor.OffeneTeile != aus.OffeneTeile || vor.AnderesNetzKuerzer)
                 return false;
+            if (BrauchtEigenesZiel(aus) && !vor.ZielEigene)
+            {
+                // Ein Stadtvorplan ist nur der Rueckfall, wenn auch in der
+                // Istgeometrie kein eigener Anschluss erreichbar ist.
+                var entscheidung = Waehle(e);
+                if (entscheidung.Beste != null && !entscheidung.Beste.Zielkante.Stadt)
+                    return false;
+            }
+            Zielstufe(aus, !vor.ZielEigene);
+            if (vor.ZielEigene && !BrauchtEigenesZiel(aus)) return false;
             Versorgungsgruppe g = null;
             foreach (var kandidat in aus.Gruppen)
                 if (!kandidat.AnStadt && kandidat.Kanten.Exists(k =>
