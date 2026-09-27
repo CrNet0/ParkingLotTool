@@ -417,14 +417,20 @@ namespace ParkingLotTool.Geometry.Zellen
             Phase("vorplanung");
             var teiler = new Polygonteiler(knotenfabrik);
             var fragmente = teile.ToList();
+            // Eine beim Versetzen weggefallene Kante hat Anfang gleich Ende
+            // (siehe `Layoutplanung.Innenrand`) und teilt nichts.
+            bool Weggefallen(IReadOnlyList<Punkt> ring, int i)
+                => Geometrie.Laenge(ring[(i + 1) % ring.Count] - ring[i]) == 0;
             for (var i = 0; i < innenrand.Count; i++)
             {
+                if (Weggefallen(innenrand, i)) continue;
                 var linie = linienregister.Innenrand(
                     innenrand[i], innenrand[(i + 1) % innenrand.Count], i);
                 fragmente = TeileAlle(fragmente, teiler, linie);
             }
             for (var i = 0; i < randstrassenrand.Count; i++)
             {
+                if (Weggefallen(randstrassenrand, i)) continue;
                 var linie = linienregister.Randstrassenkante(
                     randstrassenrand[i],
                     randstrassenrand[(i + 1) % randstrassenrand.Count],
@@ -433,6 +439,7 @@ namespace ParkingLotTool.Geometry.Zellen
             }
             for (var i = 0; i < randstrasseninnenrand.Count; i++)
             {
+                if (Weggefallen(randstrasseninnenrand, i)) continue;
                 var linie = linienregister.Randstrasseninnenkante(
                     randstrasseninnenrand[i],
                     randstrasseninnenrand[(i + 1) % randstrasseninnenrand.Count],

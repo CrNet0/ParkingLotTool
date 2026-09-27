@@ -676,44 +676,125 @@ namespace ParkingLotTool.Geometry
                 return gelenk + n1 + hinein * t;
             }
 
-            var ausgabe = new List<float2[]>();
-            foreach (var strasse in liste)
+            Punkt Richtung(ZellenStrasse strasse)
             {
                 var vektor = strasse.B - strasse.A;
                 var laenge = Geometrie.Laenge(vektor);
-                if (laenge <= ZellenVorschauKantenEpsilon) continue;
-                var richtung = vektor * (1 / laenge);
-                var normal = new Punkt(-richtung.Y, richtung.X) * (breite / 2);
+                return laenge <= ZellenVorschauKantenEpsilon
+                    ? new Punkt(0, 0) : vektor * (1 / laenge);
+            }
+
+            // Am Anfang kommt die Fahrt aus dem Nachbarn HEREIN, am Ende
+            // geht sie in ihn hinaus - dieselbe Umlaufrichtung fuer beide.
+            Punkt GehrungA(ZellenStrasse strasse, double seite)
+            {
+                var richtung = Richtung(strasse);
+                var rueckfall = strasse.A
+                    + new Punkt(-richtung.Y, richtung.X) * (seite * breite / 2);
+                var vorher = Fortsetzung(strasse.A, strasse);
+                return vorher == null ? rueckfall
+                    : Gehrung(strasse.A, Weg(vorher, strasse.A) * -1,
+                        richtung, seite, rueckfall);
+            }
+
+            Punkt GehrungB(ZellenStrasse strasse, double seite)
+            {
+                var richtung = Richtung(strasse);
+                var rueckfall = strasse.B
+                    + new Punkt(-richtung.Y, richtung.X) * (seite * breite / 2);
+                var nachher = Fortsetzung(strasse.B, strasse);
+                return nachher == null ? rueckfall
+                    : Gehrung(strasse.B, richtung, Weg(nachher, strasse.B),
+                        seite, rueckfall);
+            }
+
+            /*
+             * EIN KURZES STUECK VERLIERT SEINE INNENKANTE.
+             *
+             * Bauzettel 2026-09-27 15:47 (AJ54): die rechte Seite war mit
+             * Knicken von 5 Grad gezeichnet, der erste 24 m vor einer Ecke von
+             * 57 Grad. Dazwischen lag ein Randstrassenstueck von 5,6 m. Die
+             * Gehrung an der spitzen Ecke reicht innen 6,4 m weit - weiter,
+             * als das Stueck lang ist. Seine Innenkante lief damit RUECKWAERTS
+             * (0,59 m), und Asphalt wie Gras bekamen einen Zipfel von 5,2
+             * Grad. CS2 schiebt jeden Knoten vor dem Zerlegen 0,1 m nach
+             * innen; den Zipfel trug das 2,2 m weit, ein Dreieck klappte um.
+             *
+             * Jeder Linienversatz loest das gleich: die Kante, die rueckwaerts
+             * laeuft, faellt weg, und ihre beiden Nachbarn treffen sich direkt.
+             * Das Stueck wird auf dieser Seite zum Dreieck, die Nachbarn enden
+             * im selben Punkt - keine Luecke, kein Zipfel.
+             */
+            Punkt? Zusammengefallen(ZellenStrasse strasse, double seite)
+            {
+                var richtung = Richtung(strasse);
+                var d = GehrungB(strasse, seite) - GehrungA(strasse, seite);
+                if (d.X * richtung.X + d.Y * richtung.Y
+                    > ZellenVorschauKantenEpsilon) return null;
                 var vorher = Fortsetzung(strasse.A, strasse);
                 var nachher = Fortsetzung(strasse.B, strasse);
+                if (vorher == null || nachher == null) return null;
+                var hinein = Weg(vorher, strasse.A) * -1;
+                var hinaus = Weg(nachher, strasse.B);
+                var kreuz = hinein.X * hinaus.Y - hinein.Y * hinaus.X;
+                if (Math.Abs(kreuz) < 1e-9) return null;
+                var versatz = seite * (breite / 2);
+                var p1 = strasse.A + new Punkt(-hinein.Y, hinein.X) * versatz;
+                var p2 = strasse.B + new Punkt(-hinaus.Y, hinaus.X) * versatz;
+                var w = p2 - p1;
+                var t = (w.X * hinaus.Y - w.Y * hinaus.X) / kreuz;
+                return p1 + hinein * t;
+            }
 
-                // Am Anfang kommt die Fahrt aus dem Nachbarn HEREIN, am Ende
-                // geht sie in ihn hinaus - dieselbe Umlaufrichtung fuer beide.
-                Punkt EckeA(double seite)
-                {
-                    var rueckfall = strasse.A + normal * seite;
-                    return vorher == null ? rueckfall
-                        : Gehrung(strasse.A, Weg(vorher, strasse.A) * -1,
-                            richtung, seite, rueckfall);
-                }
+            // Seite in der Blickrichtung des Nachbarn: liegt er andersherum
+            // gespeichert, ist sein links unser rechts.
+            double SeiteBei(ZellenStrasse nachbar, Punkt punkt, bool amEnde,
+                double seite)
+                => Trifft(amEnde ? nachbar.B : nachbar.A, punkt)
+                    ? seite : -seite;
 
-                Punkt EckeB(double seite)
-                {
-                    var rueckfall = strasse.B + normal * seite;
-                    return nachher == null ? rueckfall
-                        : Gehrung(strasse.B, richtung,
-                            Weg(nachher, strasse.B), seite, rueckfall);
-                }
+            Punkt EckeA(ZellenStrasse strasse, double seite)
+            {
+                var eigen = Zusammengefallen(strasse, seite);
+                if (eigen != null) return eigen.Value;
+                var vorher = Fortsetzung(strasse.A, strasse);
+                var dort = vorher == null ? null : Zusammengefallen(vorher,
+                    SeiteBei(vorher, strasse.A, true, seite));
+                return dort ?? GehrungA(strasse, seite);
+            }
 
-                var lokal = gegenUhrzeigersinn
+            Punkt EckeB(ZellenStrasse strasse, double seite)
+            {
+                var eigen = Zusammengefallen(strasse, seite);
+                if (eigen != null) return eigen.Value;
+                var nachher = Fortsetzung(strasse.B, strasse);
+                var dort = nachher == null ? null : Zusammengefallen(nachher,
+                    SeiteBei(nachher, strasse.B, false, seite));
+                return dort ?? GehrungB(strasse, seite);
+            }
+
+            var ausgabe = new List<float2[]>();
+            foreach (var strasse in liste)
+            {
+                if (Geometrie.Laenge(strasse.B - strasse.A)
+                    <= ZellenVorschauKantenEpsilon) continue;
+                var lokal = (gegenUhrzeigersinn
                     ? new[]
                     {
-                        EckeA(-1), EckeB(-1), EckeB(1), EckeA(1),
+                        EckeA(strasse, -1), EckeB(strasse, -1),
+                        EckeB(strasse, 1), EckeA(strasse, 1),
                     }
                     : new[]
                     {
-                        EckeA(1), EckeB(1), EckeB(-1), EckeA(-1),
-                    };
+                        EckeA(strasse, 1), EckeB(strasse, 1),
+                        EckeB(strasse, -1), EckeA(strasse, -1),
+                    }).ToList();
+                // Die zusammengefallene Seite liefert zweimal denselben
+                // Punkt; ein doppelter Knoten waere fuer CS2 ein entartetes Ohr.
+                for (var i = lokal.Count - 1; i > 0; i--)
+                    if (Trifft(lokal[i], lokal[i - 1])) lokal.RemoveAt(i);
+                if (lokal.Count > 3 && Trifft(lokal[0], lokal[lokal.Count - 1]))
+                    lokal.RemoveAt(lokal.Count - 1);
                 ausgabe.Add(lokal.Select(punkt =>
                     ZellenPunkt(rahmen.NachWelt(punkt))).ToArray());
             }

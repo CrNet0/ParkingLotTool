@@ -82,7 +82,56 @@ internal static partial class Program
                 System.Globalization.CultureInfo.InvariantCulture) : 0.0;
         });
         Console.WriteLine($"Weggelassene Flaeche: {weggelassen:F2} m2");
-        return befund.Vollstaendig && reste == 0 && weggelassen <= 1.0 ? 0 : 1;
+        var umgeklappt = UmgeklappteDreiecke(layout.AsphaltSurface, "Asphalt")
+            + UmgeklappteDreiecke(layout.GrassSurface, "Gras");
+        Console.WriteLine($"Umgeklappte CS2-Dreiecke: {umgeklappt}");
+        return befund.Vollstaendig && reste == 0 && weggelassen <= 1.0
+            && umgeklappt == 0 ? 0 : 1;
+    }
+
+    /*
+     * WAS CS2 WIRKLICH ZEICHNET, NICHT NUR OB ES ANNIMMT.
+     *
+     * CS2 schiebt jeden Knoten 0,1 m nach innen, schneidet dort die Ohren und
+     * zeichnet die Dreiecke dann auf den ECHTEN Knoten. Ein Zipfel unter
+     * wenigen Grad springt dabei meterweit; das Dreieck liegt versetzt noch
+     * richtig herum, auf den echten Knoten aber umgeklappt und ausserhalb
+     * der Flaeche. Bauzettel AJ54 (2026-09-27): 5,2-Grad-Zipfel an der
+     * Innenecke der Randstrasse, 14,6 m2 Gras auf der Fahrgasse. Die Flaeche
+     * galt dabei als angenommen - `--flaechenannahme` sieht das nicht.
+     */
+    private static int UmgeklappteDreiecke(float2[][] ringe, string art)
+    {
+        var anzahl = 0;
+        for (var r = 0; r < ringe.Length; r++)
+        {
+            var ring = ringe[r];
+            var flaeche = 0.0;
+            for (var i = 0; i < ring.Length; i++)
+            {
+                var p = ring[i]; var q = ring[(i + 1) % ring.Length];
+                flaeche += (double)p.x * q.y - (double)q.x * p.y;
+            }
+            var ccw = flaeche > 0;
+            var netz = Cs2Triangulierung.Netz(ring, ccw);
+            if (netz == null) continue;
+            var versetzt = Cs2Triangulierung.VersetzterRing(ring, ccw);
+            double Kreuz(float2[] k, int a, int b, int c)
+                => ((double)k[b].x - k[a].x) * ((double)k[c].y - k[a].y)
+                 - ((double)k[b].y - k[a].y) * ((double)k[c].x - k[a].x);
+            for (var t = 0; t < netz.Length; t += 3)
+            {
+                var echt = Kreuz(ring, netz[t], netz[t + 1], netz[t + 2]);
+                var cs2 = Kreuz(versetzt, netz[t], netz[t + 1], netz[t + 2]);
+                // Gestreckte Dreiecke (0,00 m2) klappen nur rechnerisch um -
+                // gezeichnet wird dort nichts. Gezaehlt wird ab 0,01 m2.
+                if (echt * cs2 >= 0 || Math.Abs(echt) / 2 < 0.01) continue;
+                anzahl++;
+                Console.WriteLine($"  {art}ring {r}: Dreieck {netz[t]}/{netz[t + 1]}/{netz[t + 2]} "
+                    + $"umgeklappt, {Math.Abs(echt) / 2:F2} m2 ausserhalb");
+            }
+        }
+        return anzahl;
     }
 
 }

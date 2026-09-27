@@ -71,6 +71,65 @@ namespace ParkingLotTool.Geometry.Zellen
                 innen[i] = vorher.Punkt + vorher.Richtung * parameter;
             }
 
+            /*
+             * EINE KANTE, DIE BEIM VERSETZEN VERSCHWINDET, FAELLT WEG.
+             *
+             * Bauzettel 2026-09-27 15:47 (AJ54): die erste Kante nach einer
+             * Ecke von 57,6 Grad war 24,1 m lang, dahinter ein Knick von 5
+             * Grad. Um 13,9 m versetzt (Innenkante der Randstrasse) reicht
+             * der Schnitt an der spitzen Ecke 25,3 m weit - weiter, als die
+             * Kante lang ist. Die versetzte Kante lief deshalb 0,59 m
+             * RUECKWAERTS, und Asphalt wie Gras bekamen einen Zipfel von 5,2
+             * Grad. CS2 schiebt jeden Knoten vor dem Zerlegen 0,1 m nach
+             * innen; den Zipfel trug das 2,2 m weit, ein Dreieck klappte um
+             * und legte 14,6 m2 Gras auf die Fahrgasse.
+             *
+             * Jeder Linienversatz loest das gleich: eine rueckwaerts laufende
+             * Kante hat die Laenge null, ihre beiden Nachbarn schneiden sich
+             * direkt. Die Knotenzahl bleibt, damit Kante i weiter zu Kante i
+             * des Umrisses gehoert (Randreihe und Ringabschnitte zaehlen
+             * darauf) - die weggefallene Kante hat nur Anfang gleich Ende.
+             * Das wiederholt sich, bis keine Kante mehr rueckwaerts laeuft;
+             * ein Wegfall kann den naechsten ausloesen.
+             */
+            var weg = new bool[aussenring.Count];
+            for (var runde = 0; runde < aussenring.Count; runde++)
+            {
+                var neu = false;
+                for (var i = 0; i < aussenring.Count; i++)
+                {
+                    if (weg[i]) continue;
+                    var ende = innen[(i + 1) % aussenring.Count];
+                    if (Geometrie.Skalar(ende - innen[i],
+                            verschobeneKanten[i].Richtung) >= 0) continue;
+                    weg[i] = true;
+                    neu = true;
+                }
+                if (!neu) break;
+                if (weg.All(w => w))
+                    throw new InvalidOperationException(
+                        $"The boundary inset by {abstand:R} m has no edge left.");
+                for (var i = 0; i < aussenring.Count; i++)
+                {
+                    if (weg[i]) continue;
+                    var vorherige = Geometrie.Mod(i - 1, aussenring.Count);
+                    while (weg[vorherige])
+                        vorherige = Geometrie.Mod(vorherige - 1, aussenring.Count);
+                    var vorher = verschobeneKanten[vorherige];
+                    var aktuell = verschobeneKanten[i];
+                    var nenner = Geometrie.Kreuz(vorher.Richtung, aktuell.Richtung);
+                    var schnitt = nenner == 0 ? aktuell.Punkt
+                        : vorher.Punkt + vorher.Richtung * (Geometrie.Kreuz(
+                            aktuell.Punkt - vorher.Punkt, aktuell.Richtung) / nenner);
+                    for (var k = Geometrie.Mod(vorherige + 1, aussenring.Count);
+                         ; k = Geometrie.Mod(k + 1, aussenring.Count))
+                    {
+                        innen[k] = schnitt;
+                        if (k == i) break;
+                    }
+                }
+            }
+
             if (Geometrie.Vorzeichenflaeche(innen) <= 0)
                 throw new InvalidOperationException(
                     $"The boundary inset by {abstand:R} m is not counter-clockwise.");

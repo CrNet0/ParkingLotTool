@@ -868,7 +868,7 @@ internal static partial class Program
         "PARITAETSFEHLER: Rechteck [Fahrwege unvollstaendig gemeldet]",
         "PARITAETSFEHLER: L-Form [Fahrwege unvollstaendig gemeldet, Doppelpunkte 3, Engstelle Gras 0,050 m]",
         "PARITAETSFEHLER: Schraeg [Fahrwege unvollstaendig gemeldet, Strasse auf Strasse 6,12 m2]",
-        "PARITAETSFEHLER: Referenz 08s [unerreichbar 40, Fahrwege unvollstaendig gemeldet, Strasse auf Strasse 17,11 m2, Doppelpunkte 2, Engstelle Gras 0,007 m, Engstelle Asphalt 0,000 m]",
+        "PARITAETSFEHLER: Referenz 08s [unerreichbar 41, Fahrwege unvollstaendig gemeldet, Strasse auf Strasse 17,10 m2, Doppelpunkte 2, Engstelle Gras 0,007 m]",
         "PARITAETSFEHLER: Debug 23:32 [Buchten 496/419, Strasse auf Strasse 33,86 m2, Asphalt auf Gras 0,01 m2]",
         "PARITAETSFEHLER: Nutzerpolygon [Buchten 630/538, Engstelle Asphalt 0,070 m, Strasse auf Strasse 21,36 m2]",
         "PARITAETSFEHLER: Float-Regress. [Strasse auf Strasse 1,56 m2, Asphalt auf Gras 0,01 m2]",
@@ -912,8 +912,8 @@ internal static partial class Program
         "SCHALTER-LAYOUTFEHLER: L-Form",
         "SCHALTER-PARITAETSFEHLER: Schraeg AN [Buchten 272/199, Gras 14 Ringe 1563,13 m2, Asphalt 25 Ringe 9236,87 m2, Gras innen 8 958,08 m2, Gras aussen 6 605,04 m2, Querkappen 0/8, Strasse auf Strasse 6,12 m2, Warnungen 2]",
         "SCHALTER-PARITAETSFEHLER: Schraeg AUS [Buchten 286/215, Gras 14 Ringe 1113,68 m2, Asphalt 25 Ringe 9686,32 m2, Gras innen 8 508,64 m2, Gras aussen 6 605,04 m2, Strasse auf Strasse 6,12 m2, Warnungen 2]",
-        "SCHALTER-PARITAETSFEHLER: Referenz 08s AN [Buchten 224/202, Gras 22 Ringe 2473,21 m2, Asphalt 29 Ringe 7963,29 m2, Gras innen 8 1788,28 m2, Gras aussen 14 684,93 m2, Querkappen 0/7, Strasse auf Strasse 17,11 m2, Doppelpunkte 2, Engstelle Gras 0,007 m, Engstelle Asphalt 0,000 m, Warnungen 2]",
-        "SCHALTER-PARITAETSFEHLER: Referenz 08s AUS [Buchten 237/213, Gras 23 Ringe 1939,37 m2, Asphalt 32 Ringe 8497,13 m2, Gras innen 9 1254,44 m2, Gras aussen 14 684,93 m2, Strasse auf Strasse 17,11 m2, Doppelpunkte 2, Engstelle Gras 0,007 m, Engstelle Asphalt 0,000 m, Warnungen 2]",
+        "SCHALTER-PARITAETSFEHLER: Referenz 08s AN [Buchten 228/202, Gras 21 Ringe 2390,74 m2, Asphalt 29 Ringe 8045,76 m2, Gras innen 7 1705,81 m2, Gras aussen 14 684,93 m2, Querkappen 0/7, Strasse auf Strasse 17,10 m2, Doppelpunkte 2, Engstelle Gras 0,007 m, Warnungen 2]",
+        "SCHALTER-PARITAETSFEHLER: Referenz 08s AUS [Buchten 243/213, Gras 22 Ringe 1913,70 m2, Asphalt 32 Ringe 8522,80 m2, Gras innen 8 1228,77 m2, Gras aussen 14 684,93 m2, Strasse auf Strasse 17,10 m2, Doppelpunkte 2, Engstelle Gras 0,007 m, Warnungen 2]",
         "SCHALTER-KAPPENHERKUNFT FEHLER:",
     };
 
