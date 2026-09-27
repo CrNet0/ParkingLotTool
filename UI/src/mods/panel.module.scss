@@ -1904,41 +1904,57 @@ $eck-reiter: 9rem;
   backdrop-filter: var(--menuBlur);
 }
 
-.flaechenSucheZeile {
+.eingabefeld {
   display: flex;
   align-items: center;
-  margin-bottom: $s2;
-  padding: $s2 $s3;
-  background-color: $schiene;
-  border-radius: $eck-innen;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1rem solid $rand;
+  border-radius: $s2;
+  background-color: rgba(0,0,0,0.3);
 }
 
-.flaechenSucheBild {
+.flaechenFenster .eingabefeld { margin-bottom: $s2; }
+
+.eingabefeldBild {
   width: $mass-symbol;
   height: $mass-symbol;
-  margin-right: $s2;
-  opacity: 0.6;
+  margin-left: $s3;
 }
 
-.flaechenSuche {
+.eingabefeldText {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 0;
-  color: $text-1;
-  background: transparent;
+  position: relative;
+}
+
+.eingabefeldText input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: $s3 $s4;
+  color: #fff;
+  background-color: transparent;
   border: none;
-  outline: none;
   font-size: $type-xs;
 }
 
-.flaechenSuche::placeholder {
-  color: $text-4;
+.eingabefeldHinweis {
+  display: flex;
+  align-items: center;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: $s4;
+  color: rgba(255,255,255,.35);
+  font-size: $type-xs;
+  pointer-events: none;
 }
 
 .flaechenGitter {
   display: flex;
   flex-wrap: wrap;
-  max-height: 260rem;
+  height: 260rem;
   overflow-y: auto;
 }
 

@@ -8,6 +8,37 @@ import { useTexte } from "./texte";
 import { brauchbar, Tooltip } from "./cs2-bausteine";
 
 /**
+ * EIN TEXTFELD FUER ALLE EINGABEN DES PANELS.
+ *
+ * Aussehen wie die Parkplatzsuche. Der Hinweistext im leeren Feld ist ein
+ * eigenes Element: Cohtml zeigt das `placeholder`-Attribut nicht, CS2 baut
+ * seine Hinweise genauso selbst. Tastendruecke bleiben im Feld, sonst
+ * loesen Buchstaben Spielkuerzel aus.
+ */
+export const Eingabefeld = ({ wert, onChange, text, bild, maxLength }: {
+  wert: string;
+  onChange: (wert: string) => void;
+  text: string;
+  bild?: string;
+  maxLength?: number;
+}) => (
+  <div className={styles.eingabefeld}>
+    {bild ? <img className={styles.eingabefeldBild} src={bild} alt="" /> : null}
+    <div className={styles.eingabefeldText}>
+      <input type="text" value={wert} aria-label={text} maxLength={maxLength}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.stopPropagation()} />
+      {wert === "" ? <span className={styles.eingabefeldHinweis}>{text}</span> : null}
+    </div>
+  </div>
+);
+
+/** Das Eingabefeld mit Lupe - fuer Flaechen und Pflanzen. */
+export const Suchfeld = (p: { wert: string; onChange: (wert: string) => void; text: string }) => (
+  <Eingabefeld {...p} bild={icon("MagnifierThin")} />
+);
+
+/**
  * Huelle mit dem Tooltip des Spiels - oder ohne, wenn es ihn nicht gibt.
  *
  * `title` allein zeigt in Cohtml nichts; der sichtbare Tooltip kommt aus
@@ -735,22 +766,7 @@ export const Auswahl = ({ label, tooltip, value, options, ton, onChange, differs
       </div>
       {offen ? (
         <div className={styles.flaechenFenster}>
-          <div className={styles.flaechenSucheZeile}>
-            <img
-              className={styles.flaechenSucheBild}
-              src={icon("MagnifierThin")}
-              alt=""
-            />
-            <input
-              className={styles.flaechenSuche}
-              type="text"
-              value={suche}
-              placeholder={t.flaechenSuche}
-              aria-label={t.flaechenSuche}
-              onChange={(e) => setSuche(e.target.value)}
-              onKeyDown={(e) => e.stopPropagation()}
-            />
-          </div>
+          <Suchfeld wert={suche} onChange={setSuche} text={t.flaechenSuche} />
           <div className={styles.flaechenGitter}>
             {ausLabel ? (
               <button

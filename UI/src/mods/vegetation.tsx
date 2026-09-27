@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { bindValue, trigger, useValue } from "cs2/api";
 import { sprache$ } from "./bindings";
-import { Slider, MitTooltip, Fenster } from "./controls";
+import { Slider, MitTooltip, Fenster, Suchfeld, Eingabefeld } from "./controls";
 import styles from "./vegetation.module.scss";
 import base from "./panel.module.scss";
 const value$ = bindValue<string>("ParkingLotTool", "Vegetation", '{"Enabled":false,"Line":false,"Density":50,"Ages":6,"Species":[]}');
@@ -129,10 +129,10 @@ export const VegetationFenster = ({ pos, onPos, onClose }: {
       <button className={styles.einklappen} aria-label={t("Auswahl einklappen","Collapse the selection")} onClick={()=>setRechts(false)}>‹</button>
      </MitTooltip>
     </div>
-    <input aria-label={t("Pflanzen suchen","Search plants")} placeholder={t("Pflanzen suchen","Search plants")} value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.stopPropagation()}/>
-    <div className={styles.assets}>{treffer.slice(0,limit).map(a=><React.Fragment key={a.Id}>{button(a.Name,options.Species.includes(a.Id),()=>select([a.Id]),a.Icon)}</React.Fragment>)}</div>
+    <Suchfeld wert={search} text={t("Pflanzen suchen","Search plants")} onChange={wert=>{setSearch(wert);setLimit(60);}}/>
+    <div className={styles.assets}>{treffer.slice(0,limit).map(a=><React.Fragment key={a.Id}>{button(a.Name,options.Species.includes(a.Id),()=>select([a.Id]),a.Icon)}</React.Fragment>)}{treffer.length===0&&<div className={base.flaechenLeer}>{t("Keine Pflanze gefunden","No plant found")}</div>}</div>
     {treffer.length>limit&&button(t("Weitere Pflanzen","More plants"),false,()=>setLimit(limit+60),"coui://uil/Standard/Trees.svg")}
-    <div className={styles.row}><input aria-label={t("Setname","Set name")} placeholder={t("Setname","Set name")} maxLength={64} value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.stopPropagation()}/><MitTooltip text={t("Auswahl als eigenes Set unter diesem Namen sichern","Save the current selection as your own set under this name")}><button className={styles.choice} aria-label={t("Speichern","Save")} title={t("Speichern","Save")} disabled={!name.trim()||options.Species.length===0} onClick={()=>{trigger("ParkingLotTool","SaveVegetationSet",JSON.stringify({Name:name,Species:options.Species}));setName("");}}><img alt="" src="coui://uil/Standard/DiskSave.svg"/></button></MitTooltip></div>
+    <div className={styles.row}><div className={styles.setName}><Eingabefeld wert={name} text={t("Setname","Set name")} maxLength={64} onChange={setName}/></div><MitTooltip text={t("Auswahl als eigenes Set unter diesem Namen sichern","Save the current selection as your own set under this name")}><button className={styles.choice} aria-label={t("Speichern","Save")} title={t("Speichern","Save")} disabled={!name.trim()||options.Species.length===0} onClick={()=>{trigger("ParkingLotTool","SaveVegetationSet",JSON.stringify({Name:name,Species:options.Species}));setName("");}}><img alt="" src="coui://uil/Standard/DiskSave.svg"/></button></MitTooltip></div>
    </div>}
 
   </div>

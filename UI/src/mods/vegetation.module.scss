@@ -14,7 +14,7 @@
 /* Im eigenen Fenster braucht die Auswahl keinen abgesetzten Grund mehr -
    das Fenster IST die Absetzung. */
 .picker { min-width:0; }
-.root input { width:100%; min-width:0; padding:5rem; color:white; background-color:rgba(0,0,0,.2); border:1rem solid rgba(255,255,255,.2); font-size:var(--fontSizeXS); }
+.setName { width:100%; min-width:0; }
 .assets { display:flex; flex-wrap:wrap; max-height:320rem; overflow-y:auto; margin:5rem 0; }
 
 
