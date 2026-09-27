@@ -692,6 +692,16 @@ interface AuswahlProps {
  * Bewusst aus einfachen divs gebaut: ein echtes <select> ist in Cohtml
  * nicht verlaesslich.
  */
+/**
+ * HOECHSTENS EINE FLAECHENAUSWAHL IST OFFEN.
+ *
+ * Das Auswahlfenster blieb offen, wenn man woanders klickte oder die
+ * zweite Auswahl oeffnete - dann lagen zwei Fenster uebereinander. Jetzt
+ * schliesst jede Auswahl die zuvor offene, und ein Mausklick ausserhalb
+ * schliesst sie ebenfalls.
+ */
+let schliesseOffeneAuswahl: (() => void) | null = null;
+
 export const Auswahl = ({ label, tooltip, value, options, ton, onChange, differsFromDefault,
                          onReset, onSetDefault,
                          kopfSchalter, ausLabel }: AuswahlProps) => {
@@ -703,11 +713,23 @@ export const Auswahl = ({ label, tooltip, value, options, ton, onChange, differs
   const sichtbar = gesucht === ""
     ? options
     : options.filter((f) => f.name.toLowerCase().includes(gesucht));
+  const wurzel = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!offen) setSuche("");
+    if (!offen) { setSuche(""); return; }
+    const schliessen = () => setOffen(false);
+    if (schliesseOffeneAuswahl) schliesseOffeneAuswahl();
+    schliesseOffeneAuswahl = schliessen;
+    const klick = (e: MouseEvent) => {
+      if (!wurzel.current?.contains(e.target as Node)) schliessen();
+    };
+    window.addEventListener("mousedown", klick);
+    return () => {
+      window.removeEventListener("mousedown", klick);
+      if (schliesseOffeneAuswahl === schliessen) schliesseOffeneAuswahl = null;
+    };
   }, [offen]);
   return (
-    <div className={`${styles.control} ${styles.auswahl}`}>
+    <div ref={wurzel} className={`${styles.control} ${styles.auswahl}`}>
       <div className={styles.flaechenFunktionsZeile}>
         {kopfSchalter ? (
           <MitTooltip text={kopfSchalter.tooltip}>

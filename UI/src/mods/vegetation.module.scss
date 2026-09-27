@@ -15,7 +15,8 @@
    das Fenster IST die Absetzung. */
 .picker { min-width:0; }
 .setName { width:100%; min-width:0; }
-.assets { display:flex; flex-wrap:wrap; max-height:320rem; overflow-y:auto; margin:5rem 0; }
+/* Feste Hoehe: mit max-height schrumpfte das Fenster bei jeder Suche. */
+.assets { display:flex; flex-wrap:wrap; height:320rem; overflow-y:auto; margin:5rem 0; }
 
 
 /* ================================================ FENSTER MIT ZWEI TEILEN */
