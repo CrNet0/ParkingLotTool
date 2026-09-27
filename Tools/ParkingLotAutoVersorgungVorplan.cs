@@ -208,9 +208,10 @@ namespace ParkingLotTool.Tools
                     + (ist.Gefunden ? $"{ist.Laenge:F3} m, Zielkante {ist.Zielkante}." : "ohne Trasse."));
                 return;
             }
+            // Zielkanten vergleicht man ueber den Ort wie `PruefeVorplan`:
+            // CS2 legt Strassen zwischen Vorplan und Bau auch neu an.
             var gleich = vor.Gefunden == ist.Gefunden && (!vor.Gefunden
-                || ((vor.ZielEigene ? EntityManager.HasComponent<Owner>(ist.Zielkante)
-                    : vor.Zielkante == ist.Zielkante)
+                || (vor.ZielEigene == EntityManager.HasComponent<Owner>(ist.Zielkante)
                     && math.distance(vor.Start, ist.Start.xz) <= 0.1f
                     && math.distance(vor.Ziel, ist.Ziel.xz) <= 0.1f
                     && math.abs(vor.Laenge - ist.Laenge) <= 0.1f));
