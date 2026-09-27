@@ -89,6 +89,9 @@ namespace ParkingLotTool.Geometry
         internal List<float2> Punkte, Stromweg, Wasserweg;
         internal int OffeneTeile;
         internal bool AnderesNetzKuerzer;
+        // Der Vorplan hat eigene Ziele gesucht, keines erreicht und erst
+        // dann die Stadt genommen - ohne Sperren, die die Suche verengten.
+        internal bool EigeneVergeblich;
     }
 
     internal static class VersorgungstrassenPlan
@@ -115,12 +118,22 @@ namespace ParkingLotTool.Geometry
                     Laenge = w.Laenge, Hindernisweg = w.Hindernisweg,
                     Punkte = new List<float2>(w.Punkte), Stromweg = new List<float2>(w.Stromweg),
                     Wasserweg = new List<float2>(w.Wasserweg), OffeneTeile = aus.OffeneTeile,
-                    AnderesNetzKuerzer = kuerzer });
+                    AnderesNetzKuerzer = kuerzer,
+                    EigeneVergeblich = w.Zielkante.Stadt && BrauchtEigenesZiel(aus)
+                        && e.Ausgereizt.Count == 0
+                        && OhneSperren(e) });
                 // Dieselbe Merkung wie nach einem erfolgreichen Apply: die
                 // Verbindung aendert die Teile vor der naechsten Wahl.
                 e.Verbindungen.Add((w.Start.xz, w.Ziel.xz, w.Zielkante.Stadt));
             }
             return folge;
+        }
+
+        private static bool OhneSperren(Versorgungseingabe e)
+        {
+            foreach (var sperre in e.GesperrteZiele.Values)
+                if (sperre.Count > 0) return false;
+            return true;
         }
 
         internal static bool ZielErlaubt(bool stadt, int zielTeil, int meinTeil,
@@ -339,10 +352,12 @@ namespace ParkingLotTool.Geometry
             grund = "andere Reihenfolge der offenen Netze";
             if (vor.OffeneTeile != aus.OffeneTeile || vor.AnderesNetzKuerzer)
                 return false;
-            if (BrauchtEigenesZiel(aus) && !vor.ZielEigene)
+            if (BrauchtEigenesZiel(aus) && !vor.ZielEigene && !vor.EigeneVergeblich)
             {
-                // Ein Stadtvorplan ist nur der Rueckfall, wenn auch in der
-                // Istgeometrie kein eigener Anschluss erreichbar ist.
+                // Ein Stadtvorplan ist nur der Rueckfall, wenn kein eigener
+                // Anschluss erreichbar ist. Hat der Vorplan das schon ohne
+                // Sperren festgestellt, entfaellt die erneute volle Wahl
+                // (300-670 ms am 2026-09-27); sonst wird sie hier nachgeholt.
                 var entscheidung = Waehle(e);
                 if (entscheidung.Beste != null && !entscheidung.Beste.Zielkante.Stadt)
                     return false;

@@ -362,6 +362,20 @@ internal static partial class Program
             && !VersorgungstrassenPlan.PruefeVorplan(ZonenOhneStadtpfad(),
                 alterStadtvorplan[0], out _, out _),
             "Mutation: Istplanung verwirft Stadtvorplan, wenn eigene Trasse frei wurde");
+        Versorgungseingabe GetrennteZonen()
+        {
+            // Zwei Zonen, dazwischen eine fremde Leitung ueber die ganze
+            // Laenge: kein eigener Weg, nur Zone 0 erreicht die Stadt.
+            var e = ZonenOhneStadtpfad();
+            e.Eigene.RemoveAt(2); e.Hinderniskanten.RemoveAt(2); e.Ziele.RemoveAt(2);
+            var wand = Kante(44, 15, false, -200, 230); wand.Querbar = false;
+            e.Leitungen.Add(wand);
+            return e;
+        }
+        var getrennt = VersorgungstrassenPlan.PlaneFolge(GetrennteZonen(), out _);
+        Pruefe(getrennt.Count > 0 && !getrennt[0].ZielEigene && getrennt[0].EigeneVergeblich
+            && VersorgungstrassenPlan.PruefeVorplan(GetrennteZonen(), getrennt[0], out _, out _),
+            "Stadtvorplan nach vergeblicher eigener Suche wird ohne zweite Wahl angenommen");
         var schonAngeschlossen = new Versorgungseingabe { Strombreite = 1,
             Wasserbreite = 1, Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
         var gasse = Kante(50, 20, false, -20, 0);
