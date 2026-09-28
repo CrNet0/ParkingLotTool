@@ -17,10 +17,14 @@ without them a crash report has no line numbers, and it is worth half as much.
 
 YOU ALSO NEED
 
-Two mods from Paradox Mods. Without them the panel opens but every icon shows
-as a white box:
+Unified Icon Library from Paradox Mods. Without it the panel opens but every
+icon shows as a white box:
 
   Unified Icon Library   https://mods.paradoxplaza.com/mods/74417/Windows
+
+Recommended: Asset Icon Library. It shows preview images in the surface
+picker; without it the surfaces are listed by name only.
+
   Asset Icon Library     https://mods.paradoxplaza.com/mods/79634/Windows
 
 Harmony does NOT need installing. It ships with the mod as 0Harmony.dll.

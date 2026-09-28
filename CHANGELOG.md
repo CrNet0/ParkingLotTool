@@ -8,6 +8,9 @@
   whenever the area was updated. Existing lots are repaired on load
   (migration step 5); stations that already moved return after editing and
   rebuilding the lot once.
+- Asset Icon Library is now recommended instead of required. It pulls in
+  Find It, which users did not necessarily want. Without it the surface
+  picker lists surfaces by name instead of preview images.
 - The version inside the mod files now matches the mod page (the first
   Paradox Mods upload, listed as 1.0.0, still carried 0.1.6 internally).
 
