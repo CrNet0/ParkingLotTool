@@ -242,26 +242,46 @@ namespace ParkingLotTool.Tools
          * `Updated` erzwingt, dass `OverrideSystem` neu urteilt - sonst bliebe
          * ein bereits gesetztes `Overridden` stehen.
          */
+        /*
+         * AN DEN TRAEGER, NIE AN DIE FLAECHE - berichtigt 2026-09-28.
+         *
+         * Bis dahin setzte diese Stelle `Owner = Parkplatzflaeche`. Das war
+         * vor dem Traeger richtig gedacht, danach eine stehengebliebene
+         * Schranke: nach dem Laden baut CS2 den SubObject-Puffer aus dem
+         * `Owner` neu auf (Game.Serialization.SubObjectSystem), die Saeule
+         * stand damit doch im Puffer der FLAECHE, und das naechste `Updated`
+         * dort verstreute sie per `RelocateSubObjects` zufaellig. Meldung
+         * eines Testers: zwei Ladesaeulen mitten auf der Fahrgasse.
+         *
+         * Saeule -> Traeger -> Lot schuetzt vor der eigenen raeumenden
+         * Flaeche genauso (dieselbe Besitzerkette), und der Traeger hat
+         * weder Flaeche noch Transform - nichts verteilt seine Kinder.
+         */
         private void ProtectChargersFromOwnLot(Entity[] chargers)
         {
             if (_lotOwner == Entity.Null || !EntityManager.Exists(_lotOwner)) return;
+            if (_lotCarrier == Entity.Null || !EntityManager.Exists(_lotCarrier))
+            {
+                Mod.log.Warn("PLT-Ladesaeulen: kein Traeger - besitzerlose "
+                    + "Saeulen bleiben ungebunden.");
+                return;
+            }
             var geschuetzt = 0;
             for (var i = 0; i < chargers.Length; i++)
             {
                 var entity = chargers[i];
                 if (entity == Entity.Null || !EntityManager.Exists(entity)) continue;
                 if (EntityManager.HasComponent<Owner>(entity)) continue;
-                EntityManager.AddComponentData(entity,
-                    new Owner { m_Owner = _lotOwner });
+                SetVegetationOwner(entity, _lotCarrier, _lotOwner);
                 if (!EntityManager.HasComponent<Updated>(entity))
                     EntityManager.AddComponent<Updated>(entity);
                 geschuetzt++;
             }
             if (geschuetzt > 0)
-                Mod.log.Info("PLT: " + geschuetzt + " Ladesaeule(n) an die "
-                    + "Parkplatzflaeche gebunden - nur Owner, KEIN "
-                    + "SubObject-Puffereintrag. Sie duerfen deshalb nicht "
-                    + "verstreut werden und nicht verschwinden.");
+                Mod.log.Warn("PLT: " + geschuetzt + " Ladesaeule(n) hatten "
+                    + "nach dem Bau keinen Besitzer und wurden an den Traeger "
+                    + "gebunden. Eigentlich erledigt das HefteObjekteAnTraeger "
+                    + "vor dem Apply - hier ist etwas an ihm vorbeigelaufen.");
         }
 
         private void WriteChargerAudit(Entity[] chargers, bool complete)

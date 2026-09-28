@@ -106,6 +106,47 @@ namespace ParkingLotTool.Tools
                     Braucht = (lot, traeger, teile) => false,
                     Ausfuehren = (lot, traeger, teile) => { },
                 },
+                /*
+                 * Der Besitz ALLEIN reicht nicht: im Puffer der Flaeche stehen
+                 * sie bis zum naechsten Laden weiter, und jedes `Updated` der
+                 * Flaeche wuerfelt sie dort neu. Also auch den Eintrag
+                 * herausnehmen und beim Traeger eintragen.
+                 */
+                ["ObjekteNichtAnFlaeche"] = new Ausfuehrung
+                {
+                    Braucht = (lot, traeger, teile) =>
+                        AnFlaeche(lot, teile).Count > 0,
+                    Ausfuehren = (lot, traeger, teile) =>
+                    {
+                        foreach (var t in AnFlaeche(lot, teile))
+                        {
+                            _werkzeug.SetVegetationOwner(t, traeger, lot);
+                            // Ohne Zuordnung kennt der Abriss sie nicht.
+                            if (!EntityManager.HasComponent<ParkingLotPartRelation>(t))
+                                EntityManager.AddComponentData(t, new ParkingLotPartRelation
+                                {
+                                    Lot = lot,
+                                    Carrier = traeger,
+                                });
+                            if (EntityManager.HasBuffer<Game.Objects.SubObject>(lot))
+                            {
+                                var puffer = EntityManager.GetBuffer<Game.Objects.SubObject>(lot);
+                                for (var i = puffer.Length - 1; i >= 0; i--)
+                                    if (puffer[i].m_SubObject == t) puffer.RemoveAt(i);
+                            }
+                            if (EntityManager.HasBuffer<Game.Objects.SubObject>(traeger))
+                            {
+                                var puffer = EntityManager.GetBuffer<Game.Objects.SubObject>(traeger);
+                                var da = false;
+                                for (var i = 0; i < puffer.Length; i++)
+                                    if (puffer[i].m_SubObject == t) { da = true; break; }
+                                if (!da) puffer.Add(new Game.Objects.SubObject(t));
+                            }
+                            if (!EntityManager.HasComponent<Updated>(t))
+                                EntityManager.AddComponent<Updated>(t);
+                        }
+                    },
+                },
             };
 
             // Katalog und Ausfuehrung muessen sich decken - sonst bliebe ein
@@ -121,11 +162,42 @@ namespace ParkingLotTool.Tools
                && EntityManager.HasComponent<PlantData>(
                    EntityManager.GetComponentData<PrefabRef>(t).m_Prefab);
 
-        private bool IstLoseObjekt(Entity t)
+        // Aufkleber, Pfeile, Saeulen - was an den Traeger gehoert. Halte-
+        // stellen und der Wirtschaftsbegleiter bleiben absichtlich ohne.
+        private bool IstTraegerObjekt(Entity t)
             => EntityManager.HasComponent<Game.Objects.Object>(t)
-               && !EntityManager.HasComponent<Owner>(t)
                && !EntityManager.HasComponent<Game.Routes.TransportStop>(t)
                && !EntityManager.HasComponent<Game.Buildings.Building>(t)
                && !IstPflanze(t);
+
+        private bool IstLoseObjekt(Entity t)
+            => IstTraegerObjekt(t) && !EntityManager.HasComponent<Owner>(t);
+
+        private bool HaengtAnFlaeche(Entity t, Entity lot)
+            => IstTraegerObjekt(t) && EntityManager.HasComponent<Owner>(t)
+               && EntityManager.GetComponentData<Owner>(t).m_Owner == lot;
+
+        /*
+         * Die Teile-Liste kommt aus `ParkingLotPartRelation`. Eine Saeule, die
+         * an der Heftung vorbeilief, hat diese Zuordnung nie bekommen - sie
+         * steht nur im SubObject-Puffer der Flaeche. Also beide Quellen.
+         */
+        private List<Entity> AnFlaeche(Entity lot, List<Entity> teile)
+        {
+            var treffer = new List<Entity>();
+            foreach (var t in teile)
+                if (HaengtAnFlaeche(t, lot)) treffer.Add(t);
+            if (EntityManager.HasBuffer<Game.Objects.SubObject>(lot))
+            {
+                var puffer = EntityManager.GetBuffer<Game.Objects.SubObject>(lot);
+                for (var i = 0; i < puffer.Length; i++)
+                {
+                    var t = puffer[i].m_SubObject;
+                    if (EntityManager.Exists(t) && HaengtAnFlaeche(t, lot)
+                        && !treffer.Contains(t)) treffer.Add(t);
+                }
+            }
+            return treffer;
+        }
     }
 }

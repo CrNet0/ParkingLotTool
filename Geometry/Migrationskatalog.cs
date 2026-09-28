@@ -50,6 +50,10 @@ namespace ParkingLotTool.Geometry
                 "Entfaellt (2026-09-26): die sinkenden Gassen kamen vom Edit, "
                 + "der ins Gelaendeloch der alten Gasse baute. Das behebt der "
                 + "Edit selbst; ein Neubau per Sync ist nicht noetig."),
+            new Schritt(5, "ObjekteNichtAnFlaeche",
+                "Objekte, die an der Parkplatzflaeche statt am Traeger "
+                + "haengen (Ladesaeulen bis 2026-09-28), kommen an den "
+                + "Traeger; an der Flaeche verstreut CS2 sie zufaellig."),
         };
 
         /** Der Stand, den ein heute gebauter Parkplatz hat. */
