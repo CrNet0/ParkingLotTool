@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.1 — September 28, 2026
+
+- Fix EV charging stations that could end up scattered across the lot,
+  sometimes in the middle of an aisle. An unowned station was bound to the
+  lot area instead of the carrier; after loading, CS2 relocated it at random
+  whenever the area was updated. Existing lots are repaired on load
+  (migration step 5); stations that already moved return after editing and
+  rebuilding the lot once.
+- The version inside the mod files now matches the mod page (the first
+  Paradox Mods upload, listed as 1.0.0, still carried 0.1.6 internally).
+
+## 1.0.0 — September 28, 2026
+
+- First release on Paradox Mods.
+
 ## Unreleased — September 20, 2026
 
 - Preserve existing zoning road entities when an edit leaves the complete
