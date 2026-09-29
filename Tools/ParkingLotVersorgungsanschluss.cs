@@ -674,8 +674,10 @@ namespace ParkingLotTool.Tools
                 + "vorsorglich ausgelassen; KEIN Updated durch PLT gesetzt. "
                 + "Warnsymbol kann veraltet bleiben. Zweite Beobachtung laeuft.");
             _uiSystem?.SetStatus(ParkingLotTexte.T(
-                "Versorgungsschutz aktiv: Anschluss-Symbol wird vorerst nicht aktualisiert.",
-                "Utility safeguard active: connection icon refresh temporarily skipped."));
+                "Leitungen angeschlossen. Das Warnsymbol für fehlende Versorgung "
+                    + "kann noch eine Weile stehen bleiben.",
+                "Utilities connected. The missing-utility warning icon may stay "
+                    + "visible for a while."));
         }
 
         /** Gibt es zwischen den beiden Flussknoten noch KEINE Stromkante? */

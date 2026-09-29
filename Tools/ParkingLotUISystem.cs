@@ -744,7 +744,7 @@ namespace ParkingLotTool.Tools
             AddBinding(_flaecheZoning = new ValueBinding<string>(
                 Group, "SurfaceZoning", string.Empty));
             AddBinding(new TriggerBinding<string>(Group, "SetSurfaceZoning",
-                wert => ChangeDraftSetting("Baulandfläche geändert", () =>
+                wert => ChangeDraftSetting(Geaendert("SurfaceZoning"), () =>
                     Neu(_flaecheZoning, wert))));
             AddBinding(_flaecheStrasseStd = new ValueBinding<string>(
                 Group, "SurfaceRoadDefault",
@@ -801,22 +801,22 @@ namespace ParkingLotTool.Tools
             AddBinding(_vorflaecheAnStd = new ValueBinding<bool>(
                 Group, "SurfaceApronOnDefault", _defaults.SurfaceApronOn ?? true));
             AddBinding(new TriggerBinding<bool>(Group, "SetSurfaceApronOn",
-                wert => ChangeDraftSetting("Einstellung Vorfläche geändert", () =>
+                wert => ChangeDraftSetting(Geaendert("SurfaceApronOn"), () =>
                     UpdateValue(_vorflaecheAn, wert))));
             AddBinding(new TriggerBinding<bool>(Group, "SetSurfaceRoadOn",
-                wert => ChangeDraftSetting("Einstellung Fahrfläche geändert", () =>
+                wert => ChangeDraftSetting(Geaendert("SurfaceRoadOn"), () =>
                     UpdateValue(_flaecheStrasseAn, wert))));
             AddBinding(new TriggerBinding<bool>(Group, "SetSurfaceDecorationOn",
-                wert => ChangeDraftSetting("Einstellung Zwischenfläche geändert", () =>
+                wert => ChangeDraftSetting(Geaendert("SurfaceDecorationOn"), () =>
                     UpdateValue(_flaecheDekoAn, wert))));
             AddBinding(new TriggerBinding<string>(Group, "SetSurfaceRoad",
-                wert => ChangeDraftSetting("Fahrfläche geändert", () =>
+                wert => ChangeDraftSetting(Geaendert("SurfaceRoad"), () =>
                     Neu(_flaecheStrasse, wert))));
             AddBinding(new TriggerBinding<string>(Group, "SetSurfaceDecoration",
-                wert => ChangeDraftSetting("Zwischenfläche geändert", () =>
+                wert => ChangeDraftSetting(Geaendert("SurfaceDecoration"), () =>
                     Neu(_flaecheDeko, wert))));
             AddBinding(new TriggerBinding<bool>(Group, "SetBayIcons",
-                wert => ChangeDraftSetting("Buchtmarkierungen geändert", () =>
+                wert => ChangeDraftSetting(Geaendert("BayIcons"), () =>
                     UpdateValue(_buchtsymbole, wert))));
             // Die Oberflaeche haengt an dieser einen Bindung. Standard "en" -
             // auch wenn die Einstellungen noch nicht geladen sind, soll das
@@ -887,16 +887,16 @@ namespace ParkingLotTool.Tools
             Bind(_crossBays, "SetCrossBays");
             Bind(_rowAngle, "SetRowAngle");
             AddBinding(new TriggerBinding<bool>(Group, "SetGreenMedian",
-                value => ChangeDraftSetting("Mittelgrün geändert", () =>
+                value => ChangeDraftSetting(Geaendert("GreenMedian"), () =>
                     UpdateValue(_greenMedian, value))));
             AddBinding(new TriggerBinding<bool>(Group, "SetCrossCaps",
-                value => ChangeDraftSetting("Kappen geändert", () =>
+                value => ChangeDraftSetting(Geaendert("CrossCaps"), () =>
                     UpdateValue(_crossCaps, value))));
             AddBinding(new TriggerBinding<bool>(Group, "SetRandstrassen",
-                value => ChangeDraftSetting("Randstraßen geändert", () =>
+                value => ChangeDraftSetting(Geaendert("Randstrassen"), () =>
                     UpdateValue(_randstrassen, value))));
             AddBinding(new TriggerBinding<string>(Group, "SetAngleMode",
-                value => ChangeDraftSetting("Winkelmodus geändert", () =>
+                value => ChangeDraftSetting(Geaendert("AngleMode"), () =>
                 {
                     var geaendert = UpdateValue(_angleMode, value);
                     /*
@@ -930,7 +930,7 @@ namespace ParkingLotTool.Tools
                     return geaendert;
                 })));
             AddBinding(new TriggerBinding<string>(Group, "SetEngine",
-                value => ChangeDraftSetting("Rechenweg geändert", () =>
+                value => ChangeDraftSetting(Geaendert("Engine"), () =>
                     UpdateValue(_engine, value))));
             /**
              * Der Haken aus dem Nachfrage-Dialog. Er wandert in die Optionen,
@@ -1494,10 +1494,52 @@ namespace ParkingLotTool.Tools
                 _busStopMode.Update(on);
         }
 
+        /*
+         * DER NAME, DEN DER SPIELER IM PANEL LIEST - nicht der interne Schluessel.
+         *
+         * Bis 2026-09-29 stand in "Rueckgaengig: ..." der Rohschluessel
+         * ("setting Md reset", "Einstellung SetAisleWidth geaendert"), und
+         * etliche Beschriftungen gab es nur auf Deutsch - im englischen Spiel
+         * erschien dann "Undone: Randstrassen geaendert.". Die Namen folgen
+         * den Panelbeschriftungen in UI/src/mods/texte.ts.
+         */
+        private static (string De, string En) Einstellungsname(string key)
+        {
+            if (key != null && key.StartsWith("Set")) key = key.Substring(3);
+            switch (key)
+            {
+                case "EdgeSetback": return ("Randabstand", "edge setback");
+                case "AisleWidth": return ("Fahrgassenbreite", "aisle width");
+                case "CrossWidth": return ("Querstraßenbreite", "cross road width");
+                case "MedianWidth": return ("Grünstreifentiefe", "median depth");
+                case "CrossBays": return ("Verbindung alle", "cross road every");
+                case "RowAngle": return ("Reihenwinkel", "row angle");
+                case "AngleMode": return ("Winkelmodus", "angle mode");
+                case "GreenMedian": return ("Mittelgrün", "median");
+                case "CrossCaps": return ("Kappen an Querstraßen", "caps at cross roads");
+                case "Randstrassen": return ("Randstraßen", "perimeter roads");
+                case "SurfaceRoad": return ("Fahrfläche", "road surface");
+                case "SurfaceDecoration": return ("Zwischenfläche", "decoration surface");
+                case "SurfaceZoning": return ("Baulandfläche", "zoning surface");
+                case "SurfaceRoadOn": return ("Fahrfläche setzen", "place road surface");
+                case "SurfaceDecorationOn": return ("Zwischenfläche setzen", "place decoration surface");
+                case "SurfaceApronOn": return ("Belag bis zur Straße", "surface to road");
+                case "BayIcons": return ("Buchtmarkierung", "bay markings");
+                case "Engine": return ("Rechenweg", "calculation method");
+                default: return (key ?? "Einstellung", key ?? "setting");
+            }
+        }
+
+        private static string Geaendert(string key)
+        {
+            var name = Einstellungsname(key);
+            return T(name.De + " geändert", name.En + " changed");
+        }
+
         private void Bind(ValueBinding<float> binding, string trigger)
         {
             AddBinding(new TriggerBinding<float>(Group, trigger, value =>
-                ChangeDraftSetting("Einstellung " + trigger + " geändert", () =>
+                ChangeDraftSetting(Geaendert(trigger), () =>
                     UpdateValue(binding, value))));
         }
 
@@ -1741,8 +1783,9 @@ namespace ParkingLotTool.Tools
                     + "den Standard nicht einig.");
                 return;
             }
-            tool?.CommitUndoState(before, T("Einstellung " + key + " zurückgesetzt",
-                "setting " + key + " reset"));
+            var name = Einstellungsname(key);
+            tool?.CommitUndoState(before, T(name.De + " zurückgesetzt",
+                name.En + " reset"));
             Revision++;
         }
 
@@ -2022,8 +2065,8 @@ namespace ParkingLotTool.Tools
             }
             _meldungPfad?.Update(pfad);
             SetStatus(ParkingLotTexte.T(
-                "Meldung erstellt. Schick die Datei mit.",
-                "Report created. Send the file along."));
+                "Meldung erstellt. Die ZIP an ein GitHub-Issue anhängen.",
+                "Report created. Attach the ZIP to a GitHub issue."));
         }
 
         /**

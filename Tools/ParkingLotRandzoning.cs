@@ -271,7 +271,7 @@ namespace ParkingLotTool.Tools
             if (vorhanden >= 0)
             {
                 _randzoning.RemoveAt(vorhanden);
-                NachZoningaenderung(vorher, "Randzoning entfernt");
+                NachZoningaenderung(vorher, T("Randzoning entfernt", "edge zoning removed"));
                 return;
             }
 
@@ -302,7 +302,7 @@ namespace ParkingLotTool.Tools
                 ParkingGeometry.Live("  randzoning gesetzt | kante " + kante
                     + " | jetzt " + _randzoning.Count + " Linie(n) | flaechen "
                     + _zoningflaechen.Count);
-            NachZoningaenderung(vorher, "Randzoning gesetzt");
+            NachZoningaenderung(vorher, T("Randzoning gesetzt", "edge zoning placed"));
         }
 
         /**

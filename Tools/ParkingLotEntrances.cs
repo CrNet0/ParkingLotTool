@@ -256,8 +256,8 @@ namespace ParkingLotTool.Tools
             PublishEntranceState();
             UpdateEntranceHint();
             _uiSystem?.SetStatus(!_entranceMissingPrompt
-                ? T("Zufahrt am Polygonrand platzieren.",
-                    "Place an entrance on the polygon edge.")
+                ? T("Eine Zufahrt am Rand des Umrisses setzen.",
+                    "Place an entrance on the edge of the outline.")
                 : fehlt == "ausfahrt"
                 ? T("Eine Einfahrt ohne Ausfahrt - die Autos kämen nicht heraus.",
                     "An entry without an exit - cars could not leave.")
@@ -276,7 +276,8 @@ namespace ParkingLotTool.Tools
             _entranceOverlay.Clear();
             _debugTooltipSystem?.ClearEntranceHint();
             PublishEntranceState();
-            _uiSystem?.SetStatus(T("Polygon bearbeiten.", "Editing polygon."));
+            _uiSystem?.SetStatus(T("Umriss bearbeiten: Ecken und Kanten ziehen.",
+                "Editing the outline: drag corners and edges."));
         }
 
         /** Enter ohne ausreichenden Zugang fuehrt ohne Panelklick hierher. */

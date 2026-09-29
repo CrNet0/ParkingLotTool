@@ -81,7 +81,74 @@ namespace ParkingLotTool.Geometry
          */
         public static bool IstEntwicklerbefund(string warnung)
             => !string.IsNullOrEmpty(warnung)
-               && warnung.Contains("hole separation");
+               && (warnung.Contains("hole separation")
+                   // Nur mit `Auto` - das setzt der Mod nie; ein Rest aus
+                   // der Pruefumgebung.
+                   || warnung.Contains("automatic angle search")
+                   // Aus dem toten Reparaturpass; beschreibt die Konstruktion.
+                   || warnung.Contains("Engstelle"));
+
+        /**
+         * WAS IN DER HINWEISZEILE STEHT - in der Sprache des Spielers.
+         *
+         * Bis 2026-09-29 stand dort der Rohtext des Rechenkerns: teils nur
+         * deutsch ("Randstraßen aus: 0 Autozufahrten; eine Autozufahrt
+         * setzen."), teils Entwicklerenglisch ("Cell engine: 3 surface
+         * ring(s) with 1.20 m2 left out - CS2 would have refused them.").
+         * Der Rohtext bleibt im Bauzettel, im Log und im Meldereiter.
+         *
+         * Eine UNBEKANNTE Meldung erscheint unveraendert - dieselbe Richtung
+         * wie beim Filter oben: lieber einmal zu viel zeigen als still eine
+         * echte Warnung verschlucken.
+         */
+        public static (string De, string En) Anzeigetext(string warnung)
+        {
+            if (string.IsNullOrEmpty(warnung)) return (string.Empty, string.Empty);
+            var zufahrt = Regex.Match(warnung, @"Zufahrt\s+([0-9]+)");
+            var nummer = zufahrt.Success ? zufahrt.Groups[1].Value : "";
+            if (warnung.Contains("0 Autozufahrten"))
+                return ("Ohne Randstraßen braucht der Parkplatz eine Autozufahrt. Bitte eine setzen.",
+                        "Without perimeter roads the lot needs a car entrance. Please place one.");
+            if (warnung.Contains("keinen geraden Anschluss"))
+                return ($"Zufahrt {nummer} findet keinen geraden Weg zu einer Fahrgasse. Zufahrt verschieben.",
+                        $"Entrance {nummer} has no straight path to an aisle. Move the entrance.");
+            if (warnung.Contains("trifft ein Hindernis"))
+                return ($"Zufahrt {nummer} stößt auf ein Hindernis. Zufahrt verschieben.",
+                        $"Entrance {nummer} runs into an obstacle. Move the entrance.");
+            if (warnung.Contains("Endfussweg") || warnung.Contains("Endfußweg"))
+                return ("Ein Fußweg am Ende einer Reihe passt nicht hinein und fehlt.",
+                        "A footpath at the end of a row does not fit and was left out.");
+            if (warnung.Contains("automatic entrances are not implemented"))
+                return ("Automatische Zufahrten gibt es noch nicht - bitte von Hand setzen.",
+                        "Automatic entrances are not available yet - please place them by hand.");
+            if (warnung.Contains("left out") || warnung.Contains("Scherbe verworfen"))
+            {
+                var flaeche = GroessteFlaeche(warnung);
+                var menge = flaeche > 0 ? flaeche.ToString("F1", CultureInfo.InvariantCulture) + " m²" : "";
+                return ($"{(menge == "" ? "Ein Stück" : menge)} Belag fehlt: CS2 kann diese Form "
+                            + "dort nicht darstellen.",
+                        $"{(menge == "" ? "A piece of" : menge + " of")} surface is missing: CS2 "
+                            + "cannot display this shape there.");
+            }
+            if (warnung.Contains("Belagvorbereitung abgebrochen")
+                || warnung.Contains("Materialphase abgebrochen")
+                || warnung.Contains("Materialreparatur abgebrochen"))
+                return ("Die Flächen dieser Form wurden nicht vollständig fertig. Wenn etwas "
+                            + "fehlt, bitte einen Vorschau-Bericht schicken.",
+                        "The surfaces of this shape could not be completed. If something "
+                            + "looks missing, please send a preview report.");
+            return (warnung, warnung);
+        }
+
+        private static double GroessteFlaeche(string warnung)
+        {
+            var groesste = 0.0;
+            foreach (Match treffer in Flaechenangabe.Matches(warnung))
+                if (double.TryParse(treffer.Groups[1].Value.Replace(',', '.'),
+                        NumberStyles.Float, CultureInfo.InvariantCulture, out var f))
+                    groesste = System.Math.Max(groesste, System.Math.Abs(f));
+            return groesste;
+        }
 
         /**
          * Meldet dieser Hinweis nur verschwundene Nullflaeche?

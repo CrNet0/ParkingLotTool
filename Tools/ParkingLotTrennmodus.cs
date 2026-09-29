@@ -197,14 +197,14 @@ namespace ParkingLotTool.Tools
                 {
                     var before = CaptureUndoState();
                     _trennschnitte.RemoveAt(unter);
-                    NachTrennaenderung(before, "Trennschnitt gelöscht");
+                    NachTrennaenderung(before, T("Trennschnitt gelöscht", "cut deleted"));
                     return true;
                 }
                 if (_trennschnitte.Count > 0)
                 {
                     var before = CaptureUndoState();
                     _trennschnitte.RemoveAt(_trennschnitte.Count - 1);
-                    NachTrennaenderung(before, "Letzter Trennschnitt gelöscht");
+                    NachTrennaenderung(before, T("Letzter Trennschnitt gelöscht", "last cut deleted"));
                     return true;
                 }
                 AbortAusrichtWahl("Rechtsklick");
@@ -277,7 +277,7 @@ namespace ParkingLotTool.Tools
                 B = _points[j],
             });
             _trennAnfang = -1;
-            NachTrennaenderung(vorher, "Trennschnitt gezogen");
+            NachTrennaenderung(vorher, T("Trennschnitt gezogen", "cut drawn"));
             return true;
         }
 

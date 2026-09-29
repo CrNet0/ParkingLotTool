@@ -115,6 +115,15 @@ namespace ParkingLotTool.Tools
                             _buildRequestedWhenReady = false;
                             Mod.log.Warn("PLT: Enter ohne geschlossenes Polygon; "
                                 + "nichts gebaut.");
+                            // Vorher sah der Spieler hier gar nichts.
+                            _uiSystem?.SetStatus(_points.Count < MinPolygonPoints
+                                ? T("Zum Bauen erst einen Umriss zeichnen: mindestens "
+                                        + "drei Punkte, dann den ersten Punkt erneut anklicken.",
+                                    "Draw an outline first: at least three points, then "
+                                        + "click the first point again to close it.")
+                                : T("Zum Bauen den Umriss schließen: den ersten Punkt "
+                                        + "erneut anklicken.",
+                                    "Close the outline to build: click the first point again."));
                             return false;
                         }
                         if (!DarfBauen)
@@ -159,7 +168,25 @@ namespace ParkingLotTool.Tools
                             : _lastPreviewRevision != _geometryRevision
                                 ? "Vorschau gehoert zu altem Stand"
                             : "Vorschau ohne Zufahrt");
-                        _uiSystem?.SetStatus(T("Vorschau wird berechnet.", "Calculating preview."));
+                        // Frueher stand hier immer "Vorschau wird berechnet" -
+                        // auch beim Ziehen und bei einer Vorschau ohne Zufahrt.
+                        _uiSystem?.SetStatus(_dragPoint >= 0 || _dragEntrance >= 0
+                            ? T("Gebaut wird, sobald du loslässt.",
+                                "The lot is built as soon as you let go.")
+                            : _editBaselinePending
+                            ? T("Bearbeitung wird vorbereitet - gebaut wird gleich.",
+                                "Preparing the edit - the lot is built in a moment.")
+                            : _areaPreviewLayout != null
+                                && _lastPreviewRevision == _geometryRevision
+                                && !_layoutDirty && _buildTask == null
+                            // Fehlende Zufahrten faengt `DarfBauen` oben ab; hier
+                            // hat die Vorschau eine gesetzte nicht uebernommen.
+                            ? T("Die Zufahrt ließ sich in der Vorschau nicht anschließen. "
+                                    + "Sie entlang der Kante verschieben, dann bauen.",
+                                "The entrance could not be connected in the preview. "
+                                    + "Move it along the edge, then build.")
+                            : T("Vorschau wird berechnet - gebaut wird, sobald sie fertig ist.",
+                                "Calculating preview - the lot is built as soon as it is ready."));
                         return false;
                     }
                     if (TryFinishUnchangedEdit())

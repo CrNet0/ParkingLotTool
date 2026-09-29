@@ -1318,7 +1318,7 @@ namespace ParkingLotTool.Tools
             surfaceRoad = string.Empty;
             surfaceDecoration = string.Empty;
             surfaceZoning = string.Empty;
-            reason = "Bauzettel fehlt";
+            reason = ParkingLotTexte.T("Bauzettel fehlt", "build receipt missing");
             if (lot == Entity.Null || !EntityManager.Exists(lot)
                 || !HasCompleteBuildReceipt(lot)) return false;
 
@@ -1326,12 +1326,14 @@ namespace ParkingLotTool.Tools
             if (receipt.Version < 3
                 || receipt.Version > ParkingLotBuildReceipt.CurrentVersion)
             {
-                reason = "unbekannte Bauzettel-Version " + receipt.Version;
+                reason = ParkingLotTexte.T("unbekannte Bauzettel-Version " + receipt.Version,
+                    "unknown build receipt version " + receipt.Version);
                 return false;
             }
             if (!ValidReceiptSettings(receipt))
             {
-                reason = "ungültige Einstellungen im Bauzettel";
+                reason = ParkingLotTexte.T("ungültige Einstellungen im Bauzettel",
+                    "invalid settings in the build receipt");
                 return false;
             }
 
@@ -1339,7 +1341,8 @@ namespace ParkingLotTool.Tools
                 .GetBuffer<ParkingLotBuildPoint>(lot, true);
             if (pointBuffer.Length < MinPolygonPoints)
             {
-                reason = "weniger als drei Polygonpunkte";
+                reason = ParkingLotTexte.T("weniger als drei Polygonpunkte",
+                    "fewer than three outline points");
                 return false;
             }
             points = new float3[pointBuffer.Length];
@@ -1349,7 +1352,7 @@ namespace ParkingLotTool.Tools
                 if (point.Version != ParkingLotBuildPoint.CurrentVersion
                     || !math.all(math.isfinite(point.Position)))
                 {
-                    reason = "ungültiger Polygonpunkt " + i;
+                    reason = ParkingLotTexte.T("ungültiger Polygonpunkt " + i, "invalid outline point " + i);
                     return false;
                 }
                 points[i] = point.Position;
@@ -1375,7 +1378,7 @@ namespace ParkingLotTool.Tools
                             || double.IsInfinity(entrance.AxisLength)
                             || entrance.AxisLength <= 0)))
                 {
-                    reason = "ungültiger Zugang " + i;
+                    reason = ParkingLotTexte.T("ungültiger Zugang " + i, "invalid entrance " + i);
                     return false;
                 }
                 entrances[i] = new Entrance
@@ -1405,7 +1408,8 @@ namespace ParkingLotTool.Tools
                         || double.IsNaN(alignment.Angle)
                         || double.IsInfinity(alignment.Angle))
                     {
-                        reason = "ungültige Teilflächenausrichtung " + i;
+                        reason = ParkingLotTexte.T("ungültige Teilflächenausrichtung " + i,
+                            "invalid sub-area alignment " + i);
                         return false;
                     }
                     alignments[i] = new Ausrichtzuweisung
@@ -1429,7 +1433,7 @@ namespace ParkingLotTool.Tools
                         || !math.all(math.isfinite(cut.A))
                         || !math.all(math.isfinite(cut.B)))
                     {
-                        reason = "ungültiger Trennschnitt " + i;
+                        reason = ParkingLotTexte.T("ungültiger Trennschnitt " + i, "invalid cut " + i);
                         return false;
                     }
                     cuts[i] = new Teilflaechenschnitt { A = cut.A, B = cut.B };
@@ -1461,7 +1465,7 @@ namespace ParkingLotTool.Tools
                         || z.Reihen < 1
                         || z.Reihen > ParkingGeometry.ZoningMaxTiefe)
                     {
-                        reason = "ungültige Zoning-Fläche " + i;
+                        reason = ParkingLotTexte.T("ungültige Zoning-Fläche " + i, "invalid zoning patch " + i);
                         return false;
                     }
                     zonen[i] = new ParkingGeometry.Zoningflaeche
@@ -1603,7 +1607,8 @@ namespace ParkingLotTool.Tools
                 || string.IsNullOrEmpty(surfaceRoad)
                 || string.IsNullOrEmpty(surfaceDecoration))
             {
-                reason = "ungültige Flächennamen im Bauzettel";
+                reason = ParkingLotTexte.T("ungültige Flächennamen im Bauzettel",
+                    "invalid surface names in the build receipt");
                 return false;
             }
             return true;

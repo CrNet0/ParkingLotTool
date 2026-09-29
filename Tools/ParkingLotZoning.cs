@@ -662,7 +662,7 @@ namespace ParkingLotTool.Tools
                 var vorher = CaptureUndoState();
                 _zoningflaechen.RemoveAt(_zoningHover);
                 _zoningHover = -1;
-                NachZoningaenderung(vorher, "Zoning-Fläche gelöscht");
+                NachZoningaenderung(vorher, T("Zoning-Fläche gelöscht", "zoning patch deleted"));
                 return true;
             }
 
@@ -787,7 +787,7 @@ namespace ParkingLotTool.Tools
                 _zoningRastGesetzt = false;
                 _zoningMauszielGesetzt = false;
                 _zoningSchiebtVorher = null;
-                NachZoningaenderung(vorher2, "Zoning-Fläche verschoben");
+                NachZoningaenderung(vorher2, T("Zoning-Fläche verschoben", "zoning patch moved"));
                 return true;
             }
 
@@ -823,8 +823,9 @@ namespace ParkingLotTool.Tools
                 _zoningflaechen.Add(fertig);
                 _zoningAuswahl = _zoningflaechen.Count - 1;
                 _uiSystem?.SetZoningAuswahl(_zoningAuswahl);
-                NachZoningaenderung(vorher3,
-                    "Zoning-Fläche " + fertig.Spalten + "x" + fertig.Reihen);
+                NachZoningaenderung(vorher3, T(
+                    "Zoning-Fläche " + fertig.Spalten + "x" + fertig.Reihen,
+                    "zoning patch " + fertig.Spalten + "x" + fertig.Reihen));
                 return true;
             }
 

@@ -811,7 +811,9 @@ namespace ParkingLotTool.Tools
                 // bleibt erst einmal bearbeitbar.
                 if (Mod.Optionen == null || Mod.Optionen.AutomatischZufahrtModus)
                     BeginEntrancePlacement(showMissingPrompt: false);
-                else _uiSystem?.SetStatus(T("Polygon bearbeiten.", "Editing polygon."));
+                else _uiSystem?.SetStatus(T(
+                    "Umriss geschlossen. Ecken und Kanten ziehen, dann eine Zufahrt setzen.",
+                    "Outline closed. Drag corners and edges, then place an entrance."));
                 CommitUndoState(before, T("Polygon geschlossen",
                     "outline closed"));
                 Mod.log.Info($"PLT-Polygon geschlossen: {_points.Count} Punkte.");
@@ -1013,8 +1015,10 @@ namespace ParkingLotTool.Tools
                 _entrancePositionsBeforePointDrag = null;
                 _uiSystem?.SetStatus(_points.Count == 0
                     ? T("Linksklick setzt Punkte.", "Left click places points.")
-                    : T("Weiter zeichnen: Linksklick setzt Punkte.",
-                        "Keep drawing: left click places points."));
+                    : T("Weiter zeichnen: Linksklick setzt Punkte, Rechtsklick nimmt "
+                            + "den letzten zurück.",
+                        "Keep drawing: left click places points, right click removes "
+                            + "the last one."));
                 return;
             }
 
@@ -1278,10 +1282,12 @@ namespace ParkingLotTool.Tools
                 return;
             }
             _uiSystem?.SetStatus(T(
-                "Vorschau abgebrochen: diese Form bringt den Generator zum "
-                + "Haengen. Ecke verschieben und neu versuchen.",
-                "Preview aborted: this shape makes the generator hang. Move a "
-                + "corner and try again."));
+                "Keine Vorschau: Diese Form braucht zu lange. Eine Ecke "
+                + "verschieben und neu versuchen; passiert es wieder, bitte "
+                + "einen Vorschau-Bericht schicken.",
+                "No preview: this shape takes too long to calculate. Move a "
+                + "corner and try again; if it keeps happening, please send a "
+                + "preview report via Report a problem."));
         }
 
         private void PollCompletedBuild()
@@ -1320,7 +1326,8 @@ namespace ParkingLotTool.Tools
                 {
                     _overlay.ClearLayout();
                     ClearAreaPreviewLayout("Zufahrtsabstand nach Kernkorrektur");
-                    _uiSystem?.SetStatus(T("Zufahrtsabstand wird neu berechnet.", "Recalculating entrance distance."));
+                    _uiSystem?.SetStatus(T("Zufahrten angepasst - Vorschau wird neu berechnet.",
+                        "Entrances adjusted - recalculating the preview."));
                     return;
                 }
                 // Erst hier, nicht im Geometrielauf: die Vorflaeche misst die
@@ -1372,7 +1379,11 @@ namespace ParkingLotTool.Tools
                 CaptureEditBaselineIfNeeded(layout);
                 var nachFlaechenablage = messen ? Stopwatch.GetTimestamp() : 0L;
                 _uiSystem?.ShowResult(layout, PolygonArea(site));
-                _uiSystem?.SetStatus(T($"{layout.Stalls} Stellplätze berechnet.", $"{layout.Stalls} stalls calculated."));
+                _uiSystem?.SetStatus(DarfBauen
+                    ? T($"{layout.Stalls} Stellplätze. Enter oder „Bauen“ baut den Parkplatz.",
+                        $"{layout.Stalls} stalls. Press Enter or Build to build the lot.")
+                    : T($"{layout.Stalls} Stellplätze. Zum Bauen fehlt noch eine Zufahrt.",
+                        $"{layout.Stalls} stalls. Place an entrance to build the lot."));
                 /*
                  * Nicht jede Warnung ist eine Nachricht an den Nutzer. Zwei
                  * Meldungen ueber weggelassene Nullflaechen standen am
@@ -1383,7 +1394,15 @@ namespace ParkingLotTool.Tools
                 _uiSystem?.SetHinweise(
                     MitGroessenwarnung(
                         ParkingLotTool.Geometry.Hinweisfilter.Sichtbare(
-                            layout.Warnings),
+                                layout.Warnings)
+                            .Select(h =>
+                            {
+                                var text = ParkingLotTool.Geometry.Hinweisfilter
+                                    .Anzeigetext(h);
+                                return T(text.De, text.En);
+                            })
+                            .Distinct()
+                            .ToArray(),
                         layout));
                 // Derselbe Lauf, andere Leserschaft: die Statusleiste filtert,
                 // der Meldereiter nicht. Siehe `SetzeBaubefund`.
@@ -1464,45 +1483,13 @@ namespace ParkingLotTool.Tools
                             "Rebuild failed; the old parking lot was restored.");
                         return;
                     }
-                    /*
-                     * GEMESSEN AM 2026-08-26 an einem Nutzerfall: die Vorschau
-                     * brach dreimal ab mit
-                     *
-                     *   Materialreparatur ueberschreitet 7,0 s in SlabFill
-                     *   mit 1627 Grenzen; die Flaechen bleiben unrepariert.
-                     *
-                     * Das ist die bekannte Schwaeche des ALTEN Rechenwegs, und
-                     * der Ausweg ist ein Klick - nur stand er nirgends. Der
-                     * Nutzer las rohen Ausnahmetext und konnte damit nichts
-                     * anfangen. Der Hinweis gehoert genau hierhin.
-                     */
-                    /*
-                     * DER RAT MUSS BEFOLGBAR SEIN.
-                     *
-                     * Hier stand "Stell den Rechenweg auf 'Neu'". Diese
-                     * Umschaltung gibt es seit dem Ausbau des alten
-                     * Rechenwegs am 2026-09-01 nicht mehr - der Nutzer haette
-                     * gesucht und nichts gefunden. Bleibt die Zeitgrenze der
-                     * Materialreparatur, dann ist es ein Fall fuer den
-                     * Bericht, nicht fuer eine Einstellung.
-                     */
-                    var altweg = InnersteMeldung(exception)
-                        .Contains("Materialreparatur");
-                    var hinweisDe = altweg
-                        ? "  ·  Zeitgrenze der Materialreparatur. Bitte über "
-                            + "„Fehler melden“ schicken - diese Form braucht "
-                            + "eine Messung."
-                        : "  ·  Strg+Enter schreibt einen Geometrie-Abzug.";
-                    var hinweisEn = altweg
-                        ? "  ·  Surface repair hit its time limit. Please send "
-                            + "it via \"Report a problem\" - this shape needs "
-                            + "a measurement."
-                        : "  ·  Ctrl+Enter writes a geometry dump.";
-                    _uiSystem?.SetStatus(T(
-                        "Vorschau abgebrochen: " + InnersteMeldung(exception)
-                            + hinweisDe,
-                        "Preview aborted: " + InnersteMeldung(exception)
-                            + hinweisEn));
+                    // Kein roher Kerntext: `Vorschaufehler` ordnet die Ausnahme
+                    // einer Ursache zu, die der Spieler selbst beheben kann.
+                    // Der volle Text steht zwei Zeilen hoeher im Log.
+                    var meldung = Vorschaufehler.Text(
+                        Vorschaufehler.Einordnen(exception),
+                        settings?.Randstrassen ?? true);
+                    _uiSystem?.SetStatus(T(meldung.De, meldung.En));
                 }
             }
         }
@@ -1766,17 +1753,6 @@ namespace ParkingLotTool.Tools
          * nichts. Die Meldung ganz unten nennt dagegen die Regel, an der der
          * Generator ausgestiegen ist.
          */
-        private static string InnersteMeldung(Exception exception)
-        {
-            if (exception == null) return "unbekannte Ursache";
-            while (exception.InnerException != null)
-                exception = exception.InnerException;
-            var text = exception.Message;
-            return string.IsNullOrWhiteSpace(text)
-                ? exception.GetType().Name
-                : text.Trim();
-        }
-
         /**
          * Macht aus den Vorschau-Flaechen dauerhafte.
          *
@@ -2022,11 +1998,21 @@ namespace ParkingLotTool.Tools
              * ist: keine Entities, kein ApplyMode, nur Dreiecke.
              */
             _flaechennetz?.Leere();
+            var gebauteBuchten = _areaPreviewLayout?.Stalls ?? 0;
             _areaPreviewLayout = null;
             _ghostsActive = false;
             _lastPreviewSig = long.MinValue;
             VergissAusrichtung();
             ClearUndoHistory();
+            // Vorher blieb "... Stellplaetze berechnet" stehen, als waere
+            // noch nichts passiert. Ein Umbau meldet sich selbst ("Aenderungen
+            // uebernommen").
+            if (!IsEditing)
+                _uiSystem?.SetStatus(T(
+                    $"Parkplatz mit {gebauteBuchten} Stellplätzen gebaut. Den nächsten "
+                        + "zeichnen, oder das Werkzeug schließen.",
+                    $"Parking lot built with {gebauteBuchten} stalls. Draw the next one, "
+                        + "or close the tool."));
             return true;
         }
 

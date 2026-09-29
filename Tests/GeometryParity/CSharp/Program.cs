@@ -137,6 +137,8 @@ internal static partial class Program
             return MesseKreuzungen(args[1]);
         if (args.Length == 1 && args[0] == "--migrationen")
             return PruefeMigrationen();
+        if (args.Length == 1 && args[0] == "--statusmeldungen")
+            return PruefeStatusmeldungen();
         if (args.Length == 1 && args[0] == "--formate")
             return PruefeFormate(false);
         if (args.Length == 1 && args[0] == "--formate-aufnehmen")

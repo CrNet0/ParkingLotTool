@@ -101,7 +101,8 @@ namespace ParkingLotTool.Tools
                     Application.persistentDataPath, "Logs");
                 if (!Directory.Exists(ordner))
                 {
-                    grund = "Der Logs-Ordner wurde nicht gefunden.";
+                    grund = ParkingLotTexte.T("Der Logs-Ordner wurde nicht gefunden.",
+                        "The game's Logs folder was not found.");
                     return null;
                 }
 
@@ -133,9 +134,14 @@ namespace ParkingLotTool.Tools
                     && anlass != Anlass.Leistung)
                 {
                     grund = nurVorschau
-                        ? "Es gibt noch keinen Vorschau-Abzug. Zeichne einen "
-                          + "Parkplatz und versuch es noch einmal."
-                        : "Es gibt noch keinen Abzug zu diesem Parkplatz.";
+                        ? ParkingLotTexte.T(
+                            "Es gibt noch keinen Vorschau-Abzug. Zeichne einen "
+                                + "Parkplatz und versuch es noch einmal.",
+                            "There is no preview to report yet. Draw a parking "
+                                + "lot and try again.")
+                        : ParkingLotTexte.T(
+                            "Es gibt noch keinen Abzug zu diesem Parkplatz.",
+                            "There is no record of this parking lot yet.");
                     return null;
                 }
 
@@ -248,8 +254,13 @@ namespace ParkingLotTool.Tools
             }
             catch (Exception ausnahme)
             {
-                grund = "Das Paket konnte nicht geschnuert werden: "
-                    + ausnahme.Message;
+                // Der Ausnahmetext bleibt im Log; der Spieler braucht nur,
+                // DASS es scheiterte und was er tun kann.
+                grund = ParkingLotTexte.T(
+                    "Die Meldung konnte nicht erstellt werden. Details stehen "
+                        + "in ParkingLotTool.Mod.log.",
+                    "The report could not be created. Details are in "
+                        + "ParkingLotTool.Mod.log.");
                 Mod.log.Warn("PLT-Meldepaket fehlgeschlagen: " + ausnahme);
                 return null;
             }
