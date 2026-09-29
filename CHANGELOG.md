@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.2 — September 29, 2026
+
+- Rework player-facing status messages. A failed preview no longer shows
+  raw engine text; each failure is mapped to a cause the player can fix
+  (shape too small - with advice to switch off perimeter roads when they
+  are on -, outline folding back, entrance not fitting, surfaces too slow)
+  in English and German. The hint line translates known engine hints and
+  hides construction findings; undo labels, edit refusal reasons and
+  report failures are fully bilingual. Messages that did not match the
+  situation were corrected.
+- Add status messages for the next step: preview ready, lot built, and
+  Enter pressed with an open outline.
+- Fix a rare case in which the preview stopped appearing until the game
+  was restarted: the watchdog flag of an abandoned preview run carried
+  over to the next run, so a second hang was never released.
+- README lists Find It, which Asset Icon Library requires.
+
 ## 1.0.1 — September 28, 2026
 
 - Fix EV charging stations that could end up scattered across the lot,
