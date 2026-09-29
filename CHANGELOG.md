@@ -2,32 +2,15 @@
 
 ## 1.0.2 — September 29, 2026
 
-- Rework player-facing status messages. A failed preview no longer shows
-  raw engine text; each failure is mapped to a cause the player can fix
-  (shape too small - with advice to switch off perimeter roads when they
-  are on -, outline folding back, entrance not fitting, surfaces too slow)
-  in English and German. The hint line translates known engine hints and
-  hides construction findings; undo labels, edit refusal reasons and
-  report failures are fully bilingual. Messages that did not match the
-  situation were corrected.
-- Add status messages for the next step: preview ready, lot built, and
-  Enter pressed with an open outline.
-- Fix a rare case in which the preview stopped appearing until the game
-  was restarted: the watchdog flag of an abandoned preview run carried
-  over to the next run, so a second hang was never released.
-- README lists Find It, which Asset Icon Library requires.
+- Clearer status messages: a missing preview now says why and what to do;
+  all messages fully translated.
+- New status messages for the next step (preview ready, lot built).
+- Fix: the preview could stop appearing until the game was restarted.
 
 ## 1.0.1 — September 28, 2026
 
-- Fix EV charging stations that could end up scattered across the lot,
-  sometimes in the middle of an aisle. An unowned station was bound to the
-  lot area instead of the carrier; after loading, CS2 relocated it at random
-  whenever the area was updated. Existing lots are repaired on load
-  (migration step 5); stations that already moved return after editing and
-  rebuilding the lot once.
-- Add Find It to the dependency list; Asset Icon Library requires it.
-- The version inside the mod files now matches the mod page (the first
-  Paradox Mods upload, listed as 1.0.0, still carried 0.1.6 internally).
+- Fix: EV charging stations could be scattered across the lot.
+- Find It added to the dependencies (required by Asset Icon Library).
 
 ## 1.0.0 — September 28, 2026
 
