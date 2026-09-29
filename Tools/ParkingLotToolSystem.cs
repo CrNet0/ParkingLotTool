@@ -1174,6 +1174,15 @@ namespace ParkingLotTool.Tools
                     $"{p.x.ToString("0.#####", CultureInfo.InvariantCulture)} / "
                     + $"{p.y.ToString("0.#####", CultureInfo.InvariantCulture)}")));
             _buildComputeTicks = null;
+            // Die Waechterflaggen gehoeren zu GENAU diesem Lauf. Blieb
+            // `_previewTimeoutLogged` von einem aufgegebenen Lauf stehen und
+            // startete der naechste in einem Zweig vor `WatchStuckPreview`,
+            // hing ein zweiter Haenger ewig: der Waechter hielt ihn fuer schon
+            // gemeldet, und `_buildTask != null` sperrte jede weitere
+            // Vorschau - bis zum Spielneustart, denn das System ueberlebt das
+            // Laden (Codex-Bericht 2026-09-29, Spielermeldung).
+            _previewSlowLogged = false;
+            _previewTimeoutLogged = false;
             if (ParkingLotLiveLog.Aktiv)
             {
                 var rechenzeit = new long[1];
