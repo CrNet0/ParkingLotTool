@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.3 — October 1, 2026
+
+- Crash reports show how far the mod got while loading a save.
+- Fix: the crash notice pointed to a tab players cannot see.
+
 ## 1.0.2 — September 29, 2026
 
 - Clearer status messages: a missing preview now says why and what to do;
