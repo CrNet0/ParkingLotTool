@@ -12,6 +12,27 @@ body:
 
         Please don't paste logs. Everything technical is already in the file.
 
+  - type: dropdown
+    id: when
+    attributes:
+      label: When did the problem happen?
+      description: Pick the moment closest to it.
+      options:
+        - While the game was starting (before the main menu)
+        - While loading a save
+        - Shortly after loading, before using Parking Lot Tool (e.g. moving the camera)
+        - While drawing or changing a parking lot (preview)
+        - While building a parking lot
+        - While editing a parking lot
+        - While deleting a parking lot
+        - While the city was simply running
+        - While using another tool or mod
+        - While saving
+        - While exiting to the main menu or closing the game
+        - Something else / not sure
+    validations:
+      required: true
+
   - type: textarea
     id: steps
     attributes:
