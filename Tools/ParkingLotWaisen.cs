@@ -99,6 +99,7 @@ namespace ParkingLotTool.Tools
             _gescheitert.Clear();
             _autoOffen = false;
             if (mode != GameMode.Game) return;
+            ParkingLotSchrittmarke.Setze("Laden: Waisen-Bestandsaufnahme beginnt");
             try
             {
                 Aufnehmen();
@@ -111,6 +112,7 @@ namespace ParkingLotTool.Tools
                 // Eine Diagnose darf das Laden nie stoeren.
                 Mod.log.Warn("PLT-Waisen: Bestandsaufnahme abgebrochen: " + e);
             }
+            ParkingLotSchrittmarke.Setze("Laden: Waisen-Bestandsaufnahme beendet");
         }
 
         private bool IstLotPrefab(Entity prefab, Dictionary<Entity, bool> merk)

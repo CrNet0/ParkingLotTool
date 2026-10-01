@@ -64,12 +64,14 @@ namespace ParkingLotTool.Tools
             _altbestand.Clear();
             _uiSystem?.SetAltbestand(0);
             if (mode != GameMode.Game) return;
+            ParkingLotSchrittmarke.Setze("Laden: Altbestand-Suche beginnt");
 
             /*
              * Erst NACH dem Laden zaehlen, nicht waehrenddessen: vorher sind
              * die Puffer der Entities noch nicht zwingend gefuellt.
              */
             Suchen();
+            ParkingLotSchrittmarke.Setze("Laden: Altbestand-Suche beendet");
             if (_altbestand.Count == 0) return;
 
             _uiSystem?.SetAltbestand(_altbestand.Count);

@@ -389,7 +389,9 @@ namespace ParkingLotTool.Tools
             var absturz = -1;
             for (var i = 0; i < zeilen.Length; i++)
                 if (zeilen[i].Contains("Native Crash Reporting")
-                    || zeilen[i].Contains("Crash!!!"))
+                    || zeilen[i].Contains("Crash!!!")
+                    || (zeilen[i].Contains("* Assertion at ")
+                        && zeilen[i].Contains("reflection_bind_generic_method_parameters")))
                 { absturz = i; break; }
 
             text.AppendLine();

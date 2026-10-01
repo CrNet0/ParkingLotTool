@@ -193,12 +193,16 @@ namespace ParkingLotTool.Tools
             _letzterBestand = -1;
             _neuAufnehmen = mode == GameMode.Game;
             _spielGeladen = mode == GameMode.Game;
+            if (_spielGeladen)
+                ParkingLotSchrittmarke.Setze("Laden: Sync vorbereitet");
         }
 
         [Preserve]
         protected override void OnGamePreload(
             Colossal.Serialization.Entities.Purpose purpose, GameMode mode)
         {
+            if (mode == GameMode.Game)
+                ParkingLotSchrittmarke.Setze("Laden: Sync.OnGamePreload");
             base.OnGamePreload(purpose, mode);
             _spielGeladen = false;
             _warteschlange.Clear();
@@ -233,7 +237,9 @@ namespace ParkingLotTool.Tools
             if (_neuAufnehmen)
             {
                 _neuAufnehmen = false;
+                ParkingLotSchrittmarke.Setze("Laden: Sync-Aufnahme beginnt");
                 Aufnehmen();
+                ParkingLotSchrittmarke.Setze("Laden: Sync-Aufnahme beendet");
                 if (Mod.Optionen?.AutomatischSynchronisieren ?? false) AlleEinreihen();
             }
             Abarbeiten();
@@ -390,7 +396,11 @@ namespace ParkingLotTool.Tools
                 }
                 if (a.Braucht(lot, traeger, teile))
                 {
+                    ParkingLotSchrittmarke.Setze("Sync: Lot " + lot.Index
+                        + " Schritt " + schritt.Nummer + " " + schritt.Name + " beginnt");
                     a.Ausfuehren(lot, traeger, teile);
+                    ParkingLotSchrittmarke.Setze("Sync: Lot " + lot.Index
+                        + " Schritt " + schritt.Nummer + " " + schritt.Name + " beendet");
                     // Nachpruefung: die Wirkung muss da sein, nicht nur
                     // "kein Fehler".
                     if (a.Braucht(lot, traeger, teile))

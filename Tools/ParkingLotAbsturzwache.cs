@@ -58,7 +58,7 @@ namespace ParkingLotTool.Tools
                     Rette();
                     Mod.log.Warn("PLT-Absturzwache: die vorige Sitzung hat "
                         + "nicht ordentlich aufgehoert. " + Befund
-                        + " Im Debug-Reiter steht jetzt ein Knopf fuer den "
+                        + " Im Melde-Reiter steht jetzt ein Knopf fuer den "
                         + "Absturzbericht.");
                     SchnuereVonSelbst();
                 }
@@ -168,15 +168,18 @@ namespace ParkingLotTool.Tools
                 var text = leser.ReadToEnd();
 
                 var nativ = text.Contains("Native Crash Reporting");
+                var monoAssertion = text.Contains("* Assertion at ")
+                    && text.Contains("reflection_bind_generic_method_parameters");
                 var updateFrame = text.Contains(
                     "UpdateFrame added to unsupported type");
 
-                if (!nativ && !updateFrame)
+                if (!nativ && !updateFrame && !monoAssertion)
                     return "Im vorigen Player.log steht keine Absturzmeldung - "
                         + "moeglicherweise wurde das Spiel nur hart beendet.";
 
                 var teile = new System.Collections.Generic.List<string>();
                 if (nativ) teile.Add("nativer Absturz");
+                if (monoAssertion) teile.Add("Mono-Assertion bei generischer Reflection");
                 if (updateFrame)
                     teile.Add("\"UpdateFrame added to unsupported type\"");
                 return "Im vorigen Player.log steht: "

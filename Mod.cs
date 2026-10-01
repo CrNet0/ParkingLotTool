@@ -66,6 +66,7 @@ namespace ParkingLotTool
              * der abstuerzt, waere der, der nichts hinterlaesst.
              */
             Tools.ParkingLotAbsturzwache.Pruefe();
+            Tools.ParkingLotSchrittmarke.Setze("Laden: PLT.OnLoad nach Absturzwache");
 
             // Beim Start UNUEBERSEHBAR ins Log, mit Pfad und Bauzeit der DLL.
             //
@@ -439,6 +440,7 @@ namespace ParkingLotTool
             // fremde Harmony-Version ein Mitglied nicht kennt -, greift der
             // innere Block nie. Alles ab hier, insbesondere die
             // Tastenbelegung, muss trotzdem angemeldet werden.
+            Tools.ParkingLotSchrittmarke.Setze("Laden: Harmony PatchAll beginnt");
             try { ParkingLotRaycastPatch.Install(); }
             catch (Exception ausnahme)
             {
@@ -446,6 +448,7 @@ namespace ParkingLotTool
                     + "Anklicken, Bulldozer-Rueckfrage und Unterhaltsanzeige "
                     + "fallen aus; alles andere laeuft weiter.");
             }
+            Tools.ParkingLotSchrittmarke.Setze("Laden: Harmony PatchAll-Versuch beendet");
             // Ohne diesen Aufruf taucht die Belegung nicht in CS2s
             // Tastenuebersicht auf und die Aktion bleibt leer.
             Optionen?.RegisterKeyBindings();

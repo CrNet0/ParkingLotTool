@@ -234,13 +234,16 @@ namespace ParkingLotTool.Tools
         {
             base.OnGameLoadingComplete(purpose, mode);
             if (mode != Game.GameMode.Game && mode != Game.GameMode.Editor) return;
+            ParkingLotSchrittmarke.Setze("Laden: Traeger-SubNet wiederherstellen beginnt");
             // Der Traegertest hat am 2026-08-25 nach Save/Load 109 -> 0
             // SubNet-Eintraege gemessen. Noch vor dem ersten Spielframe wird
             // der Puffer deshalb aus der exakt referenzierten PLT-Flaeche
             // wiederhergestellt; ein spaeter Anlass findet ihn bereits vor.
             RestoreCarrierSubNetsAfterLoad();
+            ParkingLotSchrittmarke.Setze("Laden: Traeger-SubNet wiederherstellen beendet; Decal-Prefabs aufloesen");
             ResolveBayDecalPrefabs();
             PflegeUnsichtbaresDecal();
+            ParkingLotSchrittmarke.Setze("Laden: Decal-Prefabs aufloesen beendet");
         }
 
         private bool _unsichtbarGemeldet;
