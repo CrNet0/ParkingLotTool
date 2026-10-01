@@ -6,9 +6,16 @@ body:
     attributes:
       value: |
         **First, get the report file.** The panel has a **Report a problem**
-        tab. It writes a single `.zip` into your Cities: Skylines II logs
-        folder with everything needed to look into this — including a crash
-        report if the game died last time. Drag that file into this issue.
+        tab. It writes a single `.zip` with everything needed to look into
+        this — including a crash report if the game died last time. Drag that
+        file into this issue.
+
+        The files are here (paste the path into the Explorer address bar):
+
+        `%USERPROFILE%\AppData\LocalLow\Colossal Order\Cities Skylines II\Logs\ParkingLotTool-Logs`
+
+        Inside are the folders **Crash**, **Build** and **Preview**, one per
+        report type. The newest file is the one you just created.
 
         Please don't paste logs. Everything technical is already in the file.
 
