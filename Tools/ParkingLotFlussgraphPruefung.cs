@@ -108,6 +108,56 @@ namespace ParkingLotTool.Tools
             }
             if (tot + ohnePuffer > 0) Mod.log.Warn(text.ToString()); else Mod.log.Info(text.ToString());
             ParkingLotSchrittmarke.Setze("Netzbesitzer: " + (tot + ohnePuffer) + " ohne SubNet-Puffer/tot");
+            PruefeWegbesitzer(netze);
+        }
+
+        /**
+         * Wem gehoeren unsichtbare und PLT-Wege? Messung 2026-10-03: zwei
+         * Vanilla-'Invisible Car Path' IM grossen Parkplatz mit Besitzer 63223,
+         * der nicht der aktuelle Traeger ist. Je Besitzer: Bauteile und ob er
+         * zu einem lebenden Lot gehoert (Lot.CarrierReference zeigt auf ihn).
+         */
+        private void PruefeWegbesitzer(NativeArray<Entity> netze)
+        {
+            var prefabs = World.GetOrCreateSystemManaged<Game.Prefabs.PrefabSystem>();
+            var gruppen = new Dictionary<Entity, int>();
+            foreach (var n in netze)
+            {
+                if (!EntityManager.HasComponent<Game.Net.Edge>(n)) continue;
+                var name = prefabs.GetPrefabName(EntityManager.GetComponentData<Game.Prefabs.PrefabRef>(n).m_Prefab);
+                if (!name.Contains("Invisible") && !name.StartsWith("PLT ", System.StringComparison.Ordinal)) continue;
+                var o = EntityManager.GetComponentData<Game.Common.Owner>(n).m_Owner;
+                gruppen[o] = gruppen.TryGetValue(o, out var c) ? c + 1 : 1;
+            }
+            var text = new StringBuilder("PLT-Wegbesitzer (nur lesen): ").Append(gruppen.Count).Append(" Besitzer.");
+            int fremd = 0;
+            foreach (var p in gruppen)
+            {
+                var o = p.Key;
+                bool gueltig = false;
+                if (Lebt(o) && EntityManager.HasComponent<ParkingLotPartRelation>(o))
+                {
+                    var lot = EntityManager.GetComponentData<ParkingLotPartRelation>(o).Lot;
+                    gueltig = Lebt(lot) && EntityManager.HasComponent<ParkingLotCarrierReference>(lot)
+                        && EntityManager.GetComponentData<ParkingLotCarrierReference>(lot).Carrier == o;
+                }
+                if (Lebt(o) && EntityManager.HasComponent<ParkingLotCarrierReference>(o)) gueltig = true;
+                if (gueltig) continue;
+                fremd++;
+                text.Append(" | FREMD ").Append(o).Append(" (").Append(p.Value).Append(" Wegkanten): ");
+                if (!Lebt(o)) { text.Append("existiert nicht"); continue; }
+                using var typen = EntityManager.GetComponentTypes(o, Allocator.Temp);
+                var namen = new List<string>();
+                foreach (var t in typen) namen.Add(t.GetManagedType()?.Name ?? t.ToString());
+                text.Append(string.Join(",", namen));
+                if (EntityManager.HasComponent<Game.Common.Owner>(o))
+                    text.Append(" Owner=").Append(EntityManager.GetComponentData<Game.Common.Owner>(o).m_Owner);
+                if (EntityManager.HasComponent<Game.Prefabs.PrefabRef>(o))
+                    text.Append(" Prefab='").Append(prefabs.GetPrefabName(
+                        EntityManager.GetComponentData<Game.Prefabs.PrefabRef>(o).m_Prefab)).Append("'");
+            }
+            text.Append(" Davon ohne lebenden Parkplatz: ").Append(fremd).Append('.');
+            if (fremd > 0) Mod.log.Warn(text.ToString()); else Mod.log.Info(text.ToString());
         }
 
         private bool Lebt(Entity e)
