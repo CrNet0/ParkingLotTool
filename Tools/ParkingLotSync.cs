@@ -102,6 +102,15 @@ namespace ParkingLotTool.Tools
         private int _meldungSync;
         private int _meldungWaisen;
         private int _meldungBauplaene;
+        /*
+         * OFFENE PARKPLAETZE NACH DEM LADEN - bei abgeschalteter Automatik.
+         *
+         * Bis 2026-10-02 stand das nur im Panelkopf; wer PLT nach dem Laden
+         * nicht oeffnete, erfuhr nie, dass Reparaturen warten (Baeume
+         * einfrieren, verstreute Ladesaeulen). Dieselbe Meldung unten mittig,
+         * einmal je Laden.
+         */
+        private int _meldungOffen;
 
         /** Die Waisen-Automatik meldet hier, was sie getan hat. */
         internal void MeldeWaisenreparatur(bool verbunden, bool bauplan)
@@ -115,13 +124,13 @@ namespace ParkingLotTool.Tools
         {
             _ergebnisUhr.Restart();
             _syncErgebnis.Update(_meldungSync + "\t" + _meldungWaisen + "\t"
-                + _meldungBauplaene);
+                + _meldungBauplaene + "\t" + _meldungOffen);
         }
 
         private void LeereMeldung()
         {
             _ergebnisUhr.Reset();
-            _meldungSync = _meldungWaisen = _meldungBauplaene = 0;
+            _meldungSync = _meldungWaisen = _meldungBauplaene = _meldungOffen = 0;
             if (_syncErgebnis.value != string.Empty) _syncErgebnis.Update(string.Empty);
         }
 
@@ -241,6 +250,11 @@ namespace ParkingLotTool.Tools
                 Aufnehmen();
                 ParkingLotSchrittmarke.Setze("Laden: Sync-Aufnahme beendet");
                 if (Mod.Optionen?.AutomatischSynchronisieren ?? false) AlleEinreihen();
+                else if (_offen.Count > 0)
+                {
+                    _meldungOffen = _offen.Count;
+                    VeroeffentlicheMeldung();
+                }
             }
             Abarbeiten();
             Melde();

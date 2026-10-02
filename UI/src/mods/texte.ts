@@ -453,6 +453,9 @@ const en = {
   bauplaeneMeldung: (n: number) => n === 1
     ? "Build plan of 1 parking lot restored"
     : `Build plans of ${n} parking lots restored`,
+  syncOffenMeldung: (n: number) => n === 1
+    ? "1 parking lot can be updated - open the parking lot list to sync it."
+    : `${n} parking lots can be updated - open the parking lot list to sync them.`,
   syncSchliessen: "Click to close this message.",
   syncEinzeln: "Synchronize",
   syncAlle: (n: number) => `Synchronize all (${n})`,
@@ -1053,6 +1056,9 @@ const de: Texte = {
   bauplaeneMeldung: (n: number) => n === 1
     ? "Bauplan von 1 Parkplatz wiederhergestellt"
     : `Baupläne von ${n} Parkplätzen wiederhergestellt`,
+  syncOffenMeldung: (n: number) => n === 1
+    ? "1 Parkplatz kann aktualisiert werden - in der Parkplatzliste synchronisieren."
+    : `${n} Parkplätze können aktualisiert werden - in der Parkplatzliste synchronisieren.`,
   syncSchliessen: "Klicken, um die Meldung zu schließen.",
   syncEinzeln: "Synchronisieren",
   syncAlle: (n: number) => `Alle synchronisieren (${n})`,

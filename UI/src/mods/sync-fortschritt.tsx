@@ -44,11 +44,12 @@ export const SyncFortschritt = () => {
   }
 
   if (!ergebnis) return null;
-  const [sync, waisen, bauplaene] = ergebnis.split("\t").map(Number);
+  const [sync, waisen, bauplaene, offen] = ergebnis.split("\t").map(Number);
   const zeilen: string[] = [];
   if (waisen > 0) zeilen.push(t.waisenRepariertMeldung(waisen));
   if (bauplaene > 0) zeilen.push(t.bauplaeneMeldung(bauplaene));
   if (sync > 0) zeilen.push(t.syncFertig(sync));
+  if (offen > 0) zeilen.push(t.syncOffenMeldung(offen));
   if (zeilen.length === 0) return null;
   return <TooltipKnopf text={t.syncSchliessen}
     className={`${styles.syncFortschritt} ${styles.syncFertig}`}
