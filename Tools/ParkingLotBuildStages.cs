@@ -380,6 +380,7 @@ namespace ParkingLotTool.Tools
             // braucht mehr als ein Bild.
             if (built) MeldeGassenbefundAn();
             if (built) _fusswegBefundAb = UnityEngine.Time.frameCount + 30;
+            if (built) _fahrwerteTraeger = _lotCarrier;
             return built;
         }
 

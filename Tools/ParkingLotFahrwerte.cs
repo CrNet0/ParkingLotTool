@@ -62,6 +62,64 @@ namespace ParkingLotTool.Tools
             }
         }
 
+        /*
+         * DIE KOSTEN STEHEN NICHT AM NETZ-PREFAB.
+         *
+         * Erste Messung 2026-10-02: `DefaultNetLane` der Wege fuehrt keine
+         * Autospur - die Spuren haengen an Sections/Pieces. Statt der Kette
+         * hier alle Auto-Pathfind-Prefabs des Spiels mit ihren Kosten, einmal
+         * je Sitzung. Welche davon unsere Wege benutzen, zeigt die gebaute
+         * Spur (`MesseSpurkosten`).
+         */
+        private bool _pfadkostenGemessen;
+        private Entity _fahrwerteTraeger;
+
+        private void MessePfadkosten()
+        {
+            if (_pfadkostenGemessen) return;
+            _pfadkostenGemessen = true;
+            using var abfrage = EntityManager.CreateEntityQuery(
+                ComponentType.ReadOnly<PathfindCarData>(), ComponentType.ReadOnly<PrefabData>());
+            using var alle = abfrage.ToEntityArray(Unity.Collections.Allocator.Temp);
+            foreach (var pfad in alle)
+            {
+                var k = EntityManager.GetComponentData<PathfindCarData>(pfad).m_DrivingCost.m_Value;
+                Mod.log.Info("PLT-Fahrwerte Pfadprefab: '" + _prefabSystem.GetPrefabName(pfad)
+                    + "' je m Zeit " + FwZahl(k.x) + "/Verhalten " + FwZahl(k.y)
+                    + "/Geld " + FwZahl(k.z) + "/Komfort " + FwZahl(k.w));
+            }
+        }
+
+        /** Welches Pfadprefab tragen die GEBAUTEN Spuren dieses Lots? */
+        internal void MesseSpurkosten(Entity traeger)
+        {
+            MessePfadkosten();
+            if (traeger == Entity.Null || !EntityManager.HasBuffer<Game.Net.SubNet>(traeger)) return;
+            var gezaehlt = new Dictionary<string, int>();
+            var netze = EntityManager.GetBuffer<Game.Net.SubNet>(traeger, true);
+            for (var i = 0; i < netze.Length; i++)
+            {
+                var kante = netze[i].m_SubNet;
+                if (!EntityManager.HasBuffer<Game.Net.SubLane>(kante)) continue;
+                var netz = _prefabSystem.GetPrefabName(EntityManager.GetComponentData<PrefabRef>(kante).m_Prefab);
+                var spuren = EntityManager.GetBuffer<Game.Net.SubLane>(kante, true);
+                for (var j = 0; j < spuren.Length; j++)
+                {
+                    var spur = spuren[j].m_SubLane;
+                    if (!EntityManager.HasComponent<Game.Net.CarLane>(spur)) continue;
+                    var spurPrefab = EntityManager.GetComponentData<PrefabRef>(spur).m_Prefab;
+                    if (!EntityManager.HasComponent<NetLaneData>(spurPrefab)) continue;
+                    var pfad = EntityManager.GetComponentData<NetLaneData>(spurPrefab).m_PathfindPrefab;
+                    var tempo = EntityManager.GetComponentData<Game.Net.CarLane>(spur).m_SpeedLimit;
+                    var schluessel = netz + " -> " + _prefabSystem.GetPrefabName(spurPrefab) + " / "
+                        + (pfad == Entity.Null ? "-" : _prefabSystem.GetPrefabName(pfad)) + " / " + Kmh(tempo);
+                    gezaehlt[schluessel] = gezaehlt.TryGetValue(schluessel, out var n) ? n + 1 : 1;
+                }
+            }
+            foreach (var p in gezaehlt)
+                Mod.log.Info("PLT-Fahrwerte Spur: " + p.Key + " (" + p.Value + "x)");
+        }
+
         private static string Kmh(float ms)
             => (ms * 3.6f).ToString("F0", CultureInfo.InvariantCulture) + " km/h";
 
