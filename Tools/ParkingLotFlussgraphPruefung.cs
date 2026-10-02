@@ -60,6 +60,54 @@ namespace ParkingLotTool.Tools
             if (beispiele.Count > 0) text.Append(" Beispiele: ").Append(string.Join(" | ", beispiele));
             if (summe > 0) Mod.log.Warn(text.ToString()); else Mod.log.Info(text.ToString());
             ParkingLotSchrittmarke.Setze("Flussgraph: " + summe + " tote Verweise");
+            PruefeNetzbesitzer();
+        }
+
+        /**
+         * Besitzer ohne SubNet-Puffer = nativer Absturz, sobald Vanilla das Netz
+         * verarbeitet (Memory "cs2-subnet-subobject-puffer"; nackte Traeger
+         * verlieren den Puffer beim Laden, "cs2-nackter-traeger"). Messung
+         * 2026-10-03: am grossen Parkplatz haengen alte Vanilla-Wege mit
+         * fremdem Besitzer 63223 an der Zoningstrasse. Nur lesen.
+         */
+        private void PruefeNetzbesitzer()
+        {
+            using var q = EntityManager.CreateEntityQuery(
+                new EntityQueryDesc
+                {
+                    All = new[] { ComponentType.ReadOnly<Game.Common.Owner>(), ComponentType.ReadOnly<Game.Prefabs.PrefabRef>() },
+                    Any = new[] { ComponentType.ReadOnly<Game.Net.Edge>(), ComponentType.ReadOnly<Game.Net.Node>() },
+                    None = new[] { ComponentType.ReadOnly<Deleted>(), ComponentType.ReadOnly<Game.Tools.Temp>() },
+                });
+            using var netze = q.ToEntityArray(Allocator.Temp);
+            var besitzer = new Dictionary<Entity, int>();
+            int tot = 0, ohnePuffer = 0;
+            foreach (var n in netze)
+            {
+                var o = EntityManager.GetComponentData<Game.Common.Owner>(n).m_Owner;
+                if (o == Entity.Null) continue;
+                bool lebt = Lebt(o);
+                if (lebt && EntityManager.HasBuffer<Game.Net.SubNet>(o)) continue;
+                if (!lebt) tot++; else ohnePuffer++;
+                besitzer[o] = besitzer.TryGetValue(o, out var c) ? c + 1 : 1;
+            }
+            var text = new StringBuilder("PLT-Netzbesitzer-Pruefung (nur lesen): ")
+                .Append(netze.Length).Append(" Netzteile mit Besitzer; ")
+                .Append(tot).Append(" mit totem Besitzer, ")
+                .Append(ohnePuffer).Append(" mit Besitzer OHNE SubNet-Puffer.");
+            int i = 0;
+            foreach (var p in besitzer)
+            {
+                if (i++ >= 6) break;
+                text.Append(" | Besitzer ").Append(p.Key).Append(" (").Append(p.Value).Append(" Netzteile): ");
+                if (!Lebt(p.Key)) { text.Append("existiert nicht"); continue; }
+                using var typen = EntityManager.GetComponentTypes(p.Key, Allocator.Temp);
+                var namen = new List<string>();
+                foreach (var t in typen) namen.Add(t.GetManagedType()?.Name ?? t.ToString());
+                text.Append(string.Join(",", namen));
+            }
+            if (tot + ohnePuffer > 0) Mod.log.Warn(text.ToString()); else Mod.log.Info(text.ToString());
+            ParkingLotSchrittmarke.Setze("Netzbesitzer: " + (tot + ohnePuffer) + " ohne SubNet-Puffer/tot");
         }
 
         private bool Lebt(Entity e)
