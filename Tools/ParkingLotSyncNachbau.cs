@@ -21,11 +21,13 @@ namespace ParkingLotTool.Tools
      */
     public sealed partial class ParkingLotToolSystem
     {
-        private enum NachbauPhase { Frei, WarteAufBearbeiten, WarteAufBau }
+        private enum NachbauPhase { Frei, WarteAufBearbeiten, WarteAufBau, WarteAufMessung }
 
         private readonly List<Entity> _nachbauAuftraege = new();
         private NachbauPhase _nachbauPhase;
         private Entity _nachbauLot;
+        private Entity _nachbauNeuesLot;
+        private Entity _nachbauNeuerTraeger;
         private int _nachbauSeit;
         private int _nachbauFertig;
         private const int NachbauFrist = 1800;
@@ -67,9 +69,12 @@ namespace ParkingLotTool.Tools
                     {
                         Mod.log.Warn($"PLT-Nachbau: Parkplatz {lot} uebersprungen - "
                             + "nicht mehr da oder ohne vollstaendigen Bauzettel.");
+                        World.GetOrCreateSystemManaged<ParkingLotSyncSystem>()
+                            .MeldeNachbauEnde(lot, Entity.Null, false);
                         return;
                     }
                     _nachbauLot = lot;
+                    _nachbauNeuesLot = _nachbauNeuerTraeger = Entity.Null;
                     _nachbauSeit = bild;
                     _nachbauPhase = NachbauPhase.WarteAufBearbeiten;
                     RequestEdit(lot);
@@ -92,17 +97,28 @@ namespace ParkingLotTool.Tools
                 case NachbauPhase.WarteAufBau:
                     if (!IsEditing)
                     {
-                        _nachbauFertig++;
-                        Mod.log.Info($"PLT-Nachbau: Parkplatz {_nachbauLot} neu gebaut "
-                            + $"({_nachbauFertig} fertig, {_nachbauAuftraege.Count} offen).");
-                        _nachbauLot = Entity.Null;
-                        _nachbauPhase = NachbauPhase.Frei;
-                        if (_nachbauAuftraege.Count == 0
-                            && m_ToolSystem.activeTool == this)
-                            m_ToolSystem.activeTool = m_DefaultToolSystem;
+                        if (_nachbauNeuesLot == Entity.Null)
+                        {
+                            BeendeNachbau(false);
+                            return;
+                        }
+                        _nachbauPhase = NachbauPhase.WarteAufMessung;
+                        _nachbauSeit = bild;
                         return;
                     }
                     if (bild - _nachbauSeit > NachbauFrist) BrichNachbauAb("Uebernehmen lief nicht durch");
+                    return;
+                case NachbauPhase.WarteAufMessung:
+                    // Dieselben 30 Bilder wie die regulaere Spurkostenmessung:
+                    // jetzt sieht die Nachpruefung die wirklich gebauten Lanes.
+                    if (bild - _nachbauSeit < 30) return;
+                    var lebt = EntityManager.Exists(_nachbauNeuesLot)
+                        && !EntityManager.HasComponent<Deleted>(_nachbauNeuesLot)
+                        && EntityManager.Exists(_nachbauNeuerTraeger);
+                    if (lebt) MesseSpurkosten(_nachbauNeuerTraeger);
+                    BeendeNachbau(lebt && HasCompleteBuildReceipt(_nachbauNeuesLot)
+                        && HatGebauteFahrspuren(_nachbauNeuerTraeger)
+                        && !BrauchtFahrwegeNeubau(_nachbauNeuerTraeger));
                     return;
             }
         }
@@ -115,8 +131,29 @@ namespace ParkingLotTool.Tools
             AbortEdit("Nachbau: " + grund,
                 "Automatischer Neubau abgebrochen; der Parkplatz bleibt, wie er war.",
                 "Automatic rebuild cancelled; the parking lot stays as it was.");
-            _nachbauLot = Entity.Null;
+            BeendeNachbau(false);
+        }
+
+        /** Der erfolgreiche regulaere Edit uebergibt seine echte Ersatzidentitaet. */
+        private void MerkeNachbauErgebnis(Entity alt, Entity neu, Entity traeger)
+        {
+            if (alt != _nachbauLot) return;
+            _nachbauNeuesLot = neu;
+            _nachbauNeuerTraeger = traeger;
+        }
+
+        private void BeendeNachbau(bool erfolgreich)
+        {
+            World.GetOrCreateSystemManaged<ParkingLotSyncSystem>()
+                .MeldeNachbauEnde(_nachbauLot, _nachbauNeuesLot, erfolgreich);
+            if (erfolgreich) _nachbauFertig++;
+            Mod.log.Info($"PLT-Nachbau: Parkplatz {_nachbauLot}, Ersatz {_nachbauNeuesLot}: "
+                + (erfolgreich ? "Fahrwege-Nachpruefung bestanden " : "nicht abgeschlossen; Sync bleibt offen ")
+                + $"({_nachbauFertig} fertig, {_nachbauAuftraege.Count} offen).");
+            _nachbauLot = _nachbauNeuesLot = _nachbauNeuerTraeger = Entity.Null;
             _nachbauPhase = NachbauPhase.Frei;
+            if (_nachbauAuftraege.Count == 0 && m_ToolSystem.activeTool == this)
+                m_ToolSystem.activeTool = m_DefaultToolSystem;
         }
     }
 }

@@ -372,7 +372,7 @@ namespace ParkingLotTool.Tools
                      * Der Klon ist Innenausstattung: er wird von uns gebaut
                      * und soll nirgends auswaehlbar sein.
                      */
-                    if (!ParkingLotKlonregel.Erben(bauteil)) continue;
+                    if (!ParkingLotFahrprefabKopie.Erben(bauteil)) continue;
                     klon.AddComponentFrom(bauteil);
                 }
 
@@ -395,6 +395,8 @@ namespace ParkingLotTool.Tools
                     return;
                 }
 
+                var fahrprefabs = World.GetOrCreateSystemManaged<ParkingLotFahrprefabSystem>();
+                fahrprefabs.Isoliere(klon);
                 if (!_prefabSystem.AddPrefab(klon))
                 {
                     Fehlschlag(eintrag, "PrefabSystem.AddPrefab gab false zurueck.");
@@ -404,6 +406,7 @@ namespace ParkingLotTool.Tools
 
                 eintrag.Klon = klon;
                 eintrag.KlonEntity = _prefabSystem.GetEntity(klon);
+                fahrprefabs.Beobachte(original, klon);
                 MeldeQuerschnitt(eintrag, original);
                 SchreibeMaterialkatalog();
                 SchreibeFlaechenabzug();

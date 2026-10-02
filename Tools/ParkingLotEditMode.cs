@@ -683,6 +683,7 @@ namespace ParkingLotTool.Tools
             _hiddenNachUebernahme.Clear();
             foreach (var teil in _hiddenByEdit) _hiddenNachUebernahme.Add(teil);
             _hiddenByEdit.Clear();
+            MerkeNachbauErgebnis(old, next, carrier);
             ClearEditState();
             MerkeAutoVersorgung(carrier, old, alterTraeger);
             Mod.log.Info("PLT-Bearbeiten: Ausstieg durch Übernehmen; neues Lot "

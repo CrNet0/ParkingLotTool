@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework>
+    <NoWarn>$(NoWarn);CS0649;SYSLIB0050</NoWarn>
+    <FahrkopieQuelle Condition="'$(FahrkopieQuelle)' == ''">../../Tools/ParkingLotFahrprefabKopie.cs</FahrkopieQuelle>
+    <FahrmigrationQuelle Condition="'$(FahrmigrationQuelle)' == ''">../../Tools/ParkingLotFahrwegeMigration.cs</FahrmigrationQuelle>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(FahrkopieQuelle)" Link="ParkingLotFahrprefabKopie.cs" />
+    <Compile Include="../../Tools/ParkingLotFahrregeln.cs" Link="ParkingLotFahrregeln.cs" />
+    <Compile Include="../../Tools/ParkingLotKlonregel.cs" Link="ParkingLotKlonregel.cs" />
+    <Compile Include="$(FahrmigrationQuelle)" Link="ParkingLotFahrwegeMigration.cs" />
+    <Reference Include="Unity.Mathematics"><HintPath>$(CSII_TOOLPATH)/UnityModsProject/Library/ScriptAssemblies/Unity.Mathematics.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

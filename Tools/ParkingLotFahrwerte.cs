@@ -6,11 +6,11 @@ using Unity.Entities;
 namespace ParkingLotTool.Tools
 {
     /*
-     * WAS KOSTET DIE FAHRT UEBER UNSERE WEGE? - Messung vor dem Umbau.
+     * WAS KOSTET DIE FAHRT UEBER UNSERE WEGE? - Vorher-/Nachhermessung.
      *
      * Busse, Lkw und Autos kuerzen ueber PLT-Parkplaetze ab (Nutzer,
-     * 2026-10-02). Geplant sind teurere Fahrspuren und niedrigere
-     * Geschwindigkeit auf eigenen Klonen. Die heutigen Werte stehen aber in
+     * 2026-10-02). Eigene Klone senken das Tempo und erhoehen die Fahrkosten.
+     * Die tatsaechlich initialisierten Werte stehen aber in
      * den Vanilla-Assets, nicht im Code: das Dekompilat kennt nur
      * Klassenvorbelegungen (Pathway 40 km/h, Road 100 km/h). Diese Zeile
      * liest die echten Werte je benutztem Netz-Prefab einmal je Sitzung.
@@ -111,8 +111,16 @@ namespace ParkingLotTool.Tools
                     if (!EntityManager.HasComponent<NetLaneData>(spurPrefab)) continue;
                     var pfad = EntityManager.GetComponentData<NetLaneData>(spurPrefab).m_PathfindPrefab;
                     var tempo = EntityManager.GetComponentData<Game.Net.CarLane>(spur).m_SpeedLimit;
+                    var kosten = "Kosten nicht lesbar";
+                    if (pfad != Entity.Null && EntityManager.HasComponent<PathfindCarData>(pfad))
+                    {
+                        var k = EntityManager.GetComponentData<PathfindCarData>(pfad).m_DrivingCost.m_Value;
+                        kosten = "je m Zeit " + FwZahl(k.x) + "/Verhalten " + FwZahl(k.y)
+                            + "/Geld " + FwZahl(k.z) + "/Komfort " + FwZahl(k.w);
+                    }
                     var schluessel = netz + " -> " + _prefabSystem.GetPrefabName(spurPrefab) + " / "
-                        + (pfad == Entity.Null ? "-" : _prefabSystem.GetPrefabName(pfad)) + " / " + Kmh(tempo);
+                        + (pfad == Entity.Null ? "-" : _prefabSystem.GetPrefabName(pfad))
+                        + " / " + Kmh(tempo) + " / " + kosten;
                     gezaehlt[schluessel] = gezaehlt.TryGetValue(schluessel, out var n) ? n + 1 : 1;
                 }
             }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using Game;
 using Game.Net;
@@ -47,14 +48,12 @@ namespace ParkingLotTool.Tools
     {
         /** Quelle -> Klon. Die Quellen sind die Vanilla-Fahrwege und unsere Fusswegklone. */
         private static readonly (string Quelle, string Klon)[] Paare =
-        {
-            ("Invisible Car Path - 1xTwoway", "PLT Flat Invisible Car Path - 1xTwoway"),
-            ("Invisible Road Path - 1xTwoway", "PLT Flat Invisible Road Path - 1xTwoway"),
-            ("Invisible Car Path - 2xTwoway", "PLT Flat Invisible Car Path - 2xTwoway"),
-            ("Invisible Road Path - 2xTwoway", "PLT Flat Invisible Road Path - 2xTwoway"),
-            ("PLT Invisible Pedestrian Path", "PLT Flat Invisible Pedestrian Path"),
-            ("PLT Pedestrian Entrance Path", "PLT Flat Pedestrian Entrance Path"),
-        };
+            ParkingLotFahrregeln.Wege.Take(4).Select(p => (p.Quelle, "PLT Flat " + p.Quelle))
+                .Concat(new[]
+                {
+                    ("PLT Invisible Pedestrian Path", "PLT Flat Invisible Pedestrian Path"),
+                    ("PLT Pedestrian Entrance Path", "PLT Flat Pedestrian Entrance Path"),
+                }).ToArray();
 
         private PrefabSystem _prefabs;
         private EntityQuery _wege;
@@ -117,12 +116,16 @@ namespace ParkingLotTool.Tools
                         foreach (var komponente in quelle.components)
                         {
                             if (komponente == null) continue;
-                            var erben = ParkingLotKlonregel.Erben(komponente);
+                            var erben = ParkingLotFahrprefabKopie.Erben(komponente);
                             namen.Add(komponente.GetType().Name + (erben ? "" : " (ausgelassen)"));
                             if (erben) klon.AddComponentFrom(komponente);
                         }
                         ParkingLotLiveLog.Zeile($"PLT-Ebener Weg: '{klonname}' erbt von '{quellname}': "
                             + string.Join(", ", namen) + ".");
+                        // Historische Flat-Autowege bleiben unter ihrem alten
+                        // Namen ladbar, erhalten aber dieselben Fahrregeln.
+                        var fahrprefabs = World.GetOrCreateSystemManaged<ParkingLotFahrprefabSystem>();
+                        if (ParkingLotFahrregeln.IstFahrweg(quellname)) fahrprefabs.Isoliere(klon);
                         if (!_prefabs.AddPrefab(klon))
                         {
                             UnityEngine.Object.Destroy(klon);
@@ -130,6 +133,7 @@ namespace ParkingLotTool.Tools
                                 "AddPrefab gab false zurueck fuer " + klonname);
                         }
                         _quelleZuKlon[entity] = _prefabs.GetEntity(klon);
+                        if (ParkingLotFahrregeln.IstFahrweg(quellname)) fahrprefabs.Beobachte(quelle, klon);
                         _angelegt.Add(klonname);
                     }
                     catch (Exception e)

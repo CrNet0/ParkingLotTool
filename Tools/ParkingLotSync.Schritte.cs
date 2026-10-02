@@ -24,6 +24,7 @@ namespace ParkingLotTool.Tools
         {
             internal System.Func<Entity, Entity, List<Entity>, bool> Braucht;
             internal System.Action<Entity, Entity, List<Entity>> Ausfuehren;
+            internal bool Neubau;
         }
 
         private Dictionary<string, Ausfuehrung> _ausfuehrungen;
@@ -105,6 +106,12 @@ namespace ParkingLotTool.Tools
                 {
                     Braucht = (lot, traeger, teile) => false,
                     Ausfuehren = (lot, traeger, teile) => { },
+                },
+                ["Fahrwege25MitKosten"] = new Ausfuehrung
+                {
+                    Braucht = (lot, traeger, teile) => _werkzeug.BrauchtFahrwegeNeubau(traeger),
+                    Ausfuehren = (lot, traeger, teile) => _werkzeug.PlaneNachbau(lot),
+                    Neubau = true,
                 },
                 /*
                  * Der Besitz ALLEIN reicht nicht: im Puffer der Flaeche stehen

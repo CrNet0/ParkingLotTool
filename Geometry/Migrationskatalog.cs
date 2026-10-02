@@ -9,8 +9,9 @@ namespace ParkingLotTool.Geometry
      * Test `--migrationen` prueft beides gegeneinander: Nummern lueckenlos ab
      * 1, Namen eindeutig, und zu jedem Namen genau eine Ausfuehrung.
      *
-     * Regeln (MIGRATION-PLAN.md): ein Schritt aendert NIE Geometrie und
-     * loescht NIE Entities; er ist wiederholbar; er meldet erst Erfolg, wenn
+     * Regeln (MIGRATION-PLAN.md): ein Schritt schreibt NIE direkt Geometrie
+     * oder loescht selbst Entities. Noetiger Netzwechsel wird als asynchroner
+     * Auftrag an den regulaeren Edit/Neubau gegeben; er meldet erst Erfolg, wenn
      * seine Nachpruefung die Wirkung sieht. Neue Schritte kommen HINTEN
      * dazu - die Nummer eines Schritts ist der Datenstand, den ein
      * Parkplatz nach ihm hat, und steht damit in Spielstaenden.
@@ -58,6 +59,10 @@ namespace ParkingLotTool.Geometry
                 "Baeume bestehender Parkplaetze kommen auf eine Stufe ihrer "
                 + "Altersauswahl zurueck und altern nicht mehr, sofern der "
                 + "Zettel nichts anderes sagt (Standard seit 2026-10-02)."),
+            new Schritt(7, "Fahrwege25MitKosten",
+                "Alte befahrbare Innenwege ueber den regulaeren Edit/Neubau "
+                + "auf eigene 25-km/h-Fahrprefabs mit erhoehten Kosten bringen. "
+                + "Unveraenderte Zoningstrassen bleiben dabei erhalten."),
         };
 
         /** Der Stand, den ein heute gebauter Parkplatz hat. */

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Colossal.Mathematics;
 using Game.Common;
 using Game.Net;
@@ -58,20 +59,15 @@ namespace ParkingLotTool.Tools
          * denselben schlichten 2xTwoway.
          */
         private static readonly (string Name, float Width)[] DrivablePaths =
-        {
-            ("Invisible Car Path - 1xTwoway", 3f),
-            ("Invisible Road Path - 1xTwoway", 4f),
-            ("Invisible Car Path - 2xTwoway", 6f),
-            ("Invisible Road Path - 2xTwoway", 7f),
-        };
+            ParkingLotFahrregeln.Wege.Take(4).Select(p => (p.Quelle, p.Breite)).ToArray();
 
         /*
          * Im Laufzeitdump vom 2026-08-09 aus den Stueckbreiten gemessen:
          * 1xOneway = 3,0 m mittige Autospur + 2 * 0,5 m Gehabschnitt;
          * der reine Fussweg besteht aus einem mittigen 2,0-m-Stueck.
          */
-        private const string OnewayPathName = "Invisible Road Path - 1xOneway";
-        private const float OnewayPathWidth = 4f;
+        private static string OnewayPathName => ParkingLotFahrregeln.Wege[4].Quelle;
+        private static float OnewayPathWidth => ParkingLotFahrregeln.Wege[4].Breite;
         private const float PedestrianPathWidth = 2f;
 
         /**
@@ -479,17 +475,9 @@ namespace ParkingLotTool.Tools
                 if (!_pathPrefabs.ContainsKey(DrivablePaths[i].Name)) complete = false;
             if (complete) return true;
 
-            using var prefabs = _pathPrefabQuery.ToEntityArray(Allocator.TempJob);
-            for (var i = 0; i < prefabs.Length; i++)
-            {
-                var entity = prefabs[i];
-                if (!_prefabSystem.TryGetPrefab<PrefabBase>(entity, out var prefab)
-                    || prefab == null || !prefab.isBuiltin) continue;
-                for (var j = 0; j < DrivablePaths.Length; j++)
-                    if (string.Equals(prefab.name, DrivablePaths[j].Name,
-                            StringComparison.Ordinal))
-                        _pathPrefabs[prefab.name] = entity;
-            }
+            var fahrprefabs = World.GetOrCreateSystemManaged<ParkingLotFahrprefabSystem>();
+            foreach (var weg in DrivablePaths)
+                if (fahrprefabs.TryWeg(weg.Name, out var entity)) _pathPrefabs[weg.Name] = entity;
 
             var missing = new List<string>();
             for (var i = 0; i < DrivablePaths.Length; i++)
@@ -517,6 +505,8 @@ namespace ParkingLotTool.Tools
         /** Loest ein Sonderprefab erst dann auf, wenn eine neue Zugangsart es braucht. */
         private bool TryResolvePathPrefab(string name, out Entity entity)
         {
+            if (ParkingLotFahrregeln.IstFahrweg(name))
+                return World.GetOrCreateSystemManaged<ParkingLotFahrprefabSystem>().TryWeg(name, out entity);
             if (_pathPrefabs.TryGetValue(name, out entity)) return true;
             // Nebenbei den bestaetigten Altbestand fuellen; sein Verhalten
             // darf nicht davon abhaengen, ob ein Sonderprefab schon da ist.

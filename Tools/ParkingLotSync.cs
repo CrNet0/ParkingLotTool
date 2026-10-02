@@ -51,6 +51,7 @@ namespace ParkingLotTool.Tools
         private readonly List<Entity> _warteschlange = new List<Entity>();
         private int _gesamt;
         private int _erledigt;
+        private int _syncErfolge;
         private bool _neuAufnehmen;
         private int _letzterBestand = -1;
 
@@ -314,6 +315,8 @@ namespace ParkingLotTool.Tools
                     still++;
                     continue;
                 }
+                // Gescheitert heisst: bis zum naechsten Laden kein Versuch -
+                // also auch kein Sync-Knopf, der nichts tun wuerde.
                 if (_gescheitert.Contains(lot)) continue;
                 _offen.Add(lot);
                 _offenMenge.Add(lot);
@@ -343,8 +346,9 @@ namespace ParkingLotTool.Tools
 
         private void Einreihen(Entity lot)
         {
-            if (!_offenMenge.Contains(lot) || _warteschlange.Contains(lot)) return;
-            if (_warteschlange.Count == 0) _gesamt = _erledigt = 0;
+            if (!_offenMenge.Contains(lot) || _warteschlange.Contains(lot)
+                || _gescheitert.Contains(lot)) return;
+            if (_warteschlange.Count == 0) _gesamt = _erledigt = _syncErfolge = 0;
             _warteschlange.Add(lot);
             _gesamt++;
         }
@@ -366,7 +370,7 @@ namespace ParkingLotTool.Tools
             {
                 var lot = _warteschlange[0];
                 _warteschlange.RemoveAt(0);
-                Synchronisiere(lot, _index);
+                if (Synchronisiere(lot, _index)) _syncErfolge++;
                 _erledigt++;
             }
             while (_warteschlange.Count > 0 && uhr.Elapsed.TotalMilliseconds < BudgetMs);
@@ -377,22 +381,22 @@ namespace ParkingLotTool.Tools
                 // Liste hat seine Rueckmeldung schon in der Liste.
                 if (Mod.Optionen?.AutomatischSynchronisieren ?? false)
                 {
-                    _meldungSync += _erledigt;
-                    VeroeffentlicheMeldung();
+                    _meldungSync += _syncErfolge;
+                    if (_syncErfolge > 0) VeroeffentlicheMeldung();
                 }
             }
         }
 
-        private void Synchronisiere(Entity lot, Dictionary<Entity, List<Entity>> index)
+        private bool Synchronisiere(Entity lot, Dictionary<Entity, List<Entity>> index)
         {
             _offen.Remove(lot);
             _offenMenge.Remove(lot);
             if (!EntityManager.Exists(lot) || EntityManager.HasComponent<Deleted>(lot)
                 || !EntityManager.HasComponent<ParkingLotCarrierReference>(lot))
-                return;
+                return false;
             var traeger = EntityManager.GetComponentData<
                 ParkingLotCarrierReference>(lot).Carrier;
-            if (!EntityManager.Exists(traeger)) return;
+            if (!EntityManager.Exists(traeger)) return false;
             if (!index.TryGetValue(lot, out var teile)) teile = new List<Entity>();
             teile.RemoveAll(t => !EntityManager.Exists(t)
                 || EntityManager.HasComponent<Deleted>(t));
@@ -406,7 +410,7 @@ namespace ParkingLotTool.Tools
                 if (!_ausfuehrungen.TryGetValue(schritt.Name, out var a))
                 {
                     Scheitern(lot, s, schritt.Name, "keine Ausfuehrung");
-                    return;
+                    return false;
                 }
                 if (a.Braucht(lot, traeger, teile))
                 {
@@ -415,12 +419,24 @@ namespace ParkingLotTool.Tools
                     a.Ausfuehren(lot, traeger, teile);
                     ParkingLotSchrittmarke.Setze("Sync: Lot " + lot.Index
                         + " Schritt " + schritt.Nummer + " " + schritt.Name + " beendet");
+                    if (a.Neubau)
+                    {
+                        // Ein vorgemerkter Neubau ist noch KEINE Wirkung.
+                        // Datenstand bleibt vor diesem Schritt, bis der echte
+                        // Editpfad das alte Lot ersetzt und die Aufnahme die
+                        // neuen Wege nachprueft. Bei Abbruch bleibt es offen.
+                        _offen.Add(lot);
+                        _offenMenge.Add(lot);
+                        Mod.log.Info("PLT-Sync: Lot " + lot.Index + " Schritt "
+                            + schritt.Nummer + " wartet auf regulaeren Neubau; Datenstand bleibt " + s + ".");
+                        return false;
+                    }
                     // Nachpruefung: die Wirkung muss da sein, nicht nur
                     // "kein Fehler".
                     if (a.Braucht(lot, traeger, teile))
                     {
                         Scheitern(lot, s, schritt.Name, "Nachpruefung sieht keine Wirkung");
-                        return;
+                        return false;
                     }
                     getan.Add(schritt.Name);
                 }
@@ -430,6 +446,7 @@ namespace ParkingLotTool.Tools
                 + Migrationskatalog.Aktuell + " in " + uhr.Elapsed.TotalMilliseconds.ToString("0.0")
                 + " ms (" + (getan.Count == 0 ? "nichts zu tun" : string.Join(", ", getan))
                 + ", " + teile.Count + " Teile).");
+            return true;
         }
 
         private void Scheitern(Entity lot, int s, string name, string grund)
@@ -438,6 +455,45 @@ namespace ParkingLotTool.Tools
             Mod.log.Warn("PLT-Sync: Lot " + lot.Index + " bleibt auf Stand " + s
                 + ": Schritt " + (s + 1) + " '" + name + "' - " + grund
                 + ". Bis zum naechsten Laden kein neuer Versuch.");
+        }
+
+        internal void MeldeNachbauEnde(Entity lot, Entity neu, bool erfolgreich)
+        {
+            if (!EntityManager.Exists(lot) || EntityManager.HasComponent<Deleted>(lot))
+            {
+                _offen.Remove(lot);
+                _offenMenge.Remove(lot);
+            }
+            if (erfolgreich)
+            {
+                // Nur nach der echten Fahrwege-Nachpruefung; keine Netzwerte.
+                SetzeStand(neu, Migrationskatalog.Aktuell);
+                _offen.Remove(lot);
+                _offenMenge.Remove(lot);
+                _neuAufnehmen = true;
+                _index = null;
+                if (Mod.Optionen?.AutomatischSynchronisieren ?? false)
+                {
+                    _meldungSync++;
+                    VeroeffentlicheMeldung();
+                }
+            }
+            else
+            {
+                var ziel = neu != Entity.Null && EntityManager.Exists(neu) ? neu : lot;
+                if (ziel != lot)
+                {
+                    _offen.Remove(lot);
+                    _offenMenge.Remove(lot);
+                    SetzeStand(ziel, Migrationskatalog.Aktuell - 1);
+                }
+                _offen.Remove(lot);
+                _offenMenge.Remove(lot);
+                if (EntityManager.Exists(ziel) && !EntityManager.HasComponent<Deleted>(ziel))
+                    _gescheitert.Add(ziel);
+                Mod.log.Warn("PLT-Sync: Fahrwege-Neubau von " + lot
+                    + " nicht abgeschlossen; " + ziel + " bleibt vor Schritt 7, neuer Versuch nach dem naechsten Laden.");
+            }
         }
 
         private int StandVon(Entity lot)
