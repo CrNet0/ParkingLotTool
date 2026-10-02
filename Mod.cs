@@ -392,7 +392,7 @@ namespace ParkingLotTool
             updateSystem.UpdateAt<ParkingLotStadtreinigungSystem>(
                 SystemUpdatePhase.PreTool);
             /*
-             * MODIFICATION2, NICHT 3 - UND DAS IST DER GANZE WITZ.
+             * Vor beiden Flussgraph-Loeschsystemen in Modification1.
              *
              * `Game.Net.ReferencesSystem` laeuft in `Modification2B` und nimmt
              * eine geloeschte Kante aus den Puffern beider Endknoten. Wer
@@ -400,11 +400,13 @@ namespace ParkingLotTool
              * die es gleich nicht mehr gibt - und genau darueber stuerzt CS2
              * ab, wenn es den verwaisten Knoten abraeumt.
              *
-             * Die vollstaendige Herleitung samt Messung steht im Kopf von
-             * ParkingLotLeitungsabriss.cs.
+             * Modification2 erreichte zwar ReferencesSystem, verfehlte aber
+             * GraphDelete in Phase 1. Befund vom 02.10. und Grenzen stehen
+             * in BERICHT-VERSORGUNGSABSTURZ.md; Registrierung einmal zentral.
              */
-            updateSystem.UpdateAt<ParkingLotLeitungsabrissSystem>(
-                SystemUpdatePhase.Modification2);
+            ParkingLotVersorgungsphasen.Registriere(updateSystem);
+            updateSystem.UpdateAt<ParkingLotVersorgungsdiagnoseSystem>(SystemUpdatePhase.PostTool);
+            updateSystem.UpdateAfter<ParkingLotVersorgungsdiagnoseEndSystem>(SystemUpdatePhase.ModificationEnd);
             /*
              * UIUpdate, und das ist keine Geschmacksfrage.
              *
@@ -490,6 +492,14 @@ namespace ParkingLotTool
          *     fussweg        der unsichtbare Pfad-Klon
          *     begleiter      das Gebaeude-Prefab der Wirtschaft
          *     alle           alle vier
+         *
+         * Versorgungssuche (einzeln; Anleitung BERICHT-VERSORGUNGSABSTURZ.md):
+         *     versorgung-graphhelfer     0 PLT-Flussgraph-Ergaenzungen
+         *     versorgung-strom          Stromkurs weglassen (nur Wasser)
+         *     versorgung-wasser         Wasserkurs weglassen (nur Strom)
+         *     versorgung-leitungsabriss alte Leitungen beim Edit behalten
+         *     versorgung-kantenziel     nur bestehende Ziel-Endknoten waehlen
+         *     versorgung-bilddiagnose   120-Bilder-Diagnose weglassen
          *
          * Einmal beim Laden gelesen. Das ist ein Werkzeug zum Suchen, keine
          * Einstellung - wenn der Befund steht, faellt es wieder raus.

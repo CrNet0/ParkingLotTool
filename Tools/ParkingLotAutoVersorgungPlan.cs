@@ -225,7 +225,8 @@ namespace ParkingLotTool.Tools
             var e = new Versorgungseingabe { Strombreite = _avStrombreite,
                 Wasserbreite = _avWasserbreite,
                 Sicherheitszugabe = AutoVersorgungSicherheitszugabe,
-                Anschlussbereich = AutoVersorgungAnschlussbereich };
+                Anschlussbereich = AutoVersorgungAnschlussbereich,
+                NurKnotenziele = Mod.Aus("versorgung-kantenziel") };
             var kanten = new Dictionary<int, Versorgungskante>();
             Versorgungskante Hole(Entity entity)
             {

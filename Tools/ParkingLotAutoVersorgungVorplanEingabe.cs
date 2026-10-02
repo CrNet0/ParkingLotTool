@@ -68,6 +68,7 @@ namespace ParkingLotTool.Tools
                 || !TryChooseDrivablePath(settings.Cw, out var schmal, out _)) return null;
             var r = new VorplanEingabe { Revision = _geometryRevision };
             var e = r.Plan;
+            e.NurKnotenziele = Mod.Aus("versorgung-kantenziel");
             e.Strombreite = EntityManager.GetComponentData<NetGeometryData>(strom).m_DefaultWidth;
             e.Wasserbreite = EntityManager.GetComponentData<NetGeometryData>(wasser).m_DefaultWidth;
             e.Sicherheitszugabe = AutoVersorgungSicherheitszugabe;

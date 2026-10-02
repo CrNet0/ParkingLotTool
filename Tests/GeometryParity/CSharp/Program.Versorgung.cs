@@ -410,6 +410,21 @@ internal static partial class Program
         kurzerAnschluss.Ziele.Add(kurzeKante);
         Pruefe(VersorgungstrassenPlan.Waehle(kurzerAnschluss).Beste == null,
             "Mutation: kurze Zielkante akzeptiert keine Spur hinter ihrem Ende");
+        var nurKnoten = new Versorgungseingabe { Strombreite = 1, Wasserbreite = 1,
+            Sicherheitszugabe = 0.5f, Anschlussbereich = 8, NurKnotenziele = true };
+        nurKnoten.Eigene.Add(Kante(70, 0, false, 10, 40));
+        nurKnoten.Hinderniskanten.AddRange(nurKnoten.Eigene);
+        var knotenziel = Kante(71, 20, true, 0, 60);
+        nurKnoten.Ziele.Add(knotenziel);
+        var knotenwahl = VersorgungstrassenPlan.Waehle(nurKnoten).Beste;
+        Pruefe(knotenwahl != null && VersorgungsknotenDiagnose.IstEndpunkt(knotenziel, knotenwahl.Ziel.xz),
+            "Diagnose: vorhandener Endknoten wird gefunden, keine stille Nichtstun-Loesung");
+        Pruefe(!VersorgungsknotenDiagnose.IstEndpunkt(knotenziel, new float2(20, 30)),
+            "Diagnose: Kantenmitte ist kein Zielknoten");
+        var ohneKnoten = Kante(72, 20, true, 0, 60);
+        ohneKnoten.Startknoten = ohneKnoten.Endknoten = 0;
+        Pruefe(new List<float2>(VersorgungsknotenDiagnose.Ziele(ohneKnoten)).Count == 0,
+            "Diagnose: keine erfundenen Knoten fuer fehlende Entity-Enden");
         Console.WriteLine($"Versorgungskurse: {pruefungen} Pruefungen, {fehler} Fehler.");
         return fehler == 0 ? 0 : 1;
     }

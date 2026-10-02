@@ -70,7 +70,7 @@ namespace ParkingLotTool.Tools
      * ueber diesen Puffer - der Absturz kam unmittelbar statt kurz darauf.
      * Das Weglassen hat ihn verschoben, nicht beseitigt.
      *
-     * DESHALB DIESES SYSTEM, UND ZWAR IN `Modification2`. Das liegt vor
+     * DAMALS DESHALB DIESES SYSTEM IN `Modification2`. Das liegt vor
      * `Modification2B`. Damit steht das `Deleted` auf der Kante, wenn
      * `ReferencesSystem` im selben Frame darueber laeuft, und beide
      * Knotenpuffer werden sauber abgeraeumt, bevor die Entity verschwindet.
@@ -82,9 +82,11 @@ namespace ParkingLotTool.Tools
      * allowed!"*. Deshalb wird hier direkt ueber den `EntityManager`
      * markiert - im eigenen Durchlauf, auf dem Hauptthread, sofort wirksam.
      *
-     * DIE KNOTEN RUEHREN WIR WEITERHIN NICHT AN. Sie selbst zu markieren war
-     * die Absturzursache vom 2026-09-10; das bleibt richtig und steht
-     * ausfuehrlich in der Geschichte dieses Projekts.
+     * NACHTRAG 2026-10-02: Phase 2 verfehlt BEIDE GraphDelete-Systeme in
+     * Phase 1. Im Log wurden 3 Leitungskanten und 5 Knoten abgeraeumt;
+     * ihr Flussgraph wurde dabei nie gemessen. Jetzt laeuft dieser Abriss
+     * einmal vor allen normalen Phase-1-Systemen, damit GraphDelete UND
+     * References die Deleted-Entities sehen. Kein nachtraeglicher Reparaturpass.
      *
      * WAS BEIM LOESCHEN VON SELBST GESCHIEHT - im Dekompilat nachgelesen und
      * hier aufgehoben, weil es die Grundlage der ganzen Konstruktion ist:
@@ -225,7 +227,7 @@ namespace ParkingLotTool.Tools
 
             Mod.log.Info("PLT-Leitungsabriss: " + geloescht
                 + " vorgemerkte Strassenkante(n) des Parkplatzes in "
-                + "Modification2 geloescht, " + uebrig + " bleiben fuer den "
+                + "Modification1 geloescht, " + uebrig + " bleiben fuer den "
                 + "naechsten Durchgang.");
             ParkingLotSchrittmarke.Setze(
                 "Abriss: " + geloescht + " Strassenkante(n) geloescht");
@@ -249,6 +251,8 @@ namespace ParkingLotTool.Tools
                 var kante = kanten[i];
                 var zuordnung = EntityManager
                     .GetComponentData<ParkingLotVersorgungsleitung>(kante);
+                if (World.GetExistingSystemManaged<ParkingLotVersorgungsdiagnoseSystem>()
+                    ?.Behalten(zuordnung) == true) continue;
                 if (!ParkplatzIstFort(zuordnung)) continue;
                 MerkeLeitungsknoten(kante);
                 stummel += LoescheAnschlussstummel(kante);
@@ -259,10 +263,9 @@ namespace ParkingLotTool.Tools
 
             Mod.log.Info("PLT-Leitungsabriss: " + gemerkt
                 + " eigene Leitungskante(n) und " + stummel
-                + " senkrechte(s) Anschlussstueck(e) in Modification2 "
-                + "geloescht - vor Game.Net.ReferencesSystem "
-                + "(Modification2B), damit es die Kanten noch sieht und aus "
-                + "den Puffern der Endknoten nimmt.");
+                + " senkrechte(s) Anschlussstueck(e) in Modification1 "
+                + "geloescht - vor ElectricityGraphDeleteSystem, WaterPipeGraphDeleteSystem "
+                + "und Game.Net.ReferencesSystem (Modification2B).");
             ParkingLotSchrittmarke.Setze(
                 "Leitungsabriss: " + gemerkt + " Leitungskante(n) geloescht");
         }
@@ -350,7 +353,10 @@ namespace ParkingLotTool.Tools
 
             var zahl = 0;
             var gesehen = new System.Collections.Generic.List<string>();
-            foreach (var v in EntityManager.GetBuffer<ConnectedEdge>(knoten, true))
+            // AddComponent<Deleted> ist ein Strukturwechsel. Die Kopie bleibt
+            // fuer alle Nachbarn gueltig, auch nach dem ersten Stummelabriss.
+            using var nachbarn = EntityManager.GetBuffer<ConnectedEdge>(knoten, true).ToNativeArray(Allocator.Temp);
+            foreach (var v in nachbarn)
             {
                 var e = v.m_Edge;
                 if (e == unsere) continue;
@@ -431,7 +437,7 @@ namespace ParkingLotTool.Tools
             }
             if (geraeumt == 0) return;
             Mod.log.Info("PLT-Leitungsabriss: " + geraeumt + " Leitungs- bzw. "
-                + "Anschlussknoten in Modification2 geloescht - Knoten, die "
+                + "Anschlussknoten in Modification1 geloescht - Knoten, die "
                 + "kein Ende einer Leitung mehr sind.");
             ParkingLotSchrittmarke.Setze(
                 "Leitungsabriss: " + geraeumt + " Knoten geloescht");
@@ -490,22 +496,6 @@ namespace ParkingLotTool.Tools
          * den Kurs ("geloeschtes Original"), und das naechste Uebernehmen
          * stuerzte nativ ab - zweimal nachgestellt mit der Absturzspur.
          */
-        internal static bool TraegtNichtsMehr(EntityManager em, Entity knoten)
-        {
-            if (!em.HasBuffer<ConnectedEdge>(knoten)) return false;
-            foreach (var v in em.GetBuffer<ConnectedEdge>(knoten, true))
-            {
-                var e = v.m_Edge;
-                if (!em.Exists(e)) continue;
-                if (em.HasComponent<Deleted>(e)) continue;
-                if (!em.HasComponent<Edge>(e)) continue;
-                var kante = em.GetComponentData<Edge>(e);
-                if (kante.m_Start == knoten || kante.m_End == knoten)
-                    return false;
-            }
-            return true;
-        }
-
         /** Merkt beide Endknoten und alle Seitenanschluesse einer Kante. */
         private void MerkeLeitungsknoten(Entity kante)
         {

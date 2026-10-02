@@ -114,6 +114,7 @@ namespace ParkingLotTool.Tools
                 if (!gut && vergangen < 30) return 0;
                 if (!gut) return 3;
                 HintergrundNebenfluss();
+                AvStarteBilddiagnose("Permanent-Nebenbau");
                 foreach (var t in _avTrassen) AvMerkeAngewandt(t);
                 _avGebaut.AddRange(_avKurse);
                 MarkiereVersorgungsleitungen(_lotOwner,_lotCarrier);

@@ -49,6 +49,7 @@ namespace ParkingLotTool.Tools
             _avAbrissKanten.Clear();
             _avAbrissKnoten.Clear();
             _avKantenFreiMs = -1;
+            AvDiagnoseEditAbriss(lot, traeger);
             if (lot == Entity.Null) return;
             var query = GetEntityQuery(ComponentType.ReadOnly<ParkingLotVersorgungsleitung>(),
                 ComponentType.ReadOnly<Edge>(), ComponentType.Exclude<Temp>());
@@ -190,6 +191,13 @@ namespace ParkingLotTool.Tools
         private bool AvAbrissFertig()
         {
             if (_avAbrissTraeger != Entity.Null && EntityManager.Exists(_avAbrissTraeger)) return false;
+            var behalten = false;
+            AvDiagnoseAbrissWarten(ref behalten);
+            if (behalten)
+            {
+                _avAbrissKanten.Clear();
+                _avAbrissKnoten.Clear();
+            }
             foreach (var e in _avAbrissKanten)
                 if (EntityManager.Exists(e)) return false;
 
@@ -219,6 +227,10 @@ namespace ParkingLotTool.Tools
             AvKnotenGewartet = 0;
             return true;
         }
+
+        // Teilmethoden halten den bestehenden ECS-Test ohne Welt-Systeme lauffaehig.
+        partial void AvDiagnoseEditAbriss(Entity lot, Entity traeger);
+        partial void AvDiagnoseAbrissWarten(ref bool behalten);
 
         /** Hoechststand der gleichzeitig sterbenden Knoten, nur fuer die Messung. */
         private int AvKnotenGewartet;

@@ -42,6 +42,7 @@ namespace ParkingLotTool.Geometry
         internal float Suchgrenze = float.MaxValue;
         internal float Sicherheitszugabe, Anschlussbereich;
         internal Func<bool> Abgebrochen;
+        internal bool NurKnotenziele;
     }
 
     internal sealed class Versorgungsauswahl
@@ -214,7 +215,7 @@ namespace ParkingLotTool.Geometry
                     // Beide Parallelspuren brauchen auf der Kante Platz. Bei
                     // Small Road (8 m) sind das 4 m je Ende; ein geklemmter
                     // Projektionspunkt direkt am Ende reicht CS2 nicht.
-                    && SpurendeImKanteninneren(k, p)
+                    && (e.NurKnotenziele && k == ziel || SpurendeImKanteninneren(k, p))
                     && VersorgungskursPruefung.Anschluss(k.Abstand(p), k.Breite,
                         istStrom ? e.Strombreite : e.Wasserbreite,
                         istStrom ? k.Stromfang : k.Wasserfang, true);
@@ -416,6 +417,8 @@ namespace ParkingLotTool.Geometry
             var startkanten = Startkanten(g, start, out var startknoten);
             if (startkanten.Count == 0) return false;
             var ende = ziel.Projektion(vor.Ziel);
+            grund = "Diagnose verlangt bestehenden Zielknoten";
+            if (e.NurKnotenziele && !VersorgungsknotenDiagnose.IstEndpunkt(ziel, ende.xz)) return false;
             grund = "Zielpunkt weicht ab";
             if (math.distance(ende.xz, vor.Ziel) > 0.1f) return false;
             var punkte = new List<float2>(vor.Punkte);
@@ -537,6 +540,12 @@ namespace ParkingLotTool.Geometry
                 for (var i = 0; i < g.Ziele.Count; i++)
                 {
                     var k = g.Ziele[i];
+                    if (e.NurKnotenziele)
+                    {
+                        foreach (var punkt in VersorgungsknotenDiagnose.Ziele(k))
+                            yield return new Versorgungsweg.Ziel { Index = i, Punkt = punkt };
+                        continue;
+                    }
                     yield return new Versorgungsweg.Ziel { Index = i, Punkt = k.Projektion(p).xz };
                     for (var n = 0; n <= 16; n++)
                         yield return new Versorgungsweg.Ziel { Index = i,

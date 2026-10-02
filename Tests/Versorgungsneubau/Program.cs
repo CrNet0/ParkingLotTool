@@ -17,14 +17,14 @@ namespace Unity.Entities {
  }
  public sealed class FakeArray : List<Entity>, IDisposable { public void Dispose(){} }
  public sealed class EntityQuery {
-  public FakeManager Manager; public ComponentType[] Types;
+  public EntityManager Manager; public ComponentType[] Types;
   public FakeArray ToEntityArray(Unity.Collections.Allocator _) {
    var result=new FakeArray();
    result.AddRange(Manager.Data.Where(x=>Types.All(t=>x.Value.ContainsKey(t.Type)!=t.Excluded)).Select(x=>x.Key));
    return result;
   }
  }
- public sealed class FakeManager {
+ public sealed class EntityManager {
   public readonly Dictionary<Entity,Dictionary<Type,object>> Data=new();
   public void Add<T>(Entity e,T value) { if(!Data.ContainsKey(e))Data[e]=new();Data[e][typeof(T)]=value; }
   public bool Exists(Entity e)=>Data.ContainsKey(e);
@@ -39,17 +39,21 @@ namespace Game.Tools { public struct Temp {} }
 namespace Game.Net {
  public struct Edge { public Entity m_Start,m_End; }
  public struct ConnectedEdge { public Entity m_Edge; }
+ public struct ConnectedNode { public Entity m_Node; }
 }
 namespace ParkingLotTool.Tools {
  public struct ParkingLotVersorgungsleitung { public Entity Lot,Carrier; }
  public static class Mod { public static FakeLog log=new(); }
  public sealed class FakeLog { public void Info(string text){} }
  public sealed partial class ParkingLotToolSystem {
-  private FakeManager EntityManager=new();
+  private EntityManager EntityManager=new();
   private EntityQuery GetEntityQuery(params ComponentType[] types)=>new(){Manager=EntityManager,Types=types};
   private bool VersorgungsentityLebt(Entity e)=>e!=Entity.Null&&EntityManager.Exists(e)
     &&!EntityManager.HasComponent<Deleted>(e)&&!EntityManager.HasComponent<Temp>(e);
-  public static void Main() { new ParkingLotToolSystem().Run(); }
+  public static int Main() {
+   try { new ParkingLotToolSystem().Run(); return 0; }
+   catch(Exception e) { Console.WriteLine(e.Message); return 1; }
+  }
   private void Run() {
    var count=0;
    void Check(bool value,string name) {count++;if(!value)throw new Exception("FEHLER: "+name);}
@@ -87,6 +91,10 @@ namespace ParkingLotTool.Tools {
    Check(!AvAbrissFertig(),"Deleted allein reicht nicht");
    EntityManager.Data.Remove(own);
    EntityManager.Add(new Entity(own.Index,own.Version+1),new Edge());
+   // Die Produktionsregel wartet seit 25.09. auch auf den seitlichen
+   // Anschlussknoten. Erst dessen Entfernung macht den Abriss vollstaendig.
+   Check(!AvAbrissFertig(),"entfernte Leitung allein gibt seitlichen sterbenden Anschlussknoten nicht frei");
+   EntityManager.Data.Remove(node);
    Check(AvAbrissFertig(),"vollstaendig entfernter Abriss gibt Neubau frei trotz wiederverwendetem Index");
    Check(EntityManager.Exists(manual)&&EntityManager.Exists(other),"fremde Leitungen nicht angefasst");
    Check(_avAbrissKanten.Count==0&&_avAbrissTraeger==Entity.Null,"fertiger Auftrag bereinigt");
@@ -119,6 +127,9 @@ namespace ParkingLotTool.Tools {
    EntityManager.Data[unser].Remove(typeof(Deleted));unserPuffer.Clear();
    Check(!AvAbrissFertig(),"Endknoten ohne Kante haelt den Neubau auf, auch ohne Deleted");
    EntityManager.Data.Remove(unser);
+   Check(!AvAbrissFertig(),"seitliche Stadtstrassenreferenz ersetzt keinen echten Endpunkt");
+   // Der folgende positive Fall meint einen ECHTEN Stadtstrassenendpunkt.
+   EntityManager.Add(street,new Edge{m_Start=strasse,m_End=new Entity(21)});
    Check(AvAbrissFertig(),"lebender Strassenknoten mit Kanten gibt den Neubau frei");
    Check(_avAbrissKnoten.Count==0,"fertiger Auftrag bereinigt auch die Knoten");
    Console.WriteLine($"Versorgungsneubau: {count} Pruefungen, 0 Fehler.");

@@ -95,6 +95,7 @@ namespace ParkingLotTool.Tools
             _avTrassen.Clear();
             _avPhase = AvPhase.Idle;
             AvMerkeAbriss(altesLot, alterTraeger);
+            AvMeldeDiagnoseschalter();
             _avGesamtzeit = System.Diagnostics.Stopwatch.StartNew();
             if (Mod.Optionen != null && !Mod.Optionen.AutomatischVersorgung) return;
             if (traeger == Entity.Null) return;
@@ -153,6 +154,7 @@ namespace ParkingLotTool.Tools
             {
                 foreach (var istStrom in new[] { true, false })
                 {
+                    if (Mod.Aus(istStrom ? "versorgung-strom" : "versorgung-wasser")) continue;
                     var weg = istStrom ? trasse.Stromweg : trasse.Wasserweg;
                     var punkte = new List<float3>();
                     var laenge = 0f;
@@ -394,6 +396,7 @@ namespace ParkingLotTool.Tools
                 return true;
             }
             AvMeldeTempOhneOriginal("direkt vor dem Apply", null);
+            AvStarteBilddiagnose("vor Apply");
             // Die Identitaeten bleiben beim Vanilla-Create erhalten: ApplyNetSystem
             // entfernt Temp und setzt Created, Applied, Updated auf derselben Entity.
             applyMode = ApplyMode.Apply;

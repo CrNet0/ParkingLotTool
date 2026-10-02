@@ -99,6 +99,32 @@ namespace ParkingLotTool.Tools
          */
         internal static bool Mitschreiben { get; set; }
 
+        // Begrenzte Absturzdiagnose: die 60 groben Schritte bleiben kurz;
+        // alle 120 Bildstaende bleiben in einer eigenen, sofort gespuelten
+        // Schrittspur erhalten. Anhaengen bewahrt vorherige Edit-/Apply-Laeufe.
+        internal static void Versorgungsbild(string text)
+        {
+            try
+            {
+                lock (_schloss)
+                {
+                    var pfad = Path.Combine(Path.GetDirectoryName(Pfad),
+                        "ParkingLotTool-versorgung-bilder.log");
+                    Directory.CreateDirectory(Path.GetDirectoryName(pfad));
+                    using var strom = new FileStream(pfad, FileMode.Append,
+                        FileAccess.Write, FileShare.ReadWrite);
+                    var bytes = Encoding.UTF8.GetBytes(DateTime.Now.ToString("HH:mm:ss.fff")
+                        + "  " + text + Environment.NewLine);
+                    strom.Write(bytes, 0, bytes.Length);
+                    strom.Flush(true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Mod.log.Warn("PLT-Versorgungsbild: Schreiben fehlgeschlagen: " + ex.Message);
+            }
+        }
+
         internal static void Setze(string schritt)
         {
             if (_kaputt) return;
