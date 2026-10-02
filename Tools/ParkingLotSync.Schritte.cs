@@ -109,9 +109,13 @@ namespace ParkingLotTool.Tools
                 },
                 ["Fahrwege25MitKosten"] = new Ausfuehrung
                 {
-                    Braucht = (lot, traeger, teile) => _werkzeug.BrauchtFahrwegeNeubau(traeger),
-                    Ausfuehren = (lot, traeger, teile) => _werkzeug.PlaneNachbau(lot),
-                    Neubau = true,
+                    // Stillgelegt 2026-10-02: der Neubau lief ueber das sichtbare
+                    // Werkzeug; ESC/Panel-Schliessen brach ihn nach dem Abriss
+                    // der alten Wege ab. Alte Parkplaetze bekommen die neuen
+                    // Fahrwege beim eigenen Bearbeiten; der Hintergrund-Neubau
+                    // kommt als neuer Schritt.
+                    Braucht = (lot, traeger, teile) => false,
+                    Ausfuehren = (lot, traeger, teile) => { },
                 },
                 /*
                  * Der Besitz ALLEIN reicht nicht: im Puffer der Flaeche stehen

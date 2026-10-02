@@ -60,9 +60,10 @@ namespace ParkingLotTool.Geometry
                 + "Altersauswahl zurueck und altern nicht mehr, sofern der "
                 + "Zettel nichts anderes sagt (Standard seit 2026-10-02)."),
             new Schritt(7, "Fahrwege25MitKosten",
-                "Alte befahrbare Innenwege ueber den regulaeren Edit/Neubau "
-                + "auf eigene 25-km/h-Fahrprefabs mit erhoehten Kosten bringen. "
-                + "Unveraenderte Zoningstrassen bleiben dabei erhalten."),
+                "Stillgelegt (2026-10-02): der Neubau ueber das sichtbare "
+                + "Werkzeug war vom Nutzer abbrechbar und verlor dabei Wege. "
+                + "Neue und selbst bearbeitete Parkplaetze fahren 25 km/h; "
+                + "der Hintergrund-Neubau folgt als eigener Schritt."),
         };
 
         /** Der Stand, den ein heute gebauter Parkplatz hat. */

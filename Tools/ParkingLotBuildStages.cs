@@ -389,6 +389,10 @@ namespace ParkingLotTool.Tools
         {
             VerwerfeEdithoehen();
             _buildRequestedWhenReady = false;
+            // Ein abgebrochener Wunsch darf den naechsten Parkplatz nicht
+            // bauen (Log 2026-10-02: "wartet (3185 ms)" direkt nach Einstieg).
+            _panelBuildRequest = false;
+            BauwunschEnde("verworfen (Abbruch)");
             if (_buildStage == BuildStage.Idle) return;
             _buildStage = BuildStage.Idle;
             if (_ghostsActive) ClearAreaPreviewGhosts("build cancelled");
