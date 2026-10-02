@@ -255,7 +255,7 @@ namespace ParkingLotTool.Tools
             foreach (var e in nets)
             {
                 var buffer = EntityManager.GetBuffer<SubNet>(_lotCarrier);
-                if (!buffer.Any(n => n.m_SubNet == e)) buffer.Add(new SubNet(e));
+                if (!ParkingLotPuffer.Hat(buffer, e)) buffer.Add(new SubNet(e));
             }
         }
 

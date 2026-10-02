@@ -29,8 +29,8 @@ namespace ParkingLotTool.Tools
                     if (!ParkingLotNetzRueckweg.Lebt(EntityManager,e)
                         || !EntityManager.HasBuffer<ConnectedNode>(e)
                         || !EntityManager.HasBuffer<ConnectedEdge>(a.Fremdknoten)) continue;
-                    bool hin = EntityManager.GetBuffer<ConnectedNode>(e,true).Any(n => n.m_Node == a.Fremdknoten);
-                    bool zurueck = EntityManager.GetBuffer<ConnectedEdge>(a.Fremdknoten,true).Any(k => k.m_Edge == e);
+                    bool hin = ParkingLotPuffer.Hat(EntityManager.GetBuffer<ConnectedNode>(e,true), a.Fremdknoten);
+                    bool zurueck = ParkingLotPuffer.Hat(EntityManager.GetBuffer<ConnectedEdge>(a.Fremdknoten,true), e);
                     if (!hin || !zurueck) continue;
                     // Gemeinsamer Vanilla-Graphhelfer erzeugt fehlende
                     // Simulations-Flusskanten; keine physische Netzkante

@@ -36,7 +36,7 @@ namespace ParkingLotTool.Tools
                     foreach (var n in EntityManager.GetBuffer<ConnectedNode>(e,true))
                         if (erreichbar.Contains(n.m_Node.Index)
                             && EntityManager.HasBuffer<ConnectedEdge>(n.m_Node)
-                            && EntityManager.GetBuffer<ConnectedEdge>(n.m_Node,true).Any(a => a.m_Edge == e)) return true;
+                            && ParkingLotPuffer.Hat(EntityManager.GetBuffer<ConnectedEdge>(n.m_Node,true), e)) return true;
             }
             return false;
         }

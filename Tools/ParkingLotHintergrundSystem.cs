@@ -373,7 +373,9 @@ namespace ParkingLotTool.Tools
             if (EntityManager.HasComponent<ParkingLotOffenerErsatz>(lot)
                 || !EntityManager.HasBuffer<ParkingLotStufeAKnoten>(lot)
                 || !EntityManager.HasComponent<ParkingLotStufeAPrefab>(lot)) return;
-            var punkte = EntityManager.GetBuffer<ParkingLotStufeAKnoten>(lot,true).Select(n => n.Position).ToArray();
+            var stufeA = EntityManager.GetBuffer<ParkingLotStufeAKnoten>(lot,true);
+            var punkte = new Unity.Mathematics.float3[stufeA.Length];
+            for (var i = 0; i < stufeA.Length; i++) punkte[i] = stufeA[i].Position;
             var prefab = EntityManager.GetComponentData<ParkingLotStufeAPrefab>(lot).Prefab;
             using var q = EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Game.Areas.Area>(),
                 ComponentType.ReadOnly<Game.Areas.Node>(), ComponentType.ReadOnly<Game.Prefabs.PrefabRef>(),

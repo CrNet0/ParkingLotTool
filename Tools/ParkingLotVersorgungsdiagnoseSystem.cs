@@ -159,7 +159,7 @@ namespace ParkingLotTool.Tools
 
         private bool HatKante(Entity knoten, Entity kante)
             => Existiert(knoten) && EntityManager.HasBuffer<ConnectedEdge>(knoten)
-                && EntityManager.GetBuffer<ConnectedEdge>(knoten, true).Any(k => k.m_Edge == kante);
+                && ParkingLotPuffer.Hat(EntityManager.GetBuffer<ConnectedEdge>(knoten, true), kante);
 
         private bool HatKnoten(Entity kante, Entity knoten)
         {
@@ -167,7 +167,7 @@ namespace ParkingLotTool.Tools
             var k = EntityManager.GetComponentData<Edge>(kante);
             return k.m_Start == knoten || k.m_End == knoten
                 || EntityManager.HasBuffer<ConnectedNode>(kante)
-                && EntityManager.GetBuffer<ConnectedNode>(kante, true).Any(n => n.m_Node == knoten);
+                && ParkingLotPuffer.Hat(EntityManager.GetBuffer<ConnectedNode>(kante, true), knoten);
         }
 
         private string OwnerText(Entity e)
@@ -254,7 +254,7 @@ namespace ParkingLotTool.Tools
 
         private bool HatFlusskante(Entity n, Entity k)
             => Existiert(n) && EntityManager.HasBuffer<ConnectedFlowEdge>(n)
-                && EntityManager.GetBuffer<ConnectedFlowEdge>(n, true).Any(f => f.m_Edge == k);
+                && ParkingLotPuffer.Hat(EntityManager.GetBuffer<ConnectedFlowEdge>(n, true), k);
 
         private bool AktuellerFlussverweis(Entity physisch, Entity n)
             => Existiert(physisch) &&

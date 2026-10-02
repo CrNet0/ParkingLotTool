@@ -406,6 +406,7 @@ namespace ParkingLotTool
              */
             ParkingLotVersorgungsphasen.Registriere(updateSystem);
             updateSystem.UpdateAt<ParkingLotVersorgungsdiagnoseSystem>(SystemUpdatePhase.PostTool);
+            updateSystem.UpdateAt<ParkingLotFlussgraphPruefungSystem>(SystemUpdatePhase.PostTool);
             updateSystem.UpdateAfter<ParkingLotVersorgungsdiagnoseEndSystem>(SystemUpdatePhase.ModificationEnd);
             /*
              * UIUpdate, und das ist keine Geschmacksfrage.
