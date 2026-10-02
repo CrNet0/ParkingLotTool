@@ -1921,6 +1921,7 @@ namespace ParkingLotTool.Tools
             var zoningFlaeche = string.IsNullOrEmpty(_uiSystem?.FlaecheZoning)
                 ? "aus"
                 : _uiSystem.FlaecheZoning;
+            MesseFahrwerte();
             Mod.log.Info($"PLT gebaut: {grass} von {grassGeplant} Gras- und "
                 + $"{asphalt} von {asphaltGeplant} Asphaltflächen dauerhaft "
                 + "gesetzt"
