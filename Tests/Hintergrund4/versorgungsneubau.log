@@ -1,0 +1,5 @@
+C:\Projekte\CS2 Mods\ParkingLotTool\Tools\ParkingLotVersorgungsneubau.cs(80,45): error CS0246: Der Typ- oder Namespacename "ConnectedNode" wurde nicht gefunden (möglicherweise fehlt eine using-Direktive oder ein Assemblyverweis). [C:\Projekte\CS2 Mods\ParkingLotTool\Tests\Versorgungsneubau\Versorgungsneubau.csproj]
+C:\Projekte\CS2 Mods\ParkingLotTool\Tools\ParkingLotVersorgungsneubau.cs(81,63): error CS0246: Der Typ- oder Namespacename "ConnectedNode" wurde nicht gefunden (möglicherweise fehlt eine using-Direktive oder ein Assemblyverweis). [C:\Projekte\CS2 Mods\ParkingLotTool\Tests\Versorgungsneubau\Versorgungsneubau.csproj]
+C:\Projekte\CS2 Mods\ParkingLotTool\Tools\ParkingLotVersorgungsneubau.cs(246,21): error CS0103: Der Name "ParkingLotLeitungsabrissSystem" ist im aktuellen Kontext nicht vorhanden. [C:\Projekte\CS2 Mods\ParkingLotTool\Tests\Versorgungsneubau\Versorgungsneubau.csproj]
+
+Fehler beim Buildvorgang. Beheben Sie die Buildfehler, und versuchen Sie es anschließend noch mal.

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Colossal.IO.AssetDatabase;
@@ -225,6 +225,8 @@ namespace ParkingLotTool
             updateSystem.UpdateAt<ParkingLotListeUISystem>(
                 SystemUpdatePhase.UIUpdate);
             updateSystem.UpdateAt<ParkingLotToolSystem>(SystemUpdatePhase.ToolUpdate);
+            updateSystem.UpdateAfter<ParkingLotHintergrundSystem, Game.Tools.ToolOutputBarrier>(SystemUpdatePhase.ToolUpdate);
+            updateSystem.UpdateAfter<ParkingLotExklusivesBildSystem, ParkingLotHintergrundSystem>(SystemUpdatePhase.ToolUpdate);
             updateSystem.UpdateAt<ParkingLotAutoVersorgungApplySystem>(SystemUpdatePhase.PostTool);
             // Laeuft unabhaengig vom aktiven Werkzeug: der Nutzer schliesst
             // es nach dem Bau, um Zoning zu malen und Haeuser zu setzen.

@@ -27,7 +27,7 @@ namespace ParkingLotTool.Tools
         private void MerkeZoningbestand(ParkingLayout layout)
         {
             _alteZoningkurse = Zoningkurse(layout);
-            _altesZoningprefab = _uiSystem.CurrentSettings().Zoningstrasse;
+            _altesZoningprefab = _baukontext?.Zoningstrasse ?? _uiSystem.CurrentSettings().Zoningstrasse;
         }
 
         private void PlaneZoningerhalt()
@@ -46,12 +46,12 @@ namespace ParkingLotTool.Tools
             ziel.Clear();
             if (!IsEditing || _areaPreviewLayout == null || !ZoningErhalt.Gleich(
                 _alteZoningkurse, Zoningkurse(_areaPreviewLayout), _altesZoningprefab,
-                _uiSystem.CurrentSettings().Zoningstrasse)) return false;
+                _baukontext?.Zoningstrasse ?? _uiSystem.CurrentSettings().Zoningstrasse)) return false;
 
             using var teile = _editOwnerParts.ToEntityArray(Allocator.Temp);
             foreach (var teil in teile)
             {
-                if (EntityManager.GetComponentData<Owner>(teil).m_Owner != _editLot
+                if (!ParkingLotBesitz.GehoertZu(EntityManager,EntityManager.GetComponentData<Owner>(teil).m_Owner,_editLot)
                     || !EntityManager.HasComponent<Edge>(teil)
                     || EntityManager.HasComponent<Deleted>(teil)
                     || EntityManager.HasComponent<Temp>(teil)
@@ -102,7 +102,16 @@ namespace ParkingLotTool.Tools
             foreach (var teil in _erhalteneZoningteile)
             {
                 if (!EntityManager.Exists(teil) || EntityManager.HasComponent<Deleted>(teil)) continue;
-                if (EntityManager.HasComponent<Owner>(teil)
+                if (!_bauarbeiter && EntityManager.HasComponent<Owner>(teil))
+                {
+                    var anker = EntityManager.GetComponentData<Owner>(teil).m_Owner;
+                    if (anker != old && ParkingLotBesitz.GehoertZu(EntityManager,anker,old))
+                    {
+                        EntityManager.SetComponentData(anker,new Owner(next));
+                        EntityManager.SetComponentData(anker,new ParkingLotPartRelation { Lot = next, Carrier = carrier });
+                    }
+                }
+                if (!_bauarbeiter && EntityManager.HasComponent<Owner>(teil)
                     && EntityManager.GetComponentData<Owner>(teil).m_Owner == old)
                     EntityManager.SetComponentData(teil, new Owner(next));
                 if (EntityManager.HasComponent<ParkingLotPartRelation>(teil))
@@ -124,7 +133,7 @@ namespace ParkingLotTool.Tools
                     if (!found) nets.Add(new SubNet(teil));
                 }
             }
-            EntferneAlteZoningverweise(old);
+            if (!_bauarbeiter) EntferneAlteZoningverweise(old);
             if (EntityManager.HasComponent<ParkingLotCarrierReference>(old))
                 EntferneAlteZoningverweise(EntityManager.GetComponentData<ParkingLotCarrierReference>(old).Carrier);
         }

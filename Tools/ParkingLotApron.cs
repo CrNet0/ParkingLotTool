@@ -169,10 +169,10 @@ namespace ParkingLotTool.Tools
             _vorflaechenArt = Array.Empty<int>();
             _vorflaechenKante = Array.Empty<float2[]>();
             if (layout?.NetLine == null || site == null || site.Length < 3) return;
-            if (!(_uiSystem?.VorflaecheAn ?? true)) return;
+            if (!(_baukontext?.Zettel.SurfaceApronOn ?? _uiSystem?.VorflaecheAn ?? true)) return;
             // Die Vorflaeche IST Flaeche 1. Wer den Belag ganz abschaltet,
             // will auch vor der Zufahrt keinen.
-            if (!(_uiSystem?.FlaecheStrasseAn ?? true)) return;
+            if (!(_baukontext?.Zettel.SurfaceRoadOn ?? _uiSystem?.FlaecheStrasseAn ?? true)) return;
 
             /*
              * CS2 ZEICHNET FLAECHEN GROESSER, ALS SIE SIND.

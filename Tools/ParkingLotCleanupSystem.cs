@@ -92,10 +92,10 @@ namespace ParkingLotTool.Tools
             {
                 All = new[]
                 {
-                    ComponentType.ReadOnly<Area>(),
                     ComponentType.ReadOnly<ParkingLotCarrierReference>(),
                     ComponentType.ReadOnly<Deleted>(),
                 },
+                Any = new[] { ComponentType.ReadOnly<Area>(), ComponentType.ReadOnly<ParkingLotAbrisswurzel>() },
                 None = new[] { ComponentType.ReadOnly<Temp>() },
             });
 

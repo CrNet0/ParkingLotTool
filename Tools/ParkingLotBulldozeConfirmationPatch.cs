@@ -96,6 +96,24 @@ namespace ParkingLotTool.Tools
         private static bool VorAnwenden(BulldozeToolSystem __instance,
             JobHandle inputDeps, ref JobHandle __result)
         {
+            inputDeps.Complete();
+            var hintergrund = __instance.World.GetExistingSystemManaged<ParkingLotHintergrundSystem>();
+            if (hintergrund != null)
+            {
+                var manager = __instance.EntityManager;
+                using var lockQuery = manager.CreateEntityQuery(ComponentType.ReadOnly<Temp>());
+                using var lockEntities = lockQuery.ToEntityArray(Allocator.Temp);
+                foreach (var e in lockEntities)
+                {
+                    var t = manager.GetComponentData<Temp>(e);
+                    if ((t.m_Flags & TempFlags.Delete) == 0 || !hintergrund.Sperrmeldung(t.m_Original)) continue;
+                    __result = inputDeps;
+                    AccessTools.PropertySetter(typeof(ToolBaseSystem), "applyMode")
+                        .Invoke(__instance, new object[] { ApplyMode.None });
+                    Zustand.SetValue(__instance, Enum.Parse(Zustand.FieldType, "Cancelled"));
+                    return false;
+                }
+            }
             var freigabe = Freigaben.GetOrCreateValue(__instance);
             if (freigabe.Bestaetigt) { freigabe.Bestaetigt = false; return true; }
             if (Mod.Optionen?.ParkplatzLoeschenBestaetigen == false) return true;

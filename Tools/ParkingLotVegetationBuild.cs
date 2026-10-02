@@ -44,8 +44,8 @@ namespace ParkingLotTool.Tools
             // wird, und liefert ohne Dekoration nichts. Gepflanzt wird
             // trotzdem - siehe GrassForVegetation.
             var grass = layout.GrassForVegetation;
-            var options=_uiSystem?.Vegetation ?? new VegetationOptions();
-            var assets=(_uiSystem?.VegetationAssets ?? Array.Empty<VegetationAsset>()).Where(a=>options.Species.Contains(a.Id)).ToArray();
+            var options=_bauvegetation ?? _uiSystem?.Vegetation ?? new VegetationOptions();
+            var assets=(_baupflanzen ?? _uiSystem?.VegetationAssets ?? Array.Empty<VegetationAsset>()).Where(a=>options.Species.Contains(a.Id)).ToArray();
             var species=assets.Select(a=>new VegetationSpecies {Id=a.Id,Tree=a.Tree,Spacing=a.Spacing}).ToArray();
             ParkingVegetation.Dichtefaktor = Mod.Optionen?.Vegetationsdichte ?? 1f;
             var plan=ParkingVegetation.Plan(grass,options,species);
@@ -411,7 +411,7 @@ namespace ParkingLotTool.Tools
         {
             _vegetationPreserve=false; _vegetationCount=0; _vegetationTreeStates.Clear(); _vegetationPlanned.Clear();
             _vegZustandGesetzt=0; _vegOhneTreeKomponente=0; _vegOhneZiel=0;
-            var options = _uiSystem?.Vegetation ?? new VegetationOptions();
+            var options = _bauvegetation ?? _uiSystem?.Vegetation ?? new VegetationOptions();
             string json=JsonConvert.SerializeObject(options);
             _vegetationReceipt=new VegetationReceipt {Options=json, Signature=VegetationSignature(grass,json)};
             var old=ReadVegetation(_editLot);
@@ -447,7 +447,7 @@ namespace ParkingLotTool.Tools
                       + "; Einstellungen " + (old.Options == json
                           ? "GLEICH - dann liegt es an den Gruenflaechen"
                           : "verschieden") + ". Alt: " + old.Options));
-            var assets=(_uiSystem?.VegetationAssets ?? Array.Empty<VegetationAsset>()).Where(a=>options.Species.Contains(a.Id)).ToArray();
+            var assets=(_baupflanzen ?? _uiSystem?.VegetationAssets ?? Array.Empty<VegetationAsset>()).Where(a=>options.Species.Contains(a.Id)).ToArray();
             var species=assets.Select(a=>new VegetationSpecies {Id=a.Id,Tree=a.Tree,Spacing=a.Spacing}).ToArray();
             ParkingVegetation.Dichtefaktor = Mod.Optionen?.Vegetationsdichte ?? 1f;
             var plan=ParkingVegetation.Plan(grass,options,species);

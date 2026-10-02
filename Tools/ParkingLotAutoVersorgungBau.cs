@@ -218,6 +218,7 @@ namespace ParkingLotTool.Tools
                     NetUtils.GetNodeRotation(MathUtils.StartTangent(kurve)), true),
                 m_EndPosition = AvCoursePos(ende,
                     NetUtils.GetNodeRotation(MathUtils.EndTangent(kurve)), false) });
+            SchliesseDefinition(d, _bauarbeiter ? _lotCarrier : Entity.Null);
             Mod.log.Info($"PLT-Autoversorgung KURS [{kurs.Name}, Teil {abschnitt}/{kurs.Punkte.Count - 1}]: Definition {d}, "
                 + $"{math.distance(start, ende):F2} m, "
                 + $"Welt-Y {start.y:F2}/{ende.y:F2}, Elevation -10/-10, "
@@ -651,7 +652,7 @@ namespace ParkingLotTool.Tools
             // Ohne weitere Netze entfaellt der leere 60-Frame-Zyklus.
             // Die getrennte Flussmessung prueft weiterhin die Netzabdeckung.
             if (_avNochOffeneNetze == 0) _avHatPlan = false;
-            if (_avHatPlan && m_ToolSystem.activeTool == this)
+            if (_avHatPlan && (_bauarbeiter || m_ToolSystem.activeTool == this))
             {
                 _avPhase = AvPhase.LotWarten;
                 return;
@@ -703,7 +704,7 @@ namespace ParkingLotTool.Tools
              */
             foreach (var trasse in _avTrassen) AvMerkeFehlschlag(trasse);
             AvEntferneDefinitionen();
-            if (_avPhase == AvPhase.TempWarten && m_ToolSystem.activeTool == this)
+            if (!_bauarbeiter && _avPhase == AvPhase.TempWarten && m_ToolSystem.activeTool == this)
                 applyMode = ApplyMode.Clear;
             Mod.log.Warn("PLT-Autoversorgung: " + grund
                 + $". Aktuelle Trasse vollstaendig verworfen; {_avGebaut.Count} bereits angewandte Kurse, "

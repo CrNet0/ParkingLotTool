@@ -24,7 +24,7 @@ namespace ParkingLotTool.Tools
         {
             internal System.Func<Entity, Entity, List<Entity>, bool> Braucht;
             internal System.Action<Entity, Entity, List<Entity>> Ausfuehren;
-            internal bool Neubau;
+            internal bool Hintergrund;
         }
 
         private Dictionary<string, Ausfuehrung> _ausfuehrungen;
@@ -106,6 +106,13 @@ namespace ParkingLotTool.Tools
                 {
                     Braucht = (lot, traeger, teile) => false,
                     Ausfuehren = (lot, traeger, teile) => { },
+                },
+                ["Fahrwege25ImHintergrund"] = new Ausfuehrung
+                {
+                    Braucht = (lot, traeger, teile) => EntityManager.HasComponent<ParkingLotNebenarbeitOffen>(lot)
+                        || !_werkzeug.HatGebauteFahrspuren(traeger) || _werkzeug.BrauchtFahrwegeNeubau(traeger),
+                    Ausfuehren = (lot, traeger, teile) => World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>().Einreihen(lot),
+                    Hintergrund = true,
                 },
                 ["Fahrwege25MitKosten"] = new Ausfuehrung
                 {

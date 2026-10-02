@@ -114,6 +114,7 @@ namespace ParkingLotTool.Tools
             {
                 if (lot == Entity.Null || !EntityManager.Exists(lot)
                     || EntityManager.HasComponent<Deleted>(lot)) continue;
+                if (World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>().Sperrmeldung(lot)) continue;
                 EntityManager.AddComponent<Deleted>(lot);
                 geloescht++;
             }

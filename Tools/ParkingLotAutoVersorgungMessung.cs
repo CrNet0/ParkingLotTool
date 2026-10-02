@@ -20,7 +20,7 @@ namespace ParkingLotTool.Tools
 
         private bool AvTempKantenDa()
         {
-            using var alle = AvTempQuery().ToEntityArray(Allocator.Temp);
+            using var alle = (_bauarbeiter ? AvDauerQuery() : AvTempQuery()).ToEntityArray(Allocator.Temp);
             var voll = 0;
             var passend = 0;
             var unbrauchbar = 0;
@@ -45,6 +45,7 @@ namespace ParkingLotTool.Tools
                 var naechste = "keine";
                 foreach (var e in alle)
                 {
+                    if (_bauarbeiter && (!EntityManager.HasComponent<Owner>(e) || EntityManager.GetComponentData<Owner>(e).m_Owner != _lotCarrier)) continue;
                     if (EntityManager.GetComponentData<PrefabRef>(e).m_Prefab != kurs.Prefab) continue;
                     prefabTemp++;
                     var b = EntityManager.GetComponentData<Curve>(e).m_Bezier;
@@ -98,7 +99,7 @@ namespace ParkingLotTool.Tools
                                 || math.distance(b.d.xz, pk) < 2f)
                             { nah = true; break; }
                         }
-                        var tempStueck = EntityManager.GetComponentData<Temp>(e);
+                        var tempStueck = (EntityManager.HasComponent<Temp>(e) ? EntityManager.GetComponentData<Temp>(e) : default);
                         var frisch = tempStueck.m_Original == Entity.Null
                             && (tempStueck.m_Flags
                                 & (TempFlags.Delete | TempFlags.Cancel)) == 0;
@@ -115,7 +116,7 @@ namespace ParkingLotTool.Tools
                         continue;
                     }
                     passend++;
-                    var temp = EntityManager.GetComponentData<Temp>(e);
+                    var temp = (EntityManager.HasComponent<Temp>(e) ? EntityManager.GetComponentData<Temp>(e) : default);
                     if (temp.m_Original != Entity.Null
                         || (temp.m_Flags & (TempFlags.Delete | TempFlags.Cancel)) != 0)
                     {
@@ -140,19 +141,20 @@ namespace ParkingLotTool.Tools
                               + ". Bleibt davon etwas stehen, steht hier, "
                               + "was es ist."));
                 details.Add($"{kurs.Name}: {kurs.Kanten.Count} Kanten, voll={(fertig ? 1 : 0)}, "
-                    + $"Prefab-Temp insgesamt {prefabTemp}, naechste {naechste}");
+                    + $"Prefab-{(_bauarbeiter ? "Permanent" : "Temp")} insgesamt {prefabTemp}, naechste {naechste}");
             }
             var sollDefinitionen = 0;
             foreach (var kurs in _avKurse) sollDefinitionen += kurs.Definitionen.Count;
-            var baumTemp = AvTempImSuchbaum();
+            var baumTemp = _bauarbeiter ? -1 : AvTempImSuchbaum();
             var text = $"Definitionen {definitionen}/{sollDefinitionen} (Updated {updated}), "
-                + $"ECS Temp+Edge {alle.Length}, kurszugeordnet {passend}, "
+                + $"ECS {(_bauarbeiter ? "Permanent+Owner+Edge" : "Temp+Edge")} {alle.Length}, kurszugeordnet {passend}, "
                 + $"verworfen {unbrauchbar}, vollstaendige Kurse {voll}/{_avKurse.Count}, "
                 + $"Suchbaum-Temp {baumTemp}; " + string.Join("; ", details);
             if (text != _avLetzterBefund)
             {
-                Mod.log.Info("PLT-Autoversorgung MATERIALISIERUNG: " + text
-                    + (passend > 0 && baumTemp == 0
+                Mod.log.Info((_bauarbeiter ? "PLT-Hintergrund: Versorgung MATERIALISIERUNG: " : "PLT-Autoversorgung MATERIALISIERUNG: ") + text
+                    + (_bauarbeiter ? ". Permanente Besitzerzuordnung; keine Temp-/Suchbaumabnahme."
+                        : passend > 0 && baumTemp == 0
                         ? ". FALL 2: Temp-Kanten vorhanden, Suchbaum findet sie nicht."
                         : passend == 0 ? ". Noch keine kurszugeordnete Temp-Kante in ECS." : "."));
                 _avLetzterBefund = text;

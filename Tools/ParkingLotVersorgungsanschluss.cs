@@ -469,6 +469,18 @@ namespace ParkingLotTool.Tools
                 return false;
             }
 
+            if (_bauarbeiter)
+            {
+                // E1: beide permanenten Teilnehmer werden im selben Bild
+                // angemeldet. GenerateEdges.UpdateNodeConnections benutzt
+                // isPermanent=true; References traegt die Gegenrichtung ein.
+                // Kein Schreiben in ConnectedNode/ConnectedEdge oder Kurven.
+                EntityManager.AddComponent<Updated>(knoten);
+                EntityManager.AddComponent<Updated>(beste);
+                ParkingLotNetzRueckweg.Melde($"Versorgungsanschluss angemeldet: Knoten {knoten.Index}, Kante {beste.Index}; 0 direkte Netzeintraege.");
+                return false; // Erst die Nachpruefung darf Erfolg melden.
+            }
+
             /*
              * BEIDE RICHTUNGEN, SONST HAELT ES NICHT.
              *

@@ -24,7 +24,7 @@ namespace ParkingLotTool.Tools
         private const string PavementSurfaceWerk = "Pavement Surface 01";
 
         private string GrassSurfaceName
-            => _uiSystem?.FlaecheDekoration ?? GrassSurfaceWerk;
+            => _baukontext?.FlaecheDekoration ?? _uiSystem?.FlaecheDekoration ?? GrassSurfaceWerk;
 
         /**
          * Der Boden unter den Zoning-Parzellen.
@@ -41,12 +41,12 @@ namespace ParkingLotTool.Tools
          * nichts nachgeladen werden.
          */
         private bool ZoningFlaecheAus
-            => string.IsNullOrEmpty(_uiSystem?.FlaecheZoning);
+            => string.IsNullOrEmpty(_baukontext?.FlaecheZoning ?? _uiSystem?.FlaecheZoning);
 
         private string ZoningSurfaceName
-            => ZoningFlaecheAus ? GrassSurfaceName : _uiSystem.FlaecheZoning;
+            => ZoningFlaecheAus ? GrassSurfaceName : _baukontext?.FlaecheZoning ?? _uiSystem.FlaecheZoning;
         private string PavementSurfaceName
-            => _uiSystem?.FlaecheStrasse ?? PavementSurfaceWerk;
+            => _baukontext?.FlaecheStrasse ?? _uiSystem?.FlaecheStrasse ?? PavementSurfaceWerk;
 
         /** Merkt, mit welchen Namen die Prefabs aufgeloest wurden. */
         private string _aufgeloestGras;
@@ -250,9 +250,9 @@ namespace ParkingLotTool.Tools
             var zoningfarbe = ParkingLotFlaechenfarbe.Hole(ZoningSurfaceName,
                 ParkingLotPreviewStyle.FlaechennetzZoning, deckung);
 
-            var belagAn = _uiSystem?.FlaecheStrasseAn ?? true;
-            var dekoAn = _uiSystem?.FlaecheDekoAn ?? true;
-            var vorflaecheAn = belagAn && (_uiSystem?.VorflaecheAn ?? true);
+            var belagAn = _baukontext?.Zettel.SurfaceRoadOn ?? _uiSystem?.FlaecheStrasseAn ?? true;
+            var dekoAn = _baukontext?.Zettel.SurfaceDecorationOn ?? _uiSystem?.FlaecheDekoAn ?? true;
+            var vorflaecheAn = belagAn && (_baukontext?.Zettel.SurfaceApronOn ?? _uiSystem?.VorflaecheAn ?? true);
 
             var netz = Flaechennetz;
             netz.BeginneFlaechen();
@@ -285,7 +285,7 @@ namespace ParkingLotTool.Tools
             _prefabSystem = World.GetOrCreateSystemManaged<PrefabSystem>();
             _apronPrefabSystem = World
                 .GetOrCreateSystemManaged<ParkingLotApronPrefabSystem>();
-            _definitionQuery = GetDefinitionQuery();
+            if (!_bauarbeiter) _definitionQuery = GetDefinitionQuery();
             _surfacePrefabQuery = GetEntityQuery(
                 ComponentType.ReadOnly<SurfaceData>(),
                 ComponentType.ReadOnly<AreaData>(),
@@ -353,7 +353,7 @@ namespace ParkingLotTool.Tools
             var zoningstrasseVorhanden =
                 _areaPreviewLayout?.ZoningRoadSurface != null
                 && _areaPreviewLayout.ZoningRoadSurface.Length > 0;
-            var vorflaecheGewuenscht = (_uiSystem?.VorflaecheAn ?? true)
+            var vorflaecheGewuenscht = (_baukontext?.Zettel.SurfaceApronOn ?? _uiSystem?.VorflaecheAn ?? true)
                 && _vorflaechen != null && _vorflaechen.Length > 0;
             _vorflaechenPrefabFehlgeschlagen = false;
             var vorflaecheAufgegeben = false;
@@ -446,8 +446,8 @@ namespace ParkingLotTool.Tools
             // darf Enter keinen Vanilla-Belag ohne Raeumflag festschreiben.
             // Bei Fehler/Aufgabe bleibt der bestehende baubare Rueckfall.
             _areaPreviewLayout.SurfacesForPlacement(
-                _uiSystem?.FlaecheStrasseAn ?? true,
-                _uiSystem?.FlaecheDekoAn ?? true,
+                _baukontext?.Zettel.SurfaceRoadOn ?? _uiSystem?.FlaecheStrasseAn ?? true,
+                _baukontext?.Zettel.SurfaceDecorationOn ?? _uiSystem?.FlaecheDekoAn ?? true,
                 out var geplantesGras, out var geplanterAsphalt);
             var dekoRaeumerNoetig = geplantesGras.Length > 0;
             var asphaltRaeumerNoetig = geplanterAsphalt.Length > 0;
@@ -679,8 +679,8 @@ namespace ParkingLotTool.Tools
 
         private int CreateAreaPreviewDefinitions(ParkingLayout layout)
         {
-            var strasseAn = _uiSystem?.FlaecheStrasseAn ?? true;
-            var dekoAn = _uiSystem?.FlaecheDekoAn ?? true;
+            var strasseAn = _baukontext?.Zettel.SurfaceRoadOn ?? _uiSystem?.FlaecheStrasseAn ?? true;
+            var dekoAn = _baukontext?.Zettel.SurfaceDecorationOn ?? _uiSystem?.FlaecheDekoAn ?? true;
             layout.SurfacesForPlacement(
                 strasseAn, dekoAn, out var gras, out var asphalt);
             if (!dekoAn && layout.GrassForVegetation?.Length > 0)
@@ -1151,7 +1151,7 @@ namespace ParkingLotTool.Tools
                     signature = signature * 31 + (halt.Left ? 1 : 0);
                 }
                 signature = AppendPolygonGroup(signature, _vorflaechen);
-                signature = signature * 31 + ((_uiSystem?.VorflaecheAn ?? true) ? 1 : 0);
+                signature = signature * 31 + ((_baukontext?.Zettel.SurfaceApronOn ?? _uiSystem?.VorflaecheAn ?? true) ? 1 : 0);
                 signature = AppendText(signature, GrassSurfaceName);
                 signature = AppendText(signature, PavementSurfaceName);
                 signature = signature * 31 + _vorflaechenPrefab.Index;
@@ -1164,9 +1164,9 @@ namespace ParkingLotTool.Tools
                 signature = signature * 31 + _asphaltBelagPrefab.Version;
                 // Ohne diese zwei Zeilen bliebe die Vorschau stehen, wenn nur
                 // ein Schalter umgelegt wird: die Geometrie ist ja dieselbe.
-                signature = signature * 31 + ((_uiSystem?.FlaecheStrasseAn ?? true) ? 1 : 0);
-                signature = signature * 31 + ((_uiSystem?.FlaecheDekoAn ?? true) ? 1 : 0);
-                signature = signature * 31 + ((_uiSystem?.Buchtsymbole ?? true) ? 1 : 0);
+                signature = signature * 31 + ((_baukontext?.Zettel.SurfaceRoadOn ?? _uiSystem?.FlaecheStrasseAn ?? true) ? 1 : 0);
+                signature = signature * 31 + ((_baukontext?.Zettel.SurfaceDecorationOn ?? _uiSystem?.FlaecheDekoAn ?? true) ? 1 : 0);
+                signature = signature * 31 + ((_baukontext?.Zettel.BayIcons ?? _uiSystem?.Buchtsymbole ?? true) ? 1 : 0);
                 signature = signature * 31 + (_uiSystem?.VegetationJson.GetHashCode() ?? 0);
                 signature = signature * 31 + _grassSurfacePrefab.Index;
                 signature = signature * 31 + _grassSurfacePrefab.Version;

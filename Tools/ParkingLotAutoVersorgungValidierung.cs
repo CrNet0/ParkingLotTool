@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Colossal.Mathematics;
 using Game.Common;
 using Game.Net;
@@ -30,6 +30,8 @@ namespace ParkingLotTool.Tools
             var query = GetEntityQuery(ComponentType.ReadOnly<Edge>(), ComponentType.ReadOnly<Curve>(),
                 ComponentType.ReadOnly<PrefabRef>(), ComponentType.Exclude<Deleted>(), ComponentType.Exclude<Temp>());
             using var permanent = query.ToEntityArray(Allocator.Temp);
+            var eigene = new HashSet<Entity>();
+            foreach (var k in _avKurse) { foreach (var e in k.Kanten) eigene.Add(e); foreach (var e in k.Anschlussstuecke) eigene.Add(e); }
             var paare = 0;
             var kollisionen = 0;
             for (var i = 0; i < _avKurse.Count; i++)
@@ -40,6 +42,7 @@ namespace ParkingLotTool.Tools
                     var a = EntityManager.GetComponentData<Curve>(e).m_Bezier;
                     foreach (var fremd in permanent)
                     {
+                        if (eigene.Contains(fremd)) continue;
                         var prefab = EntityManager.GetComponentData<PrefabRef>(fremd).m_Prefab;
                         if (EntityManager.HasComponent<RoadData>(prefab)
                             || !EntityManager.HasComponent<NetGeometryData>(prefab)
@@ -69,6 +72,7 @@ namespace ParkingLotTool.Tools
         private bool AvTempAnStrasse(Entity knoten, IEnumerable<Entity> strassen, AvKurs kurs)
         {
             if (knoten == Entity.Null) return false;
+            if (_bauarbeiter) return AvDauerAnStrasse(knoten, strassen, kurs);
             // CS2 erzeugt am Anschluss teils ein senkrechtes Zwischenstueck.
             // Dieses wurde bereits erfasst, bisher aber beim Nachweis ignoriert.
             // Nur echte gemeinsame Entities verbinden; Naehe reicht nicht.

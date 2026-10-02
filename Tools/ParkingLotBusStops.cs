@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Colossal.Mathematics;
 using Game.Common;
 using Game.City;
@@ -333,6 +334,17 @@ namespace ParkingLotTool.Tools
         private void BuildBusStopsOnRoads(Entity carrier)
         {
             if (_pendingBusStops.Length == 0) return;
+            // Uebernommene Halte existieren bereits; deren Linienverweise
+            // duerfen nicht durch ein zweites Schild an derselben Lage leiden.
+            var vorhandene = new List<float2>();
+            using (var teile = _editRelatedParts.ToEntityArray(Allocator.Temp))
+                foreach (var e in teile)
+                    if (EntityManager.GetComponentData<ParkingLotPartRelation>(e).Lot == _pendingBusLot
+                        && EntityManager.HasComponent<Game.Routes.TransportStop>(e)
+                        && EntityManager.HasComponent<Game.Objects.Transform>(e))
+                        vorhandene.Add(EntityManager.GetComponentData<Game.Objects.Transform>(e).m_Position.xz);
+            _pendingBusStops = _pendingBusStops.Where(s => !vorhandene.Any(p => math.distance(p,BusStopSnap.SignPosition(s)) < .5f)).ToArray();
+            if (_pendingBusStops.Length == 0) return;
             if (carrier != _pendingBusCarrier || !EntityManager.Exists(carrier)
                 || !EntityManager.HasBuffer<Game.Net.SubNet>(carrier)) return;
             if (!ResolveBusStopPrefab()) return;
@@ -458,6 +470,7 @@ namespace ParkingLotTool.Tools
                     m_Intensity = 1f,
                     m_ParentMesh = -1,
                 });
+                SchliesseDefinition(definition, Entity.Null);
                 EntityManager.AddComponent<Updated>(definition);
                 built++;
                 Mod.log.Info($"PLT-Bushalt {i}: Kante {edge.Index}, "

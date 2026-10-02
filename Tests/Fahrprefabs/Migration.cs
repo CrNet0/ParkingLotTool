@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Game.Prefabs;
 using Unity.Entities;
@@ -68,6 +68,9 @@ namespace ParkingLotTool.Tools
             pruefe(t.BrauchtFahrwegeNeubau(traeger), "gespeicherte alte Kosten werden erkannt");
             t._prefabSystem.Names[netz] = "PLT Zoningstrasse (Alley)";
             pruefe(!t.BrauchtFahrwegeNeubau(traeger), "erhaltene Zoningstrasse fuehrt nicht zum endlosen Neubau");
+            pruefe(t.FahrspurkostenFalsch(lane), "erhaltene Zoning-Fahrspur mit alten Kosten ist kein erfolgreicher Abschluss");
+            t.EntityManager.Set(pfad,new PathfindCarData { m_DrivingCost = ParkingLotFahrregeln.Fahrkosten.ToPathfindCosts() });
+            pruefe(!t.FahrspurkostenFalsch(lane), "erneuerte erhaltene Zoning-Fahrspur mit Sollkosten muss bestehen");
             t._prefabSystem.Names[netz] = "Alley";
             pruefe(!t.BrauchtFahrwegeNeubau(traeger), "fremde Stadtstrasse unangetastet");
             t._prefabSystem.Names[netz] = "Invisible Road Path - 2xTwoway";

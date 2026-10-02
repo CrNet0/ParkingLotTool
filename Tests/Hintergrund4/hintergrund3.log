@@ -1,0 +1,30 @@
+OK: Zulassung bereit=False, Definitionen=0, Temps=0: False.
+OK: Zulassung bereit=False, Definitionen=0, Temps=1: False.
+OK: Zulassung bereit=False, Definitionen=0, Temps=514: False.
+OK: Zulassung bereit=False, Definitionen=1, Temps=0: False.
+OK: Zulassung bereit=False, Definitionen=1, Temps=1: False.
+OK: Zulassung bereit=False, Definitionen=1, Temps=514: False.
+OK: Zulassung bereit=False, Definitionen=37, Temps=0: False.
+OK: Zulassung bereit=False, Definitionen=37, Temps=1: False.
+OK: Zulassung bereit=False, Definitionen=37, Temps=514: False.
+OK: Zulassung bereit=True, Definitionen=0, Temps=0: True.
+OK: Zulassung bereit=True, Definitionen=0, Temps=1: False.
+OK: Zulassung bereit=True, Definitionen=0, Temps=514: False.
+OK: Zulassung bereit=True, Definitionen=1, Temps=0: False.
+OK: Zulassung bereit=True, Definitionen=1, Temps=1: False.
+OK: Zulassung bereit=True, Definitionen=1, Temps=514: False.
+OK: Zulassung bereit=True, Definitionen=37, Temps=0: False.
+OK: Zulassung bereit=True, Definitionen=37, Temps=1: False.
+OK: Zulassung bereit=True, Definitionen=37, Temps=514: False.
+OK: Warten nennt beide gemessenen Mengen.
+OK: Negative Messung wird abgewiesen.
+OK: Echter Besitzerresolver liest Transform.
+OK: Echter Besitzerresolver liest Curve.
+OK: Echter Besitzerresolver liest keine Area-/AreaNode-Lage.
+OK: Kein weiterer Area-Lookup am echten Resolverjob.
+OK: OwnerDefinition: genau Prefab/Lage/Rotation, kein Definitionsergebnis-Verweis.
+OK: GenerateAreas erzeugt die Ergebnis-Entity im eigenen CommandBuffer.
+OK: GenerateAreas instanziiert die Definitions-Entity nicht als Besitzer.
+OK: Vanilla-Elevationsweg: beide CalculateElevation-Ueberladungen vorhanden.
+PLT-Hintergrund: Besitzerbefund ist IL-Inspektion, keine materialisierte Transaktion.
+PLT-Hintergrund: Runde 3, 28 Pruefungen, 0 Fehler.

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Game.Common;
 using Game.Prefabs;
@@ -25,6 +25,7 @@ namespace ParkingLotTool.Tools
 
         private void InitializeAreaDiagnostics()
         {
+            if (_bauarbeiter) return; // Der Permanent-Pfad benutzt keine Temp-Queries.
             _tempAreaDebugQuery = GetEntityQuery(new EntityQueryDesc
             {
                 All = new[]
@@ -261,6 +262,7 @@ namespace ParkingLotTool.Tools
             Entity definition,
             float3[] sentNodes)
         {
+            SchliesseDefinition(definition, kind == LotOwnerRecordKind ? Entity.Null : _lotOwner);
             _areaTransferRecords.Add(new AreaTransferRecord
             {
                 Kind = kind,
@@ -569,7 +571,7 @@ namespace ParkingLotTool.Tools
             };
         }
 
-        private static bool AreaNodesMatch(
+        internal static bool AreaNodesMatch(
             float3[] sent,
             DynamicBuffer<Game.Areas.Node> materialized)
         {

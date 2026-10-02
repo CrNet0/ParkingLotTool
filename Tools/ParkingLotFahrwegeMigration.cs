@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Game.Common;
 using Game.Net;
 using Game.Prefabs;
@@ -53,22 +53,27 @@ namespace ParkingLotTool.Tools
                     var spur = lane.m_SubLane;
                     if (!EntityManager.HasComponent<Game.Net.CarLane>(spur)
                         || !EntityManager.HasComponent<PrefabRef>(spur)) continue;
-                    var spurPrefab = EntityManager.GetComponentData<PrefabRef>(spur).m_Prefab;
-                    if (!EntityManager.HasComponent<NetLaneData>(spurPrefab)) return true;
-                    var pfad = EntityManager.GetComponentData<NetLaneData>(spurPrefab).m_PathfindPrefab;
-                    if (!EntityManager.HasComponent<PathfindCarData>(pfad)) return true;
-                    // Verbindungs-Lanes koennen aus dem angrenzenden PLT-Weg
-                    // stammen (LaneSystem.CreateNodeLane waehlt Quelle/Ziel).
-                    // Deshalb eigener Klonbereich, nicht dieselbe Wurzel.
-                    if (!ParkingLotFahrregeln.IstTeilname(_prefabSystem.GetPrefabName(spurPrefab))
-                        || !ParkingLotFahrregeln.IstTeilname(_prefabSystem.GetPrefabName(pfad)))
-                        return true;
-                    var ist = EntityManager.GetComponentData<PathfindCarData>(pfad).m_DrivingCost.m_Value;
-                    var soll = ParkingLotFahrregeln.Fahrkosten.ToPathfindCosts().m_Value;
-                    if (Unity.Mathematics.math.any(Unity.Mathematics.math.abs(ist - soll) > 0.00001f)) return true;
+                    if (FahrspurkostenFalsch(spur)) return true;
                 }
             }
             return false;
+        }
+
+        // Dieselbe reale Spurpruefung fuer die Aufnahme und den Abschluss;
+        // erhaltenes Zoning wird nicht abgerissen, aber trotzdem nachgemessen.
+        private bool FahrspurkostenFalsch(Entity spur)
+        {
+            if (!EntityManager.HasComponent<PrefabRef>(spur)) return true;
+            var spurPrefab = EntityManager.GetComponentData<PrefabRef>(spur).m_Prefab;
+            if (!EntityManager.HasComponent<NetLaneData>(spurPrefab)) return true;
+            var pfad = EntityManager.GetComponentData<NetLaneData>(spurPrefab).m_PathfindPrefab;
+            if (!EntityManager.HasComponent<PathfindCarData>(pfad)) return true;
+            // Verbindungslanes koennen aus dem angrenzenden PLT-Weg stammen.
+            if (!ParkingLotFahrregeln.IstTeilname(_prefabSystem.GetPrefabName(spurPrefab))
+                || !ParkingLotFahrregeln.IstTeilname(_prefabSystem.GetPrefabName(pfad))) return true;
+            var ist = EntityManager.GetComponentData<PathfindCarData>(pfad).m_DrivingCost.m_Value;
+            var soll = ParkingLotFahrregeln.Fahrkosten.ToPathfindCosts().m_Value;
+            return Unity.Mathematics.math.any(Unity.Mathematics.math.abs(ist - soll) > 0.00001f);
         }
     }
 }

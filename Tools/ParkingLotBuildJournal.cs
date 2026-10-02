@@ -213,6 +213,8 @@ namespace ParkingLotTool.Tools
 
         private Dictionary<string, object> ZettelUIWerte()
         {
+            if (_baukontext != null) return ZettelUIWerte(_baukontext.Zettel,
+                _baukontext.FlaecheStrasse, _baukontext.FlaecheDekoration, _baukontext.FlaecheZoning);
             // Vierzehn Bau- und Vorwahlwerte ausserhalb von LayoutSettings.
             return new Dictionary<string, object>
             {

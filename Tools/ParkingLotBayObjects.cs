@@ -616,7 +616,7 @@ namespace ParkingLotTool.Tools
              * getrennte Aussagen; erst ihre Kombination erklaert, was der
              * Nutzer im Spiel sieht.
              */
-            var markierungAus = !(_uiSystem?.Buchtsymbole ?? true);
+            var markierungAus = !(_baukontext?.Zettel.BayIcons ?? _uiSystem?.Buchtsymbole ?? true);
             var grund = markierungAus ? UnsichtbarGrund() : null;
             var unsichtbar = markierungAus && grund == null;
 

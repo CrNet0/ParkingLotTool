@@ -195,6 +195,7 @@ namespace ParkingLotTool.Tools
          */
         internal bool Reparieren(Entity lot)
         {
+            if (World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>().Sperrmeldung(lot)) return false;
             if (Waisen.Contains(lot) && !Verbinden(lot)) return false;
             if (!OhneBauzettel.Contains(lot)) return true;
             var werkzeug = World.GetOrCreateSystemManaged<ParkingLotToolSystem>();

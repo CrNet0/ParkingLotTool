@@ -324,6 +324,7 @@ namespace ParkingLotTool.Tools
          */
         private int CreateLotOwnerDefinition(ref TerrainHeightData heightData)
         {
+            if (_bauarbeiter && _lotOwner != Entity.Null) return 0;
             if (!UseLotAreaOwner) return 0;
             if (_points.Count < 3) return 0;
             if (!TryResolveLotOwnerPrefab(out var prefab)) return 0;

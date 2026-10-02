@@ -83,12 +83,13 @@ namespace ParkingLotTool.Tools
             });
             _editEconomySystem = World
                 .GetOrCreateSystemManaged<ParkingLotEconomySystem>();
-            if (GameManager.instance != null)
+            if (!_bauarbeiter && GameManager.instance != null)
                 GameManager.instance.onGameSaveLoad += OnEditGameSaveLoad;
         }
 
         internal void RequestEdit(Entity lot)
         {
+            if (World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>().Sperrmeldung(lot)) return;
             if (lot == Entity.Null || !EntityManager.Exists(lot)
                 || EntityManager.HasComponent<Deleted>(lot)
                 || EntityManager.HasComponent<Temp>(lot)
@@ -113,11 +114,7 @@ namespace ParkingLotTool.Tools
         }
 
         private bool HasCompleteBuildReceipt(Entity lot)
-            => EntityManager.HasComponent<ParkingLotCarrierReference>(lot)
-               && EntityManager.HasComponent<ParkingLotBuildReceipt>(lot)
-               && EntityManager.HasBuffer<ParkingLotBuildPoint>(lot)
-               && EntityManager.HasBuffer<ParkingLotBuildEntrance>(lot)
-               && EntityManager.HasBuffer<ParkingLotBuildText>(lot);
+            => ParkingLotBaukontextLeser.Vollstaendig(EntityManager, lot);
 
         /**
          * Der Seitenplan aus dem gelesenen Bauzettel - Zwischenlager, bis
@@ -350,14 +347,14 @@ namespace ParkingLotTool.Tools
              * der ueberhaupt betrachteten Teile.
              */
             using var teile = _editOwnerParts.ToEntityArray(Allocator.Temp);
+            ParkingLotNetzRueckweg.Sichere(EntityManager, _editLot, teile, _erhalteneZoningteile);
             var entfernt = 0;
             var besessen = 0;
             var fremdeKnoten = new HashSet<Entity>();
             for (var i = 0; i < teile.Length; i++)
             {
                 var teil = teile[i];
-                if (EntityManager.GetComponentData<Owner>(teil).m_Owner
-                        != _editLot) continue;
+                if (!ParkingLotBesitz.GehoertZu(EntityManager,EntityManager.GetComponentData<Owner>(teil).m_Owner,_editLot)) continue;
                 besessen++;
                 if (!EntityManager.HasComponent<Game.Net.Edge>(teil)
                     && !EntityManager.HasComponent<Game.Net.Node>(teil))
@@ -634,10 +631,14 @@ namespace ParkingLotTool.Tools
              * damit endet der Bearbeiten-Zustand samt der erfassten Liste.
              */
             UebertrageZoningbestand(_editLot, _replacementNewLot, carrier);
-            StelleVersorgungsanschluesseWiederHer(carrier);
-            // Eigene automatische Leitungen bleiben beim alten Lot: derselbe
-            // Aufraeumer wie beim Abriss entfernt sie samt eigenen Endknoten.
-            // Sie werden nach Abschluss dieses Abrisses frisch gebaut.
+            if (!_bauarbeiter) StelleVersorgungsanschluesseWiederHer(carrier);
+            else
+            {
+                UebertrageAutoVersorgungsbestand(_editLot, _replacementNewLot, carrier);
+                UebertrageBushaltbestand(_editLot, _replacementNewLot, carrier);
+            }
+            // Unveraenderte eigene Leitungen und Halte behalten ihre IDs.
+            // Die Nacharbeit baut ausschliesslich fehlende Anschluesse/Halte.
             /*
              * NOCH NUR DIE WAHL, NICHT DER BAU.
              *
@@ -656,7 +657,8 @@ namespace ParkingLotTool.Tools
                 ? EntityManager.GetComponentData<ParkingLotCarrierReference>(old).Carrier
                 : Entity.Null;
             TransferVegetation(old, next, carrier);
-            EntityManager.AddComponent<Deleted>(old);
+            var abrissLot = _bauarbeiter && _zoningErhalten ? HintergrundBesitzanker(old,next,alterTraeger) : old;
+            EntityManager.AddComponent<Deleted>(abrissLot);
             /*
              * `Hidden` DARF NICHT EINFACH VERGESSEN WERDEN.
              *
@@ -683,9 +685,13 @@ namespace ParkingLotTool.Tools
             _hiddenNachUebernahme.Clear();
             foreach (var teil in _hiddenByEdit) _hiddenNachUebernahme.Add(teil);
             _hiddenByEdit.Clear();
-            MerkeNachbauErgebnis(old, next, carrier);
+            if (EntityManager.HasBuffer<ParkingLotRueckwegkurs>(old)) EntityManager.RemoveComponent<ParkingLotRueckwegkurs>(old);
+            if (EntityManager.HasComponent<ParkingLotOffenerErsatz>(old)) EntityManager.RemoveComponent<ParkingLotOffenerErsatz>(old);
+            if (EntityManager.HasBuffer<ParkingLotRueckweganschluss>(old)) EntityManager.RemoveComponent<ParkingLotRueckweganschluss>(old);
+            if (EntityManager.HasBuffer<ParkingLotStufeAKnoten>(old)) EntityManager.RemoveComponent<ParkingLotStufeAKnoten>(old);
+            if (EntityManager.HasComponent<ParkingLotStufeAPrefab>(old)) EntityManager.RemoveComponent<ParkingLotStufeAPrefab>(old);
             ClearEditState();
-            MerkeAutoVersorgung(carrier, old, alterTraeger);
+            if (!_bauarbeiter) MerkeAutoVersorgung(carrier, old, alterTraeger);
             Mod.log.Info("PLT-Bearbeiten: Ausstieg durch Übernehmen; neues Lot "
                 + next.Index + " steht vollständig, altes Lot " + old.Index
                 + " dem PLT-Aufräumer übergeben.");
@@ -728,9 +734,7 @@ namespace ParkingLotTool.Tools
         {
             if (!IsEditing || _editBaselinePending || _areaPreviewLayout == null)
                 return false;
-            // Der Sync-Nachbau WILL neu bauen, obwohl der Bauzettel gleich
-            // bleibt: neu sind die Prefabs dahinter (Schritt 7, 2026-10-02).
-            if (_nachbauLot != Entity.Null && _nachbauLot == _editLot) return false;
+            if (EntityManager.HasBuffer<ParkingLotRueckwegkurs>(_editLot)) return false;
             if (AreaPreviewSignature(_areaPreviewLayout) != _editBaselineSignature)
                 return false;
             RestoreHiddenParts();
@@ -751,11 +755,17 @@ namespace ParkingLotTool.Tools
             RollBackReplacement();
             RestoreHiddenParts();
             var lot = _editLot;
+            bool rueckweg = EntityManager.HasBuffer<ParkingLotRueckwegkurs>(lot);
+            if (rueckweg && !_bauarbeiter)
+                World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>().Einreihen(lot, true);
+            if (_bauarbeiter) throw new InvalidOperationException("Ersatzuebernahme abgebrochen: " + reason);
             ClearEditState();
             ResetSelection();
             Mod.log.Info("PLT-Bearbeiten: Ausstieg durch Abbruch (" + reason
-                + "); altes Lot " + lot.Index + " wiederhergestellt.");
-            _uiSystem?.SetStatus(ParkingLotTexte.T(statusDe, statusEn));
+                + "); altes Lot " + lot.Index + (rueckweg ? ": Rueckweg eingereiht, Nachpruefung ausstehend." : " wieder eingeblendet."));
+            _uiSystem?.SetStatus(rueckweg ? ParkingLotTexte.T(
+                "Bearbeitung abgebrochen. Die alten Wege werden wiederhergestellt; nach Abschluss erneut versuchen.",
+                "Edit cancelled. The old paths are being restored; try again after completion.") : ParkingLotTexte.T(statusDe, statusEn));
         }
 
         private void ExitEdit(string reason, bool restoreOld, bool resetSelection)
@@ -765,6 +775,8 @@ namespace ParkingLotTool.Tools
             if (restoreOld) RestoreHiddenParts();
             else _hiddenByEdit.Clear();
             var lot = _editLot;
+            if (restoreOld && EntityManager.HasBuffer<ParkingLotRueckwegkurs>(lot))
+                World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>().Einreihen(lot, true);
             ClearEditState();
             if (resetSelection) ResetSelection();
             Mod.log.Info("PLT-Bearbeiten: Ausstieg durch " + reason + "; Lot "
@@ -930,6 +942,7 @@ namespace ParkingLotTool.Tools
         protected override void OnGamePreload(
             Colossal.Serialization.Entities.Purpose purpose, GameMode mode)
         {
+            if (_bauarbeiter) return;
             base.OnGamePreload(purpose, mode);
             _pendingEditLot = Entity.Null;
             if (IsEditing)
@@ -942,7 +955,7 @@ namespace ParkingLotTool.Tools
         {
             if (GameManager.instance != null)
                 GameManager.instance.onGameSaveLoad -= OnEditGameSaveLoad;
-            CancelEditingForShutdown();
+            if (!_bauarbeiter) CancelEditingForShutdown();
             // Die Hoehenkarten-Kopie ist Allocator.Persistent und so gross
             // wie die ganze Karte. Endet das Spiel mitten in einem Edit-Bau,
             // gibt sie sonst niemand frei. Der Aufruf ist wiederholbar.
@@ -1313,337 +1326,30 @@ namespace ParkingLotTool.Tools
             out string surfaceDecoration, out string surfaceZoning,
             out string reason)
         {
-            receipt = default;
-            points = Array.Empty<float3>();
-            entrances = Array.Empty<Entrance>();
-            alignments = null;
-            cuts = null;
-            zonen = null;
-            surfaceRoad = string.Empty;
-            surfaceDecoration = string.Empty;
-            surfaceZoning = string.Empty;
-            reason = ParkingLotTexte.T("Bauzettel fehlt", "build receipt missing");
-            if (lot == Entity.Null || !EntityManager.Exists(lot)
-                || !HasCompleteBuildReceipt(lot)) return false;
-
-            receipt = EntityManager.GetComponentData<ParkingLotBuildReceipt>(lot);
-            if (receipt.Version < 3
-                || receipt.Version > ParkingLotBuildReceipt.CurrentVersion)
+            var gelesen = ParkingLotBaukontextLeser.TryRead(EntityManager, lot,
+                out var kontext, out reason);
+            receipt = kontext?.Zettel ?? default;
+            points = kontext?.Punkte ?? Array.Empty<float3>();
+            entrances = kontext?.Zugaenge ?? Array.Empty<Entrance>();
+            alignments = kontext?.Ausrichtungen;
+            cuts = kontext?.Schnitte;
+            zonen = kontext?.Zonen;
+            surfaceRoad = kontext?.FlaecheStrasse ?? string.Empty;
+            surfaceDecoration = kontext?.FlaecheDekoration ?? string.Empty;
+            surfaceZoning = kontext?.FlaecheZoning ?? string.Empty;
+            if (gelesen)
             {
-                reason = ParkingLotTexte.T("unbekannte Bauzettel-Version " + receipt.Version,
-                    "unknown build receipt version " + receipt.Version);
-                return false;
+                // Nur dieser Werkzeugadapter uebernimmt die Bedienlisten.
+                // Der gemeinsame Leser selbst hat keinerlei Seiteneffekte.
+                _zoningSeitenplanAusZettel = kontext.Seitenplan;
+                _randzoningAusZettel = kontext.Randzoning;
+                _busStopsAusZettel = kontext.Bushalte;
             }
-            if (!ValidReceiptSettings(receipt))
-            {
-                reason = ParkingLotTexte.T("ungültige Einstellungen im Bauzettel",
-                    "invalid settings in the build receipt");
-                return false;
-            }
-
-            var pointBuffer = EntityManager
-                .GetBuffer<ParkingLotBuildPoint>(lot, true);
-            if (pointBuffer.Length < MinPolygonPoints)
-            {
-                reason = ParkingLotTexte.T("weniger als drei Polygonpunkte",
-                    "fewer than three outline points");
-                return false;
-            }
-            points = new float3[pointBuffer.Length];
-            for (var i = 0; i < pointBuffer.Length; i++)
-            {
-                var point = pointBuffer[i];
-                if (point.Version != ParkingLotBuildPoint.CurrentVersion
-                    || !math.all(math.isfinite(point.Position)))
-                {
-                    reason = ParkingLotTexte.T("ungültiger Polygonpunkt " + i, "invalid outline point " + i);
-                    return false;
-                }
-                points[i] = point.Position;
-            }
-
-            var entranceBuffer = EntityManager
-                .GetBuffer<ParkingLotBuildEntrance>(lot, true);
-            entrances = new Entrance[entranceBuffer.Length];
-            for (var i = 0; i < entranceBuffer.Length; i++)
-            {
-                var entrance = entranceBuffer[i];
-                if (entrance.Version < 1
-                    || entrance.Version > ParkingLotBuildEntrance.CurrentVersion
-                    || entrance.Edge < 0 || entrance.Edge >= points.Length
-                    || entrance.Corner < 0 || entrance.Corner > 2
-                    || double.IsNaN(entrance.Along)
-                    || double.IsInfinity(entrance.Along)
-                    || !Enum.IsDefined(typeof(Zufahrtsart), entrance.Art)
-                    || (entrance.HasAxis
-                        && (!math.all(math.isfinite(entrance.AxisDirection))
-                            || math.lengthsq(entrance.AxisDirection) <= 0f
-                            || double.IsNaN(entrance.AxisLength)
-                            || double.IsInfinity(entrance.AxisLength)
-                            || entrance.AxisLength <= 0)))
-                {
-                    reason = ParkingLotTexte.T("ungültiger Zugang " + i, "invalid entrance " + i);
-                    return false;
-                }
-                entrances[i] = new Entrance
-                {
-                    Edge = entrance.Edge,
-                    Along = entrance.Along,
-                    Corner = DecodeCorner(entrance.Corner),
-                    Art = entrance.Art,
-                    AxisDirection = entrance.HasAxis
-                        ? entrance.AxisDirection : (float2?)null,
-                    AxisLength = entrance.HasAxis
-                        ? entrance.AxisLength : (double?)null,
-                };
-            }
-            if (EntityManager.HasBuffer<ParkingLotBuildAlignment>(lot))
-            {
-                var alignmentBuffer = EntityManager
-                    .GetBuffer<ParkingLotBuildAlignment>(lot, true);
-                alignments = new Ausrichtzuweisung[alignmentBuffer.Length];
-                for (var i = 0; i < alignmentBuffer.Length; i++)
-                {
-                    var alignment = alignmentBuffer[i];
-                    if (alignment.Version != ParkingLotBuildAlignment.CurrentVersion
-                        || !math.all(math.isfinite(alignment.Anchor))
-                        || !math.all(math.isfinite(alignment.LineA))
-                        || !math.all(math.isfinite(alignment.LineB))
-                        || double.IsNaN(alignment.Angle)
-                        || double.IsInfinity(alignment.Angle))
-                    {
-                        reason = ParkingLotTexte.T("ungültige Teilflächenausrichtung " + i,
-                            "invalid sub-area alignment " + i);
-                        return false;
-                    }
-                    alignments[i] = new Ausrichtzuweisung
-                    {
-                        Anker = alignment.Anchor,
-                        LinieA = alignment.LineA,
-                        LinieB = alignment.LineB,
-                        Winkel = alignment.Angle,
-                    };
-                }
-            }
-            if (EntityManager.HasBuffer<ParkingLotBuildCut>(lot))
-            {
-                var cutBuffer = EntityManager
-                    .GetBuffer<ParkingLotBuildCut>(lot, true);
-                cuts = new Teilflaechenschnitt[cutBuffer.Length];
-                for (var i = 0; i < cutBuffer.Length; i++)
-                {
-                    var cut = cutBuffer[i];
-                    if (cut.Version != ParkingLotBuildCut.CurrentVersion
-                        || !math.all(math.isfinite(cut.A))
-                        || !math.all(math.isfinite(cut.B)))
-                    {
-                        reason = ParkingLotTexte.T("ungültiger Trennschnitt " + i, "invalid cut " + i);
-                        return false;
-                    }
-                    cuts[i] = new Teilflaechenschnitt { A = cut.A, B = cut.B };
-                }
-            }
-            if (EntityManager.HasBuffer<ParkingLotBuildZoning>(lot))
-            {
-                var zonePuffer = EntityManager
-                    .GetBuffer<ParkingLotBuildZoning>(lot, true);
-                zonen = new ParkingGeometry.Zoningflaeche[zonePuffer.Length];
-                for (var i = 0; i < zonePuffer.Length; i++)
-                {
-                    var z = zonePuffer[i];
-                    // Dieselbe Strenge wie bei den Schnitten: ein Bauzettel,
-                    // dem man nicht trauen kann, wird abgelehnt statt halb
-                    // benutzt. Die Grenzen kommen aus dem Spiel und koennen
-                    // sich nicht geaendert haben - eine Zahl ausserhalb ist
-                    // also ein kaputter Zettel, kein alter.
-                    // Fassung 1 wird angenommen: ihr fehlt nur der Rand, und
-                    // der war damals immer die Strassenbreite. Einen alten
-                    // Zettel deshalb abzulehnen hiesse, dem Nutzer einen
-                    // funktionierenden Parkplatz zu nehmen.
-                    if (z.Version < 1
-                        || z.Version > ParkingLotBuildZoning.CurrentVersion
-                        || !math.all(math.isfinite(z.Ecke))
-                        || !double.IsFinite(z.Winkel)
-                        || z.Spalten < 1
-                        || z.Spalten > ParkingGeometry.ZoningMaxBreite
-                        || z.Reihen < 1
-                        || z.Reihen > ParkingGeometry.ZoningMaxTiefe)
-                    {
-                        reason = ParkingLotTexte.T("ungültige Zoning-Fläche " + i, "invalid zoning patch " + i);
-                        return false;
-                    }
-                    zonen[i] = new ParkingGeometry.Zoningflaeche
-                    {
-                        Rand = z.Rand,
-                        Ecke = z.Ecke,
-                        Spalten = z.Spalten,
-                        Reihen = z.Reihen,
-                        Winkel = z.Winkel,
-                        // `Deserialize` hat bei alten Zetteln die frueher
-                        // ringsum gleiche Tiefe schon auf die vier Seiten
-                        // verteilt; hier steht sie nur noch durch.
-                        Aussentiefen = new[]
-                            { z.Aussen0, z.Aussen1, z.Aussen2, z.Aussen3 },
-                    };
-                }
-                // Gegenstueck zur Zeile beim Schreiben. Stehen hier andere
-                // Zahlen als dort, ist der Zettel schuld; stehen dieselben,
-                // liegt es an dem, was danach mit ihnen passiert.
-                var gelesen = new System.Text.StringBuilder();
-                for (var i = 0; i < zonen.Length; i++)
-                {
-                    if (i > 0) gelesen.Append(" | ");
-                    for (var s = 0; s < 4; s++)
-                    {
-                        if (s > 0) gelesen.Append('/');
-                        gelesen.Append(ParkingGeometry
-                            .ZoningAussentiefe(zonen[i], s)
-                            .ToString("0.##",
-                                System.Globalization.CultureInfo.InvariantCulture));
-                    }
-                }
-                Mod.log.Info("PLT-Zoningzettel GELESEN: " + zonen.Length
-                    + " Flaeche(n), Aussentiefen " + gelesen
-                    + " (je Flaeche Seite 0/1/2/3).");
-            }
-
-            /*
-             * Und die handgeschalteten Seiten dazu - sonst waeren sie beim
-             * Bearbeiten weg, obwohl sie im Zettel stehen.
-             *
-             * Ein unbrauchbarer Eintrag wird UEBERGANGEN, nicht abgelehnt:
-             * eine fehlende Umschaltung kostet den Nutzer einen Klick, ein
-             * abgelehnter Zettel den ganzen Parkplatz.
-             */
-            var seitenplan =
-                new List<(float2 A, float2 B, bool Links, bool Aus)>();
-            if (EntityManager.HasBuffer<ParkingLotBuildZoningSeite>(lot))
-            {
-                var seitenPuffer = EntityManager
-                    .GetBuffer<ParkingLotBuildZoningSeite>(lot, true);
-                for (var i = 0; i < seitenPuffer.Length; i++)
-                {
-                    var s = seitenPuffer[i];
-                    if (s.Version < 1
-                        || s.Version > ParkingLotBuildZoningSeite.CurrentVersion
-                        || !math.all(math.isfinite(s.A))
-                        || !math.all(math.isfinite(s.B))) continue;
-                    seitenplan.Add((s.A, s.B, s.Links, s.Aus));
-                }
-            }
-            /*
-             * NICHT HIER AUFTRAGEN, NUR MERKEN.
-             *
-             * Diese Methode laeuft VOR `ResetSelection`, und das raeumt den
-             * Seitenplan mit den Zoningflaechen weg. Genau daran ist die
-             * Umschaltung verlorengegangen: *"Nachdem ich den Standard
-             * entfernt habe, gebaut habe und wieder editiert habe, war der
-             * Standard wieder da."* Aufgetragen wird deshalb erst beim
-             * Aufrufer, gleich hinter den Flaechen, zu denen der Plan gehoert.
-             */
-            var seitenGelesen = new System.Text.StringBuilder();
-            for (var i = 0; i < seitenplan.Count; i++)
-            {
-                if (i > 0) seitenGelesen.Append(", ");
-                seitenGelesen.Append(seitenplan[i].Links ? "links " : "rechts ")
-                    .Append(seitenplan[i].Aus ? "AUS" : "an");
-            }
-            Mod.log.Info("PLT-Zoningseitenplan GELESEN: " + seitenplan.Count
-                + " Handschaltung(en)"
-                + (seitenplan.Count > 0 ? " - " + seitenGelesen : string.Empty)
-                + ". Panelwahl steht auf " + ZoningSeite
-                + " und kommt NICHT aus dem Zettel.");
-            _zoningSeitenplanAusZettel = seitenplan;
-            _busStopsAusZettel = new List<BusStopPlacement>();
-            if (EntityManager.HasBuffer<ParkingLotBuildBusStop>(lot))
-            {
-                var busPuffer = EntityManager.GetBuffer<ParkingLotBuildBusStop>(lot,
-                    true);
-                for (var i = 0; i < busPuffer.Length; i++)
-                {
-                    var stop = busPuffer[i];
-                    if (stop.Version != ParkingLotBuildBusStop.CurrentVersion
-                        || !math.all(math.isfinite(stop.A))
-                        || !math.all(math.isfinite(stop.B))
-                        || !math.isfinite(stop.Along)
-                        || stop.Along < 0f || stop.Along > 1f) continue;
-                    _busStopsAusZettel.Add(new BusStopPlacement
-                    {
-                        A = stop.A, B = stop.B, Along = stop.Along,
-                        Left = stop.Left,
-                    });
-                }
-            }
-            Mod.log.Info("PLT-Bauzettel Bushalte GELESEN: "
-                + _busStopsAusZettel.Count + " von " + receipt.BusStopCount);
-
-            // Das Randzoning aus demselben Zettel, mit derselben Nachsicht:
-            // ein unbrauchbarer Eintrag wird uebergangen, nicht abgelehnt.
-            var randplan = new List<ParkingGeometry.RandzoningLinie>();
-            if (EntityManager.HasBuffer<ParkingLotBuildRandzoning>(lot))
-            {
-                var randPuffer = EntityManager
-                    .GetBuffer<ParkingLotBuildRandzoning>(lot, true);
-                for (var i = 0; i < randPuffer.Length; i++)
-                {
-                    var r = randPuffer[i];
-                    if (r.Version < 1
-                        || r.Version > ParkingLotBuildRandzoning.CurrentVersion
-                        || !math.all(math.isfinite(r.A))
-                        || !math.all(math.isfinite(r.B))) continue;
-                    randplan.Add(new ParkingGeometry.RandzoningLinie
-                    {
-                        A = r.A,
-                        B = r.B,
-                    });
-                }
-            }
-            _randzoningAusZettel = randplan;
-            var textBuffer = EntityManager.GetBuffer<ParkingLotBuildText>(lot, true);
-            // Eintrag 3 ist freiwillig: Bauzettel von vor dem 2026-09-02
-            // haben ihn nicht, und leer heisst ohnehin "nimm die
-            // Dekoflaeche". Ein fehlender Eintrag darf den Zettel also
-            // nicht ungueltig machen.
-            if (!TryReadBuildText(textBuffer, 3, out surfaceZoning))
-                surfaceZoning = string.Empty;
-            if (!TryReadBuildText(textBuffer, 1, out surfaceRoad)
-                || !TryReadBuildText(textBuffer, 2, out surfaceDecoration)
-                || string.IsNullOrEmpty(surfaceRoad)
-                || string.IsNullOrEmpty(surfaceDecoration))
-            {
-                reason = ParkingLotTexte.T("ungültige Flächennamen im Bauzettel",
-                    "invalid surface names in the build receipt");
-                return false;
-            }
-            return true;
+            return gelesen;
         }
-
-        private static bool ValidReceiptSettings(ParkingLotBuildReceipt r)
-        {
-            return Finite(r.Es) && Finite(r.Ai) && Finite(r.Cw)
-                && Finite(r.Sl) && Finite(r.Sw) && Finite(r.Md)
-                && Finite(r.Cr) && Finite(r.Angle) && Finite(r.KantenVersatz)
-                && Finite(r.MedianWidth) && Finite(r.CrossBays)
-                && Finite(r.Gassenbreite)
-                && r.ZoningWinkelmodus >= 0
-                && r.ZoningWinkelmodus <= Winkelmodus.GroessteZahl
-                && Finite(r.ZoningReglerwinkel)
-                && r.ZoningAussentiefeVorwahl >= 1
-                && r.ZoningAussentiefeVorwahl <= 6
-                && (double.IsNaN(r.ZoningAusrichtwinkel)
-                    || Finite(r.ZoningAusrichtwinkel))
-                && r.AngleMode >= 0
-                && r.AngleMode <= Winkelmodus.GroessteZahl;
-        }
-
-        private static bool Finite(double value)
-            => !double.IsNaN(value) && !double.IsInfinity(value);
 
         private static int EncodeCorner(string corner)
             => corner == "start" ? 1 : corner == "end" ? 2 : 0;
-
-        private static string DecodeCorner(int corner)
-            => corner == 1 ? "start" : corner == 2 ? "end" : null;
 
         private static void AddBuildText(DynamicBuffer<ParkingLotBuildText> buffer,
                                          int kind, string value)
@@ -1660,41 +1366,7 @@ namespace ParkingLotTool.Tools
         }
 
         private static bool TryReadBuildText(
-            DynamicBuffer<ParkingLotBuildText> buffer, int kind,
-            out string value)
-        {
-            var count = 0;
-            for (var i = 0; i < buffer.Length; i++)
-            {
-                var item = buffer[i];
-                if (item.Version != ParkingLotBuildText.CurrentVersion)
-                {
-                    value = string.Empty;
-                    return false;
-                }
-                if (item.Kind == kind) count++;
-            }
-            var bytes = new byte[count];
-            var seen = new bool[count];
-            for (var i = 0; i < buffer.Length; i++)
-            {
-                var item = buffer[i];
-                if (item.Kind != kind) continue;
-                if (item.Index < 0 || item.Index >= bytes.Length)
-                {
-                    value = string.Empty;
-                    return false;
-                }
-                if (seen[item.Index])
-                {
-                    value = string.Empty;
-                    return false;
-                }
-                seen[item.Index] = true;
-                bytes[item.Index] = item.Value;
-            }
-            value = Encoding.UTF8.GetString(bytes);
-            return true;
-        }
+            DynamicBuffer<ParkingLotBuildText> buffer, int kind, out string value)
+            => ParkingLotBaukontextLeser.TryReadBuildText(buffer, kind, out value);
     }
 }

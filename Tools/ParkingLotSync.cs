@@ -302,6 +302,8 @@ namespace ParkingLotTool.Tools
             for (var i = 0; i < lots.Length; i++)
             {
                 var lot = lots[i];
+                if (World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>().Gesperrt(lot))
+                { _offen.Add(lot); _offenMenge.Add(lot); continue; }
                 var stand = StandVon(lot);
                 if (stand >= Migrationskatalog.Aktuell) continue;
                 if (stand < 0) continue;
@@ -348,7 +350,10 @@ namespace ParkingLotTool.Tools
         {
             if (!_offenMenge.Contains(lot) || _warteschlange.Contains(lot)
                 || _gescheitert.Contains(lot)) return;
-            if (_warteschlange.Count == 0) _gesamt = _erledigt = _syncErfolge = 0;
+            var hintergrund = World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>();
+            if (hintergrund.Gesperrt(lot)) return;
+            if (_warteschlange.Count == 0 && hintergrund.Offen == 0)
+                _gesamt = _erledigt = _syncErfolge = 0;
             _warteschlange.Add(lot);
             _gesamt++;
         }
@@ -419,16 +424,16 @@ namespace ParkingLotTool.Tools
                     a.Ausfuehren(lot, traeger, teile);
                     ParkingLotSchrittmarke.Setze("Sync: Lot " + lot.Index
                         + " Schritt " + schritt.Nummer + " " + schritt.Name + " beendet");
-                    if (a.Neubau)
+                    if (a.Hintergrund)
                     {
                         // Ein vorgemerkter Neubau ist noch KEINE Wirkung.
                         // Datenstand bleibt vor diesem Schritt, bis der echte
-                        // Editpfad das alte Lot ersetzt und die Aufnahme die
+                        // Hintergrundpfad das alte Lot ersetzt und die Aufnahme die
                         // neuen Wege nachprueft. Bei Abbruch bleibt es offen.
                         _offen.Add(lot);
                         _offenMenge.Add(lot);
                         Mod.log.Info("PLT-Sync: Lot " + lot.Index + " Schritt "
-                            + schritt.Nummer + " wartet auf regulaeren Neubau; Datenstand bleibt " + s + ".");
+                            + schritt.Nummer + " wartet auf Hintergrundauftrag; Datenstand bleibt " + s + ".");
                         return false;
                     }
                     // Nachpruefung: die Wirkung muss da sein, nicht nur
@@ -457,7 +462,7 @@ namespace ParkingLotTool.Tools
                 + ". Bis zum naechsten Laden kein neuer Versuch.");
         }
 
-        internal void MeldeNachbauEnde(Entity lot, Entity neu, bool erfolgreich)
+        internal void MeldeHintergrundEnde(Entity lot, Entity neu, bool erfolgreich)
         {
             if (!EntityManager.Exists(lot) || EntityManager.HasComponent<Deleted>(lot))
             {
@@ -492,8 +497,17 @@ namespace ParkingLotTool.Tools
                 if (EntityManager.Exists(ziel) && !EntityManager.HasComponent<Deleted>(ziel))
                     _gescheitert.Add(ziel);
                 Mod.log.Warn("PLT-Sync: Fahrwege-Neubau von " + lot
-                    + " nicht abgeschlossen; " + ziel + " bleibt vor Schritt 7, neuer Versuch nach dem naechsten Laden.");
+                    + " nicht abgeschlossen; " + ziel + " bleibt vor Schritt 8, neuer Versuch nach dem naechsten Laden.");
             }
+        }
+
+        internal void MeldeRueckwegEnde()
+        { _neuAufnehmen = true; _index = null; }
+
+        internal void MeldeRueckwegStart(bool erster)
+        {
+            if (erster && _warteschlange.Count == 0) _gesamt = _erledigt = 0;
+            _gesamt++;
         }
 
         private int StandVon(Entity lot)
@@ -519,8 +533,11 @@ namespace ParkingLotTool.Tools
                 && _ergebnisUhr.Elapsed.TotalSeconds >= ErgebnisSekunden)
                 LeereMeldung();
             if (_syncOffen.value != _offen.Count) _syncOffen.Update(_offen.Count);
-            var laeuft = _warteschlange.Count > 0
-                ? _erledigt + "\t" + _gesamt
+            var hintergrund = World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>().Offen;
+            _gesamt = System.Math.Max(_gesamt,_warteschlange.Count + hintergrund);
+            var fortschritt = HintergrundFortschritt.Zaehle(_gesamt, _warteschlange.Count, hintergrund);
+            var laeuft = _warteschlange.Count + hintergrund > 0
+                ? fortschritt.Fertig + "\t" + fortschritt.Gesamt
                 : string.Empty;
             if (_syncLaeuft.value != laeuft) _syncLaeuft.Update(laeuft);
         }

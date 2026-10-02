@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Colossal.Serialization.Entities;
 using Game.Common;
@@ -108,6 +108,7 @@ namespace ParkingLotTool.Tools
             internal Entity Definition;
             internal float3 From;
             internal float3 To;
+            internal NetCourse? Kurs;
         }
 
         private readonly List<PartTransferRecord> _netRecords =
@@ -122,6 +123,7 @@ namespace ParkingLotTool.Tools
 
         private void InitializeLotOwner()
         {
+            if (_bauarbeiter) return; // Der Permanent-Pfad benutzt keine Temp-Queries.
             _tempNetQuery = GetEntityQuery(new EntityQueryDesc
             {
                 All = new[]
@@ -165,18 +167,20 @@ namespace ParkingLotTool.Tools
             // Ein Traeger gehoert genau zu dem Bau, aus dessen fertigem Plan
             // er entsteht. Der vorige Parkplatz darf nie wiederverwendet
             // werden, auch wenn dieselben Vanilla-Prefabs vorkommen.
-            _lotCarrier = Entity.Null;
+            if (!_bauarbeiter) _lotCarrier = Entity.Null;
         }
 
         private void RecordNetDefinition(string kind, int index, Entity prefab,
                                          Entity definition, float3 from, float3 to)
         {
+            SchliesseDefinition(definition, _lotOwner);
             _netRecords.Add(new PartTransferRecord
             {
                 Kind = kind,
                 Index = index,
                 Prefab = prefab,
                 Definition = definition,
+                Kurs = EntityManager.HasComponent<NetCourse>(definition) ? EntityManager.GetComponentData<NetCourse>(definition) : (NetCourse?)null,
                 From = from,
                 To = to,
             });
@@ -185,6 +189,7 @@ namespace ParkingLotTool.Tools
         private void RecordObjectDefinition(string kind, int index, Entity prefab,
                                             Entity definition, float3 position)
         {
+            SchliesseDefinition(definition, _lotCarrier);
             _objectRecords.Add(new PartTransferRecord
             {
                 Kind = kind,

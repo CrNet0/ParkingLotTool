@@ -1,0 +1,9 @@
+OK: Freie Lage trennt Temp/Permanent.
+OK: Benannter Knoten vereinigt Temp/Permanent (Isolationsgrenze).
+OK: Benannter Knoten ignoriert auch die Lage.
+OK: Verschiedene Anschlussknoten bleiben getrennt.
+OK: Temp/Permanent am selben Anschluss haben denselben Hash.
+OK: GenerateNodes: freie Temp/Permanent-Knoten kollidieren trotz verschiedener Besitzer.
+OK: GenerateNodes: benannte Temp/Permanent-Knoten kollidieren trotz verschiedener Besitzer.
+OK: GenerateNodes: verschiedene Originale trennen sich.
+PLT-Hintergrund: Befundmessung 8 Pruefungen, 0 Messfehler; benannter Anschluss kollidiert=1. Knotensammlung an freier Lage kollidiert=1. Dies ist KEIN bestandener Nachweis einer isolierten Bau-Transaktion.

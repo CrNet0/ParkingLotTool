@@ -83,6 +83,7 @@ namespace ParkingLotTool.Tools
         [Preserve]
         protected override void OnCreate()
         {
+            if (_erzeugeBauarbeiter) { _bauarbeiter = true; InitialisiereBauarbeiter(); return; }
             base.OnCreate();
             _overlayRenderSystem = World.GetOrCreateSystemManaged<OverlayRenderSystem>();
             _terrainSystem = World.GetOrCreateSystemManaged<TerrainSystem>();
@@ -178,7 +179,7 @@ namespace ParkingLotTool.Tools
             AuditBuiltBusStops();
             // Erst wenn die Nacharbeit des letzten Baus durch ist, kommt der
             // naechste Sync-Neubau dran (er wartet selbst auf den Abriss).
-            PflegeSyncNachbau();
+
         }
 
         private ParkingLotCleanupSystem _aufraeumer;

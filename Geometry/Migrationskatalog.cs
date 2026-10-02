@@ -64,6 +64,8 @@ namespace ParkingLotTool.Geometry
                 + "Werkzeug war vom Nutzer abbrechbar und verlor dabei Wege. "
                 + "Neue und selbst bearbeitete Parkplaetze fahren 25 km/h; "
                 + "der Hintergrund-Neubau folgt als eigener Schritt."),
+            new Schritt(8, "Fahrwege25ImHintergrund",
+                "Exklusiver Permanent-Neubau mit zwei Besitzerstufen und gemessenem Rueckweg; Stand 8 erst nach echten Fahrspuren und Kosten."),
         };
 
         /** Der Stand, den ein heute gebauter Parkplatz hat. */
