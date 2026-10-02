@@ -16,10 +16,7 @@ namespace ParkingLotTool.Tools
             // Erhaltene Strassen behalten Kante/Owner/Geometrie. Vanilla
             // erneuert ihre alten Fahrspuren aus den bereits fertigen Klonen;
             // diese echten Werte gehoeren zur 30-Bilder-Nachpruefung.
-            int n = 0;
-            foreach (var e in _erhalteneZoningteile)
-                if (ParkingLotNetzRueckweg.Lebt(EntityManager,e))
-                { EntityManager.AddComponent<Updated>(e); n++; }
+            var n = MeldeErhalteneZoningteileAn();
             ParkingLotNetzRueckweg.Melde($"Erhaltene Zoningteile bei Vanilla angemeldet: {n}; 0 Owner-/Kurven-/Upgrade-Aenderungen.");
         }
 

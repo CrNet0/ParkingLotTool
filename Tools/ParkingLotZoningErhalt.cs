@@ -96,6 +96,22 @@ namespace ParkingLotTool.Tools
             return ziel.Count > 0;
         }
 
+        /**
+         * Erhaltene Zoningstrassen behalten Kante, Owner und Geometrie; nur
+         * ihre Fahrspuren stammen noch aus dem alten Prefabstand. `Updated`
+         * laesst Vanilla sie aus den fertigen Klonen neu ableiten (25 km/h,
+         * Kosten). Gilt fuer Edit UND Hintergrund-Neubau (2026-10-02: nach
+         * einem Edit standen 8 Vanilla-Spuren auf erhaltenen Kanten).
+         */
+        private int MeldeErhalteneZoningteileAn()
+        {
+            int n = 0;
+            foreach (var e in _erhalteneZoningteile)
+                if (ParkingLotNetzRueckweg.Lebt(EntityManager, e))
+                { EntityManager.AddComponent<Updated>(e); n++; }
+            return n;
+        }
+
         private void UebertrageZoningbestand(Entity old, Entity next, Entity carrier)
         {
             if (!_zoningErhalten) return;

@@ -690,6 +690,10 @@ namespace ParkingLotTool.Tools
             if (EntityManager.HasBuffer<ParkingLotRueckweganschluss>(old)) EntityManager.RemoveComponent<ParkingLotRueckweganschluss>(old);
             if (EntityManager.HasBuffer<ParkingLotStufeAKnoten>(old)) EntityManager.RemoveComponent<ParkingLotStufeAKnoten>(old);
             if (EntityManager.HasComponent<ParkingLotStufeAPrefab>(old)) EntityManager.RemoveComponent<ParkingLotStufeAPrefab>(old);
+            // Der Hintergrund meldet sie selbst im exklusiven Bild an.
+            if (!_bauarbeiter && _zoningErhalten)
+                Mod.log.Info("PLT-Bearbeiten: " + MeldeErhalteneZoningteileAn()
+                    + " erhaltene Zoningteile zum Auffrischen der Fahrspuren angemeldet.");
             ClearEditState();
             if (!_bauarbeiter) MerkeAutoVersorgung(carrier, old, alterTraeger);
             Mod.log.Info("PLT-Bearbeiten: Ausstieg durch Übernehmen; neues Lot "
@@ -735,6 +739,13 @@ namespace ParkingLotTool.Tools
             if (!IsEditing || _editBaselinePending || _areaPreviewLayout == null)
                 return false;
             if (EntityManager.HasBuffer<ParkingLotRueckwegkurs>(_editLot)) return false;
+            // Gleicher Bauzettel heisst nicht gleicher Bestand: fehlen Wege
+            // (Abbruch-Schaden 2026-10-02) oder fahren sie noch mit altem
+            // Prefabstand, muss gebaut werden.
+            var traeger = EntityManager.HasComponent<ParkingLotCarrierReference>(_editLot)
+                ? EntityManager.GetComponentData<ParkingLotCarrierReference>(_editLot).Carrier
+                : Entity.Null;
+            if (!HatGebauteFahrspuren(traeger) || BrauchtFahrwegeNeubau(traeger)) return false;
             if (AreaPreviewSignature(_areaPreviewLayout) != _editBaselineSignature)
                 return false;
             RestoreHiddenParts();
