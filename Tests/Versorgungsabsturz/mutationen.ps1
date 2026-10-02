@@ -5,7 +5,12 @@ New-Item -ItemType Directory -Force -Path $stage | Out-Null
 $project = Join-Path $PSScriptRoot 'Versorgungsabsturz.csproj'
 $phase = [IO.File]::ReadAllText((Join-Path $repo 'Tools/ParkingLotVersorgungsphasen.cs'))
 $diagnose = [IO.File]::ReadAllText((Join-Path $repo 'Tools/ParkingLotVersorgungsdiagnoseSystem.cs'))
+$daten = [IO.File]::ReadAllText((Join-Path $repo 'Tools/ParkingLotVersorgungsdaten.cs'))
 $faelle = @(
+    @{ Name='mesh-ungeprueft'; Property='Datenquelle'; Text=$daten.Replace('Muss<MeshData>(p, "NetCompositionMeshRef.HasMesh", s);','') },
+    @{ Name='jobs-nicht-abgewartet'; Property='Datenquelle'; Text=$daten.Replace('EntityManager.CompleteAllTrackedJobs();','') },
+    @{ Name='cache-ungeprueft'; Property='Datenquelle'; Text=$daten.Replace('!EntityManager.HasBuffer<NetGeometryComposition>(e)','false') },
+    @{ Name='flags-typname'; Property='Datenquelle'; Text=$daten.Replace('tiefe < 3','false') },
     @{ Name='alte-phase'; Property='Phasenquelle'; Text=$phase.Replace('SystemUpdatePhase.Modification1','SystemUpdatePhase.Modification2') },
     @{ Name='nur-100-bilder'; Property='Diagnosequelle'; Text=$diagnose.Replace('_bilder >= 120','_bilder >= 100') },
     @{ Name='flussende-ungeprueft'; Property='Diagnosequelle'; Text=$diagnose.Replace('if (!Existiert(a) || !Existiert(b) || !Typ(a) || !Typ(b)) tot++;','if (false) tot++;') }
@@ -49,3 +54,15 @@ if ($code -eq 0 -or $befund -notmatch 'FEHLER Versorgung: Diagnose: vorhandener 
     throw "Mutation Kantenmitte nicht durch Testbefund erkannt: Exit=$code"
 }
 "Mutation Kantenmitte erkannt: Exit=$code"
+
+$zoningMutation = Join-Path $stage 'Plan-Zoningstart.cs'
+[IO.File]::WriteAllText($zoningMutation, [IO.File]::ReadAllText($planQuelle).Replace('k.AnschlussGesperrt','false').Replace('z.AnschlussGesperrt','false'))
+$compile.SetAttribute('Include', $zoningMutation)
+$xml.Save($geoMutation)
+dotnet run -c Release --project $geoMutation -- --versorgung *> (Join-Path $stage 'zoningstart.log')
+$code = $LASTEXITCODE
+$befund = Get-Content (Join-Path $stage 'zoningstart.log') -Raw
+if ($code -eq 0 -or $befund -notmatch 'FEHLER Versorgung: Zoningprobe:') {
+    throw 'Mutation Zoningstart nicht durch Testbefund erkannt.'
+}
+"Mutation Zoningstart erkannt: Exit=$code"

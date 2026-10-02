@@ -425,6 +425,34 @@ internal static partial class Program
         ohneKnoten.Startknoten = ohneKnoten.Endknoten = 0;
         Pruefe(new List<float2>(VersorgungsknotenDiagnose.Ziele(ohneKnoten)).Count == 0,
             "Diagnose: keine erfundenen Knoten fuer fehlende Entity-Enden");
+        var zoningprobe = new Versorgungseingabe { Strombreite = 1, Wasserbreite = 1,
+            Sicherheitszugabe = 0.5f, Anschlussbereich = 8 };
+        var gesperrteZone = Kante(80, 0, false, 0, 30);
+        zoningprobe.Eigene.Add(gesperrteZone);
+        zoningprobe.Hinderniskanten.Add(gesperrteZone);
+        zoningprobe.Ziele.Add(Kante(82, 20, true, 0, 60));
+        var alterVorplan = VersorgungstrassenPlan.PlaneFolge(zoningprobe, out _);
+        Pruefe(alterVorplan.Count == 1, "Zoningprobe: Normalbetrieb findet die vorhandene Trasse");
+        // PlaneFolge merkt die geplanten Verbindungen im Schnappschuss.
+        // Der Vergleich soll denselben noch unversorgten Ausgangsstand lesen.
+        zoningprobe.Verbindungen.Clear();
+        gesperrteZone.AnschlussGesperrt = true;
+        var gesperrteWahl = VersorgungstrassenPlan.Waehle(zoningprobe);
+        Pruefe(gesperrteWahl.Beste == null && gesperrteWahl.Gruppen.Count == 1
+            && gesperrteWahl.OffeneTeile == 1 && gesperrteWahl.Gruppen[0].Kanten.Count == 1,
+            "Zoningprobe: Gruppe und offener Bedarf bleiben trotz 0 zulaessiger Starts erhalten");
+        Pruefe(alterVorplan.Count == 1 && !VersorgungstrassenPlan.PruefeVorplan(zoningprobe,
+            alterVorplan[0], out _, out _), "Zoningprobe: alter Vorplan umgeht die Startsperre nicht");
+        var alternative = Kante(81, 0, false, 30, 60);
+        alternative.Startknoten = gesperrteZone.Endknoten;
+        zoningprobe.Eigene.Add(alternative); zoningprobe.Hinderniskanten.Add(alternative);
+        var alternativeWahl = VersorgungstrassenPlan.Waehle(zoningprobe).Beste;
+        Pruefe(alternativeWahl != null && alternativeWahl.Start.z > 30.1f
+            && !alternativeWahl.Startkanten.Contains(gesperrteZone.Id),
+            "Zoningprobe: gueltige Alternative gefunden, auch gemeinsamer Zoningknoten gesperrt");
+        zoningprobe.Ziele[0].AnschlussGesperrt = true;
+        Pruefe(VersorgungstrassenPlan.Waehle(zoningprobe).Beste == null,
+            "Zoningprobe: gesperrte Kante wird auch als Ziel abgewiesen");
         Console.WriteLine($"Versorgungskurse: {pruefungen} Pruefungen, {fehler} Fehler.");
         return fehler == 0 ? 0 : 1;
     }

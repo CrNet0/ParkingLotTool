@@ -4,6 +4,7 @@ using System.Linq;
 using Game;
 using Game.Common;
 using Game.Net;
+using Game.Prefabs;
 using Game.Simulation;
 using ParkingLotTool.Tools;
 using Unity.Entities;
@@ -86,7 +87,7 @@ internal static class Program
         d.MerkeEdit(lot, carrier, true);
         Pruefe(!em.HasComponent<Owner>(k) && !em.HasComponent<Owner>(a)
             && em.GetBuffer<SubNet>(carrier).Length == 1, "Edit-Schalter verhindert auch Vanilla-Besitzkaskade eigener Leitungen");
-        Pruefe(em.HasComponent<Owner>(fremd) && em.GetBuffer<SubNet>(carrier).Single().m_SubNet == fremd,
+        Pruefe(em.HasComponent<Owner>(fremd) && em.GetBuffer<SubNet>(carrier)[0].m_SubNet == fremd,
             "fremde Owner und SubNet-Eintraege bleiben unveraendert");
         Pruefe(d.Behalten(new() { Lot = lot }) && d.Behalten(new() { Carrier = carrier }), "Edit-Schalter behaelt exakt alte Lot-/Traeger-Leitungen");
         Pruefe(!d.Behalten(new() { Lot = new Entity(20, 2) }), "wiederverwendeter Entity-Index erbt keinen Abrissschutz");
@@ -96,6 +97,100 @@ internal static class Program
         ohneFlussnode.Beginne(new[] { p }, "fehlende NodeConnection");
         Pruefe(ParkingLotSchrittmarke.Spur.Last().Contains("ToteReferenzen=1"),
             "aktueller physischer Verweis auf fehlende Flussnode wird auch ohne Flusskante erkannt");
+        DatenLauf();
         Console.WriteLine($"Versorgungsabsturz: {_pruefungen} Pruefungen, 0 Fehler.");
+    }
+
+    private static void DatenLauf()
+    {
+        var s = new UpdateSystem(); ParkingLotVersorgungsgrenzen.Registriere(s);
+        Pruefe(s.Registrierungen.Count == 5 && s.Registrierungen[0].VorNormal
+            && s.Registrierungen[0].Phase == SystemUpdatePhase.Modification3,
+            "Datenprobe vor Mod3, vier folgende Grenzen registriert");
+        var d = new ParkingLotVersorgungsdiagnoseSystem(); var em = d.EntityManager;
+        var k = new Entity(100); var a = new Entity(101); var b = new Entity(102);
+        var pf = new Entity(103); var c = new Entity(104); var piece = new Entity(105);
+        var lane = new Entity(106); var lp = new Entity(107); var building = new Entity(108);
+        em.Add(k, new Edge { m_Start = a, m_End = b }); em.Add(k, new PrefabRef { m_Prefab = pf });
+        em.Add(a, new Node()); em.Add(b, new Node());
+        em.Add(a, new List<ConnectedEdge> { new() { m_Edge = k } });
+        em.Add(b, new List<ConnectedEdge> { new() { m_Edge = k } });
+        em.Add(pf, new Game.Prefabs.NetData()); em.Add(pf, new Game.Prefabs.NetGeometryData());
+        em.Add(k, new Composition { m_Edge = c, m_StartNode = c, m_EndNode = c });
+        em.Add(c, new Game.Prefabs.NetCompositionData
+        { m_Width = 13.4f, m_Flags = new() { m_General = 17, m_Left = 3, m_Right = 5 } });
+        em.Add(c, new List<Game.Prefabs.NetCompositionPiece> { new() { m_Piece = piece, m_PieceFlags = Game.Prefabs.NetPieceFlags.HasMesh } });
+        em.Add(piece, new Game.Prefabs.NetPieceData());
+        em.Add(k, new List<SubLane> { new() { m_SubLane = lane } });
+        em.Add(lane, new Lane()); em.Add(lane, new Curve()); em.Add(lane, new PrefabRef { m_Prefab = lp });
+        em.Add(lp, new Game.Prefabs.NetLaneData());
+        em.Add(k, new Owner { m_Owner = building });
+        em.Add(building, new Game.Buildings.Building { m_RoadEdge = k });
+        em.Add(building, new Game.Objects.Transform());
+        var before = ParkingLotSchrittmarke.Spur.Count;
+        d.Phasenmarke("inaktiv", true);
+        Pruefe(before == ParkingLotSchrittmarke.Spur.Count, "inaktive Grenzen lesen und schreiben nichts");
+        d.Beginne(new[] { k }, "Daten"); d.Tick();
+        string Probe()
+        {
+            var start = ParkingLotSchrittmarke.Spur.Count;
+            d.Phasenmarke("vor-Mod3", true);
+            return string.Join("\n", ParkingLotSchrittmarke.Spur.Skip(start));
+        }
+        var daten = Probe();
+        Pruefe(em.Completions == 1 && daten.Contains("vor-Mod3 BEGIN") && daten.Contains("vor-Mod3 END"),
+            "Phasengrenze beendet Jobs zwischen dauerhaftem BEGIN und END");
+        Pruefe(daten.Contains("m_Width=13.4") && daten.Contains("m_General=17 m_Left=3 m_Right=5")
+            && daten.Contains("SUBLANE [0]") && daten.Contains("GEBAEUDE"),
+            "Kompositionswerte, echte Spur und Fremdgebaeude werden verfolgt");
+        Pruefe(daten.Contains("fehlt NetGeometryComposition; Leser=CompositionSelect")
+            && daten.Contains("NetCompositionCrosswalk=fehlt"),
+            "fehlender Kompositionscache und Crosswalk-Puffer explizit sichtbar");
+        em.Add(pf, new List<Game.Prefabs.NetGeometryComposition> { new() { m_Composition = c } });
+        em.Add(c, new List<Game.Prefabs.NetCompositionCrosswalk> { new() { m_Lane = lp } });
+        daten = Probe();
+        Pruefe(!daten.Contains("fehlt NetGeometryComposition; Leser=")
+            && daten.Contains("NetGeometryComposition[0]") && daten.Contains("NetCompositionCrosswalk[0]"),
+            "gueltige Cache- und Crosswalk-Verweise mit Index statt Fehlbefund");
+        Pruefe(daten.Contains("fehlt MeshData; Leser=NetCompositionMeshRef.HasMesh")
+            && daten.Contains("fehlt MeshMaterial"), "HasMesh mit fehlenden Renderdaten erkannt");
+        em.Add(piece, new Game.Prefabs.MeshData()); em.Add(piece, new List<Game.Prefabs.MeshMaterial>());
+        daten = Probe();
+        Pruefe(!daten.Contains("fehlt MeshData; Leser=") && !daten.Contains("fehlt MeshMaterial"),
+            "gueltiges sichtbares Piece hat beide Pflichtdaten");
+        em.RemoveComponent<Game.Prefabs.MeshData>(piece);
+        em.GetBuffer<Game.Prefabs.NetCompositionPiece>(c).Clear();
+        em.GetBuffer<Game.Prefabs.NetCompositionPiece>(c).Add(new() { m_Piece = piece });
+        daten = Probe();
+        Pruefe(!daten.Contains("fehlt MeshData; Leser="), "Piece ohne HasMesh braucht kein MeshData");
+        em.RemoveComponent<PrefabRef>(lane); daten = Probe();
+        Pruefe(daten.Contains("fehlt PrefabRef; Leser=SecondaryLane"), "fehlendes Prefab an Fremdspur erkannt");
+        em.Add(k, new Created()); daten = Probe();
+        Pruefe(daten.Contains("fehlt Owner.SubNet"), "neues Netz mit Owner ohne SubNet erkannt");
+        em.Add(building, new List<SubNet> { new() { m_SubNet = k } });
+        em.RemoveComponent<Created>(k); em.Add(k, new Updated()); daten = Probe();
+        Pruefe(!daten.Contains("fehlt Owner.SubNet") && daten.Contains("KindEnthalten=1"),
+            "Updated und gueltiger Besitzerpuffer sind kein Created-Fehler");
+        var vanilla = new Entity(109); em.Add(vanilla, new Game.Prefabs.NetData());
+        em.Add(vanilla, new Game.Prefabs.NetGeometryData());
+        var f = new ParkingLotFahrprefabSystem(); f.Quellen[pf] = vanilla;
+        d.World.Systems[typeof(ParkingLotFahrprefabSystem)] = f;
+        daten = Probe();
+        Pruefe(daten.Contains("PF-VERGLEICH Klon=") && daten.Contains("Vanilla="), "Klon hat ausdruecklichen Vergleich mit Vanilla-Quelle");
+        em.Data.Remove(piece); daten = Probe();
+        Pruefe(daten.Contains("Entity tot") && !daten.Contains("MESSFEHLER"), "totes Piece wird ohne eigenen ungesicherten Zugriff protokolliert");
+        var nichtLinq = false;
+        try { em.GetBuffer<SubNet>(building).Any(); } catch (NotImplementedException) { nichtLinq = true; }
+        Pruefe(nichtLinq, "Testdouble verbietet wie CS2 LINQ auf DynamicBuffer");
+        var c2 = new Entity(110); var n2 = new Entity(111); var c3 = new Entity(112);
+        em.Add(n2, new Node());
+        em.Add(c2, new Edge { m_Start = b, m_End = n2 });
+        em.Add(b, new List<ConnectedEdge> { new() { m_Edge = k }, new() { m_Edge = c2 } });
+        em.Add(c3, new Edge { m_Start = n2, m_End = new Entity(113) });
+        em.Add(n2, new List<ConnectedEdge> { new() { m_Edge = c2 }, new() { m_Edge = c3 } });
+        Probe();
+        var begrenzt = Probe();
+        Pruefe(!begrenzt.Contains("DATEN " + c3),
+            "wiederholte Datenproben oeffnen keine zweite Stadtnachbarschaft");
     }
 }

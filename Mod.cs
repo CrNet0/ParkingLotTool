@@ -405,6 +405,7 @@ namespace ParkingLotTool
              * in BERICHT-VERSORGUNGSABSTURZ.md; Registrierung einmal zentral.
              */
             ParkingLotVersorgungsphasen.Registriere(updateSystem);
+            ParkingLotVersorgungsgrenzen.Registriere(updateSystem);
             updateSystem.UpdateAt<ParkingLotVersorgungsdiagnoseSystem>(SystemUpdatePhase.PostTool);
             updateSystem.UpdateAt<ParkingLotFlussgraphPruefungSystem>(SystemUpdatePhase.PostTool);
             updateSystem.UpdateAfter<ParkingLotVersorgungsdiagnoseEndSystem>(SystemUpdatePhase.ModificationEnd);

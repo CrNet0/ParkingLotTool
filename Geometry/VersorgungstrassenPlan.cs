@@ -18,6 +18,9 @@ namespace ParkingLotTool.Geometry
         internal float Breite, Stromfang, Wasserfang;
         internal bool Versorgung, Querbar, Stadt, NurEnden, Stromtor, Wassertor;
         internal bool FlussAnStadt, KnotenAnStadt;
+        // Diagnose 0052: drei aktualisierte Zoningkanten am Leitungsstart.
+        // Die Kante bleibt in Gruppe/Hindernissen; nur ihre Anschluesse ruhen.
+        internal bool AnschlussGesperrt;
 
         internal float Abstand(float2 p)
         {
@@ -180,6 +183,9 @@ namespace ParkingLotTool.Geometry
                 if ((startknoten != 0 && (k.Startknoten == startknoten
                     || k.Endknoten == startknoten))
                     || math.distance(k.Projektion(p.xz).xz, p.xz) <= 0.1f) ids.Add(k.Id);
+            // Auch ein gemeinsamer Endknoten darf die gesperrte Kante nicht
+            // indirekt aktualisieren. Dieselbe Regel gilt fuer alte Vorplaene.
+            if (g.Kanten.Exists(k => k.AnschlussGesperrt && ids.Contains(k.Id))) ids.Clear();
             return ids;
         }
 
@@ -211,7 +217,7 @@ namespace ParkingLotTool.Geometry
             out List<float2> strom, out List<float2> wasser)
         {
             bool Tor(Versorgungskante k, float2 p, bool istStrom)
-                => (istStrom ? k.Stromtor : k.Wassertor)
+                => !k.AnschlussGesperrt && (istStrom ? k.Stromtor : k.Wassertor)
                     // Beide Parallelspuren brauchen auf der Kante Platz. Bei
                     // Small Road (8 m) sind das 4 m je Ende; ein geklemmter
                     // Projektionspunkt direkt am Ende reicht CS2 nicht.
@@ -242,7 +248,7 @@ namespace ParkingLotTool.Geometry
                     if (g.AnStadt || g.Ausgereizt) continue;
                     e.GesperrteZiele.TryGetValue(g.Kanten[0].Id, out var gesperrt);
                     foreach (var z in e.Ziele)
-                        if (z.Stadt && gesperrt?.Contains(z.Id) != true
+                        if (!z.AnschlussGesperrt && z.Stadt && gesperrt?.Contains(z.Id) != true
                             && ZielErlaubt(z.Stadt, -1, g.Teil, z.Gasse))
                             g.Ziele.Add(z);
                     g.Weg = null;
@@ -335,7 +341,7 @@ namespace ParkingLotTool.Geometry
                 g.Gesperrt = gesperrt?.Count ?? 0;
                 foreach (var z in e.Ziele)
                 {
-                    if (g.Kanten.Contains(z) || gesperrt?.Contains(z.Id) == true) continue;
+                    if (z.AnschlussGesperrt || g.Kanten.Contains(z) || gesperrt?.Contains(z.Id) == true) continue;
                     var zielTeil = gruppeVon.TryGetValue(z.Id, out var i) ? Finde(i) : -1;
                     if (ZielErlaubt(z.Stadt, zielTeil, g.Teil, z.Gasse)) g.Ziele.Add(z);
                 }
@@ -531,6 +537,11 @@ namespace ParkingLotTool.Geometry
                     if (n != 0 && knoten.Add(n))
                         g.Starts.Add(n == k.Startknoten ? k.Startpunkt : k.Endpunkt);
 
+            // Unzulaessige Starts vor der Suche entfernen, statt eine
+            // gefundene Trasse nachtraeglich zu verwerfen.
+            if (g.Kanten.Exists(k => k.AnschlussGesperrt))
+                g.Starts.RemoveAll(p => Startkanten(g, p, out _).Count == 0);
+            if (g.Starts.Count == 0) return null;
             var startstrassen = new HashSet<int>[g.Starts.Count];
             var startknoten = new int[g.Starts.Count];
             for (var i = 0; i < g.Starts.Count; i++)

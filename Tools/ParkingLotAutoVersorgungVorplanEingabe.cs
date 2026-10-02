@@ -128,6 +128,8 @@ namespace ParkingLotTool.Tools
                 else prefab = stueck.Kind == "zoning" ? zoning
                     : stueck.Kind == "cross" ? schmal : breit;
                 var eigene = FuegeHinzu(von, nach, prefab);
+                if (eigene != null && stueck.Kind == "zoning")
+                    eigene.AnschlussGesperrt = Mod.Aus("versorgung-ohne-zoningstart");
                 if (gasse && eigene != null)
                 {
                     eigene.Gasse = true;

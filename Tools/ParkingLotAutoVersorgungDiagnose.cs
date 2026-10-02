@@ -22,7 +22,7 @@ namespace ParkingLotTool.Tools
             var aktiv = new List<string>();
             foreach (var s in new[] { "versorgung-graphhelfer", "versorgung-strom",
                 "versorgung-wasser", "versorgung-leitungsabriss", "versorgung-kantenziel",
-                "versorgung-bilddiagnose" })
+                "versorgung-bilddiagnose", "versorgung-ohne-zoningstart" })
                 if (Mod.Aus(s)) aktiv.Add(s);
             AvDiagnoseMeldung("SCHALTER " + (aktiv.Count == 0 ? "0, Normalbetrieb" : string.Join(",", aktiv))
                 + "; Bilddiagnose 120 PostTool-Bilder plus ModificationEnd, auch nach ESC.");

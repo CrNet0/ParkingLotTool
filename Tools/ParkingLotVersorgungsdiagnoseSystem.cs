@@ -128,24 +128,39 @@ namespace ParkingLotTool.Tools
         private void ErfasseUmfeld(IEnumerable<Entity> roots)
         {
             var basis = roots.Where(e => e != Entity.Null).ToArray();
+            var direkt = new HashSet<Entity>(basis);
             foreach (var e in basis)
+                if (Existiert(e) && EntityManager.HasComponent<Temp>(e))
+                    direkt.Add(EntityManager.GetComponentData<Temp>(e).m_Original);
+            var knoten = new HashSet<Entity>();
+            foreach (var e in direkt)
             {
                 Merke(e);
                 if (!Existiert(e)) continue;
+                if (EntityManager.HasComponent<Node>(e)) knoten.Add(e);
                 if (EntityManager.HasComponent<Temp>(e))
                     Merke(EntityManager.GetComponentData<Temp>(e).m_Original);
                 if (EntityManager.HasComponent<Edge>(e))
                 {
                     var k = EntityManager.GetComponentData<Edge>(e);
                     Merke(k.m_Start); Merke(k.m_End);
+                    knoten.Add(k.m_Start); knoten.Add(k.m_End);
                 }
                 if (EntityManager.HasBuffer<ConnectedNode>(e))
-                    foreach (var n in EntityManager.GetBuffer<ConnectedNode>(e, true)) Merke(n.m_Node);
+                    foreach (var n in EntityManager.GetBuffer<ConnectedNode>(e, true))
+                    { Merke(n.m_Node); knoten.Add(n.m_Node); }
             }
-            var knoten = _physisch.Where(e => Existiert(e) && EntityManager.HasComponent<Node>(e)).ToArray();
             foreach (var e in knoten)
-                if (EntityManager.HasBuffer<ConnectedEdge>(e))
+                if (Existiert(e) && EntityManager.HasBuffer<ConnectedEdge>(e))
                     foreach (var k in EntityManager.GetBuffer<ConnectedEdge>(e, true)) Merke(k.m_Edge);
+            // Auch beide Enden der seitlichen Gebaeude-Subnetze messen. Von
+            // diesen neuen Enden aus keine weitere Stadtnachbarschaft oeffnen.
+            foreach (var e in _physisch.ToArray())
+                if (Existiert(e) && EntityManager.HasComponent<Edge>(e))
+                {
+                    var k = EntityManager.GetComponentData<Edge>(e);
+                    Merke(k.m_Start); Merke(k.m_End);
+                }
         }
 
         private void ErfasseFluss(Entity physisch)

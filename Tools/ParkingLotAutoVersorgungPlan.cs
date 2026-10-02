@@ -91,6 +91,12 @@ namespace ParkingLotTool.Tools
             {
                 var g = aus.Gruppen[i];
                 var name = $"Netz {i + 1}/{aus.Gruppen.Count}";
+                var gesperrteStarts = g.Kanten.FindAll(k => k.AnschlussGesperrt).Count;
+                if (gesperrteStarts > 0)
+                    Mod.log.Warn($"PLT-VERSORGUNG-DIAG OHNE-ZONINGSTART {name}: "
+                        + $"{gesperrteStarts}/{g.Kanten.Count} Kanten als Start/Ziel gesperrt; "
+                        + $"Stadtpfad={(g.AnStadt ? 1 : 0)}, Trasse={(g.Weg != null ? 1 : 0)}. "
+                        + (!g.AnStadt && g.Weg == null ? "Dieses Netz bleibt ohne neue Leitung." : "Gruppe bleibt in der Bedarfspruefung."));
                 if (g.AnStadt)
                 {
                     Mod.log.Info($"PLT-Autoversorgung {name}: haengt am Stadtnetz - nichts zu tun.");
@@ -205,6 +211,7 @@ namespace ParkingLotTool.Tools
                 Versorgung = KanteNimmtVersorgung(e), Querbar = fahrgasse,
                 Stadt = !EntityManager.HasComponent<Owner>(e),
                 Gasse = GassenPrefab.Ist(_prefabSystem, prefab),
+                AnschlussGesperrt = AvZoninganschlussGesperrt(prefab),
                 Stromfang = EntityManager.GetComponentData<LocalConnectData>(strom).m_SearchDistance,
                 Wasserfang = EntityManager.GetComponentData<LocalConnectData>(wasser).m_SearchDistance,
                 Stromtor = EntityManager.HasComponent<NetData>(prefab)
@@ -217,6 +224,11 @@ namespace ParkingLotTool.Tools
                 r.Endpunkt = EntityManager.GetComponentData<Node>(edge.m_End).m_Position;
             return r;
         }
+
+        private bool AvZoninganschlussGesperrt(Entity prefab)
+            => Mod.Aus("versorgung-ohne-zoningstart")
+                && _prefabSystem.TryGetPrefab<PrefabBase>(prefab, out var asset)
+                && asset.name.StartsWith("PLT Zoningstrasse (", System.StringComparison.Ordinal);
 
         private Versorgungseingabe AvLeseIstEingabe(Entity traeger,
             List<(Entity Kante, Bezier4x3 Bogen)> zielstrassen,

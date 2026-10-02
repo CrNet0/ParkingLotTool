@@ -127,6 +127,8 @@ namespace ParkingLotTool.Tools
             if (_nachlauf > 0) _nachlauf--;
             CollectDeletedLots();
             ProcessOnePass();
+            World.GetExistingSystemManaged<ParkingLotVersorgungsdiagnoseSystem>()
+                ?.Phasenmarke($"Aufraeumer-fertig pending={_pending.Count}");
         }
 
         private void CollectDeletedLots()
