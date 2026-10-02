@@ -111,7 +111,7 @@ export const VegetationFenster = ({ pos, onPos, onClose }: {
     <div className={styles.row}>{[t("Setzling","Sapling"),t("Jung","Young"),t("Ausgewachsen","Mature"),t("Alt","Elderly"),t("Tot","Dead"),t("Baumstumpf","Stump")].map((label,i)=><React.Fragment key={i}>{button(label,!!(options.Ages&(1<<i)),()=>{const Ages=options.Ages^(1<<i);if(Ages)send({Ages});},i<4?`Media/Tools/Vegetation Options/${["TreeChild","TreeTeen","TreeAdult","TreeElderly"][i]}.svg`:`coui://uil/Standard/${i===4?"TreeDead":"TreeStump"}.svg`)}</React.Fragment>)}</div>
     <div className={base.schalterReihe}>
      <MitTooltip text={t("An: die Bäume bleiben in ihrem Alter und wachsen nicht weiter. Aus: CS2 lässt sie altern wie Bäume in der Natur.","On: trees keep their age and stop growing. Off: CS2 ages them like trees in nature.")}>
-      <span className={base.label}>{t("Bäume altern nicht","Trees don't age")}</span>
+      <span className={styles.schalterText}>{t("Bäume altern nicht","Trees don't age")}</span>
      </MitTooltip>
      <button role="switch" aria-label={t("Bäume altern nicht","Trees don't age")} aria-checked={options.NoAging}
       className={`${base.schalter} ${options.NoAging?base.schalterAn:""}`}
