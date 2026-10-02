@@ -728,6 +728,9 @@ namespace ParkingLotTool.Tools
         {
             if (!IsEditing || _editBaselinePending || _areaPreviewLayout == null)
                 return false;
+            // Der Sync-Nachbau WILL neu bauen, obwohl der Bauzettel gleich
+            // bleibt: neu sind die Prefabs dahinter (Schritt 7, 2026-10-02).
+            if (_nachbauLot != Entity.Null && _nachbauLot == _editLot) return false;
             if (AreaPreviewSignature(_areaPreviewLayout) != _editBaselineSignature)
                 return false;
             RestoreHiddenParts();
