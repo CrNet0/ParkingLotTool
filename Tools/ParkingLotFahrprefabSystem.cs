@@ -82,7 +82,9 @@ namespace ParkingLotTool.Tools
             if (!_prefabs.AddPrefab(klon))
                 throw new InvalidOperationException("AddPrefab abgelehnt: " + klon.name);
             Beobachte(klon);
-            _quellen[_prefabs.GetEntity(klon)] = _prefabs.GetEntity(quelle);
+            // Nur Diagnose: Unterbauteile (Pieces) fuehrt CS2 nicht immer als
+            // eigenes Prefab - GetEntity warf dort und brach die ganze Anmeldung ab.
+            if (_prefabs.TryGetEntity(quelle, out var quellEntity)) _quellen[_prefabs.GetEntity(klon)] = quellEntity;
             Mod.log.Info("PLT-Fahrprefab Klon: '" + klon.name + "' <- '" + quelle.name
                 + "'; Art=" + klon.GetType().Name
                 + "; eigene Komponenten/Infoobjekte; UI/Spawn/AssetPack/alte IDs ausgeschlossen"
@@ -95,7 +97,9 @@ namespace ParkingLotTool.Tools
         internal void Beobachte(PrefabBase quelle, PrefabBase klon)
         {
             Beobachte(klon);
-            _quellen[_prefabs.GetEntity(klon)] = _prefabs.GetEntity(quelle);
+            // Nur Diagnose: Unterbauteile (Pieces) fuehrt CS2 nicht immer als
+            // eigenes Prefab - GetEntity warf dort und brach die ganze Anmeldung ab.
+            if (_prefabs.TryGetEntity(quelle, out var quellEntity)) _quellen[_prefabs.GetEntity(klon)] = quellEntity;
             Mod.log.Info("PLT-Fahrprefab Klon: '" + klon.name + "' <- '" + quelle.name
                 + "'; Art=" + klon.GetType().Name + "; isolierte Fahrkette, Tempo="
                 + ParkingLotFahrregeln.TempoKmh + " km/h; UI/Spawn/AssetPack/alte IDs ausgeschlossen.");
