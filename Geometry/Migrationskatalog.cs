@@ -54,6 +54,10 @@ namespace ParkingLotTool.Geometry
                 "Objekte, die an der Parkplatzflaeche statt am Traeger "
                 + "haengen (Ladesaeulen bis 2026-09-28), kommen an den "
                 + "Traeger; an der Flaeche verstreut CS2 sie zufaellig."),
+            new Schritt(6, "BaeumeAlternNicht",
+                "Baeume bestehender Parkplaetze kommen auf eine Stufe ihrer "
+                + "Altersauswahl zurueck und altern nicht mehr, sofern der "
+                + "Zettel nichts anderes sagt (Standard seit 2026-10-02)."),
         };
 
         /** Der Stand, den ein heute gebauter Parkplatz hat. */

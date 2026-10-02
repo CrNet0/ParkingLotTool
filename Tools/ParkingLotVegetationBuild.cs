@@ -104,6 +104,46 @@ namespace ParkingLotTool.Tools
             }
             return true;
         }
+        /** Altert dieser Baum? (`Decoration` vorhanden, aber aus.) */
+        internal bool BaumAltert(Entity e)
+            => EntityManager.HasComponent<Game.Objects.Tree>(e)
+               && EntityManager.HasComponent<Game.Objects.Decoration>(e)
+               && !EntityManager.IsComponentEnabled<Game.Objects.Decoration>(e);
+
+        /** Die Vegetationseinstellung aus dem Zettel; ohne Zettel der Standard. */
+        internal VegetationOptions VegetationVon(Entity lot)
+        {
+            var zettel = ReadVegetation(lot);
+            if (string.IsNullOrEmpty(zettel?.Options)) return new VegetationOptions();
+            try { return JsonConvert.DeserializeObject<VegetationOptions>(zettel.Options) ?? new VegetationOptions(); }
+            catch (Exception) { return new VegetationOptions(); }
+        }
+
+        /*
+         * EINEN GEBAUTEN BAUM EINFRIEREN - Sync bestehender Parkplaetze.
+         *
+         * Setzt ihn auf eine Stufe aus der Altersauswahl des Zettels zurueck
+         * und schaltet `Decoration` ein; danach laesst `TreeGrowthSystem` ihn
+         * in Ruhe. Der urspruengliche Planwuerfel ist am Baum nicht
+         * gespeichert, deshalb entscheidet die Lage ueber die Stufe.
+         */
+        internal void FriereBaumEin(Entity e, int altersmaske)
+        {
+            if (!EntityManager.HasComponent<Game.Objects.Tree>(e)
+                || !EntityManager.HasComponent<Game.Objects.Transform>(e)) return;
+            var lage = EntityManager.GetComponentData<Game.Objects.Transform>(e).m_Position.xz;
+            var prefab = EntityManager.GetComponentData<PrefabRef>(e).m_Prefab;
+            var stufe = ParkingVegetation.SelectAgeAt(altersmaske, lage);
+            var baum = StumpfNurMitMesh(new Game.Objects.Tree {
+                m_State = (Game.Objects.TreeState)ParkingVegetation.ZustandsBits(stufe),
+                m_Growth = 128 }, prefab);
+            EntityManager.SetComponentData(e, baum);
+            if (EntityManager.HasComponent<Game.Objects.Decoration>(e))
+                EntityManager.SetComponentEnabled<Game.Objects.Decoration>(e, true);
+            if (!EntityManager.HasComponent<BatchesUpdated>(e))
+                EntityManager.AddComponent<BatchesUpdated>(e);
+        }
+
         // OverrideSystem folgt Owner, nicht Attached/PLT-Relation. Der nackte
         // Traeger besitzt weder Object noch Transform/Area: keine Streu-Umverteilung.
         // Baum -> Traeger -> Lot laesst den nativen AreaIterator das eigene Lot ausnehmen.
@@ -437,14 +477,14 @@ namespace ParkingLotTool.Tools
                     :age<0.95f?"Elderly":"Tot";
                 erwartet[cs2]=erwartet.TryGetValue(cs2,out var e)?e+1:1;
                 if(asset.Tree) _vegetationTreeStates[(asset.Prefab,position.xz)]=new Game.Objects.Tree {
-                    m_State=(Game.Objects.TreeState)(ageIndex==0?0:1<<(ageIndex-1)), m_Growth=128 };
+                    m_State=(Game.Objects.TreeState)ParkingVegetation.ZustandsBits(ageIndex), m_Growth=128 };
                 var definition=EntityManager.CreateEntity();
                 EntityManager.AddComponentData(definition,new CreationDefinition {m_Prefab=asset.Prefab,m_RandomSeed=random.NextInt()});
                 EntityManager.AddComponent<Updated>(definition);
                 EntityManager.AddComponentData(definition,new ObjectDefinition {
                     m_Position=position,m_Rotation=quaternion.RotateY(random.NextFloat(0,math.PI*2)),
                     m_Probability=100,m_PrefabSubIndex=-1,m_Scale=new float3(1),m_Intensity=1,m_ParentMesh=-1,
-                    m_Age=age,m_IsDecoration=false });
+                    m_Age=age,m_IsDecoration=options.NoAging });
                 RecordObjectDefinition("Vegetation",_vegetationCount++,asset.Prefab,definition,position);
             }
             var stufen=new[]{"Jung","Teen","Erwachsen","Elderly","Tot","Stumpf"};

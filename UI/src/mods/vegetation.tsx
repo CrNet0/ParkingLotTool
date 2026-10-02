@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { bindValue, trigger, useValue } from "cs2/api";
 import { sprache$ } from "./bindings";
-import { Slider, MitTooltip, Fenster, Suchfeld, Eingabefeld } from "./controls";
+import { Slider, MitTooltip, Fenster, Suchfeld, Eingabefeld, SettingActions } from "./controls";
 import styles from "./vegetation.module.scss";
 import base from "./panel.module.scss";
-const value$ = bindValue<string>("ParkingLotTool", "Vegetation", '{"Enabled":false,"Line":false,"Density":50,"Ages":6,"Species":[]}');
+const value$ = bindValue<string>("ParkingLotTool", "Vegetation", '{"Enabled":false,"Line":false,"Density":50,"Ages":6,"NoAging":true,"Species":[]}');
+const default$ = bindValue<string>("ParkingLotTool", "VegetationDefault", '{"Enabled":false,"Line":false,"Density":50,"Ages":6,"NoAging":true,"Species":[]}');
 const catalog$ = bindValue<string>("ParkingLotTool", "VegetationCatalog", '{"Assets":[],"Sets":[]}');
-type Options = {Enabled:boolean;Line:boolean;Density:number;Ages:number;Species:string[]};
+type Options = {Enabled:boolean;Line:boolean;Density:number;Ages:number;NoAging:boolean;Seed?:number;Species:string[]};
 type Asset = {Id:string;Name:string;Icon:string;Tree:boolean};
 type Set = {Id:string;Name:string;Icon:string;Species:string[];Custom:boolean};
 
@@ -87,16 +88,37 @@ export const VegetationFenster = ({ pos, onPos, onClose }: {
  const [search,setSearch]=useState("");
  const [name,setName]=useState("");
  const treffer=catalog.Assets.filter(a=>a.Name.toLowerCase().includes(search.toLowerCase()));
+ const standard:Options=JSON.parse(useValue(default$));
+ const ohneSeed=(o:Options)=>JSON.stringify({...o,Seed:0,Species:[...(o.Species||[])].sort()});
+ const abweichend=ohneSeed(options)!==ohneSeed(standard);
  return <Fenster titel={t("Vegetation","Vegetation")}
    breite={rechts?BREITE_LINKS+BREITE_RECHTS:BREITE_LINKS}
    pos={pos} onPos={onPos} vonUnten onClose={onClose}>
   <div className={styles.zweiTeile}>
 
    <div className={styles.teilLinks}>
+    {/* Speichern/Zuruecksetzen fuer das ganze Fenster - dieselben Knoepfe
+        wie an jedem Regler im Panel. Die Zufallszahl zaehlt nicht mit. */}
+    <div className={styles.row}>
+     <div className={styles.label} style={{flex:"1 1 0"}}>{t("Standard für das ganze Fenster","Default for the whole window")}</div>
+     <SettingActions label={t("Vegetation","Vegetation")} active={abweichend}
+      onReset={()=>trigger("ParkingLotTool","ResetVegetation")}
+      onSetDefault={()=>trigger("ParkingLotTool","SaveVegetationDefault")}/>
+    </div>
     <div className={styles.row}>{button(t("Frei","Free"),!options.Line,()=>send({Line:false}),"Media/Tools/Object Tool/Brush.svg")}{button("Line",options.Line,()=>send({Line:true}),"Media/Tools/Object Tool/Line.svg")}</div>
     <Slider label={t("Dichte","Density")} tooltip={t("100 %: lockere maximale Pflanzdichte mit Mindestabständen","100%: maximum planting density with spacing between plants")} value={options.Density} min={0} max={100} step={5} digits={0} unit="%" ton="Gruen" onChange={Density=>send({Density})}/>
     <div className={styles.label}>{t("Alter · Mehrfachauswahl","Age · multiple selection")}</div>
     <div className={styles.row}>{[t("Setzling","Sapling"),t("Jung","Young"),t("Ausgewachsen","Mature"),t("Alt","Elderly"),t("Tot","Dead"),t("Baumstumpf","Stump")].map((label,i)=><React.Fragment key={i}>{button(label,!!(options.Ages&(1<<i)),()=>{const Ages=options.Ages^(1<<i);if(Ages)send({Ages});},i<4?`Media/Tools/Vegetation Options/${["TreeChild","TreeTeen","TreeAdult","TreeElderly"][i]}.svg`:`coui://uil/Standard/${i===4?"TreeDead":"TreeStump"}.svg`)}</React.Fragment>)}</div>
+    <div className={base.schalterReihe}>
+     <MitTooltip text={t("An: die Bäume bleiben in ihrem Alter und wachsen nicht weiter. Aus: CS2 lässt sie altern wie Bäume in der Natur.","On: trees keep their age and stop growing. Off: CS2 ages them like trees in nature.")}>
+      <span className={base.label}>{t("Bäume altern nicht","Trees don't age")}</span>
+     </MitTooltip>
+     <button role="switch" aria-label={t("Bäume altern nicht","Trees don't age")} aria-checked={options.NoAging}
+      className={`${base.schalter} ${options.NoAging?base.schalterAn:""}`}
+      onClick={()=>send({NoAging:!options.NoAging})}>
+      <span className={`${base.schalterGriff} ${options.NoAging?base.schalterGriffAn:""}`}/>
+     </button>
+    </div>
     <div className={styles.label}>{t("Sets · Mehrfachauswahl","Sets · multiple selection")}</div>
     <div className={styles.sets}>{catalog.Sets.filter(s=>s.Species.length>0).map(s=><div key={s.Id} className={styles.set}>{button(s.Name,s.Species.every(id=>options.Species.includes(id)),()=>select(s.Species),s.Icon)}{s.Custom&&<MitTooltip text={t("Set entfernen (Pflanzenauswahl bleibt)","Remove set (keep plant selection)")}><button className={styles.remove} aria-label={t("Set entfernen","Remove set")} onClick={()=>trigger("ParkingLotTool","DeleteVegetationSet",s.Id)}>×</button></MitTooltip>}</div>)}</div>
     {button(t("Pflanzen auswählen / eigenes Set","Select plants / custom set"),rechts,()=>setRechts(!rechts),"coui://uil/Standard/TreesCustom.svg")}

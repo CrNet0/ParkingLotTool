@@ -112,6 +112,23 @@ namespace ParkingLotTool.Tools
                  * Flaeche wuerfelt sie dort neu. Also auch den Eintrag
                  * herausnehmen und beim Traeger eintragen.
                  */
+                ["BaeumeAlternNicht"] = new Ausfuehrung
+                {
+                    Braucht = (lot, traeger, teile) =>
+                    {
+                        if (!_werkzeug.VegetationVon(lot).NoAging) return false;
+                        foreach (var t in teile)
+                            if (IstPflanze(t) && _werkzeug.BaumAltert(t)) return true;
+                        return false;
+                    },
+                    Ausfuehren = (lot, traeger, teile) =>
+                    {
+                        var maske = _werkzeug.VegetationVon(lot).Ages;
+                        foreach (var t in teile)
+                            if (IstPflanze(t) && _werkzeug.BaumAltert(t))
+                                _werkzeug.FriereBaumEin(t, maske);
+                    },
+                },
                 ["ObjekteNichtAnFlaeche"] = new Ausfuehrung
                 {
                     Braucht = (lot, traeger, teile) =>

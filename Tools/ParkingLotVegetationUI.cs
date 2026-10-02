@@ -28,18 +28,28 @@ namespace ParkingLotTool.Tools
     }
     public sealed partial class ParkingLotUISystem
     {
-        private ValueBinding<string> _vegetation, _vegetationCatalog;
+        private ValueBinding<string> _vegetation, _vegetationCatalog, _vegetationDefault;
         private readonly List<VegetationAsset> _vegetationAssets = new List<VegetationAsset>();
         private readonly List<VegetationSet> _vegetationSets = new List<VegetationSet>();
         private string VegetationSetsPath => Path.Combine(Path.GetDirectoryName(SettingsPath()), "vegetation-sets.json");
         internal VegetationOptions Vegetation => JsonConvert.DeserializeObject<VegetationOptions>(_vegetation.value) ?? new VegetationOptions();
         internal string VegetationJson => _vegetation.value;
         internal VegetationAsset[] VegetationAssets => _vegetationAssets.ToArray();
+        // Einmal durch die Klasse: ein alter Zettel ohne neues Feld (NoAging)
+        // bekommt so dessen Standard, statt dass die Oberflaeche "fehlt" liest.
         internal void RestoreVegetation(string json)
-            => _vegetation.Update(string.IsNullOrEmpty(json) ? JsonConvert.SerializeObject(new VegetationOptions()) : json);
+        {
+            VegetationOptions v = null;
+            try { if (!string.IsNullOrEmpty(json)) v = JsonConvert.DeserializeObject<VegetationOptions>(json); }
+            catch (Exception e) { Mod.log.Warn("Vegetationszettel unlesbar: " + e.Message); }
+            _vegetation.Update(JsonConvert.SerializeObject(v ?? new VegetationOptions()));
+        }
         private void InitVegetation()
         {
-            AddBinding(_vegetation = new ValueBinding<string>(Group, "Vegetation", JsonConvert.SerializeObject(new VegetationOptions())));
+            AddBinding(_vegetation = new ValueBinding<string>(Group, "Vegetation", VegetationStandard()));
+            AddBinding(_vegetationDefault = new ValueBinding<string>(Group, "VegetationDefault", VegetationStandard()));
+            AddBinding(new TriggerBinding(Group, "SaveVegetationDefault", SpeichereVegetationsstandard));
+            AddBinding(new TriggerBinding(Group, "ResetVegetation", SetzeVegetationZurueck));
             AddBinding(_vegetationCatalog = new ValueBinding<string>(Group, "VegetationCatalog", "{\"Assets\":[],\"Sets\":[]}"));
             AddBinding(new TriggerBinding(Group, "RefreshVegetation", RefreshVegetation));
             AddBinding(new TriggerBinding<string>(Group, "SetVegetation", json => {
@@ -78,6 +88,43 @@ namespace ParkingLotTool.Tools
                 _vegetationSets.RemoveAll(s => s.Custom && s.Id == id); SaveVegetationSets(); PublishVegetation();
             }));
         }
+        /** Der gespeicherte Standard, sonst die Werkswerte - immer ohne Zufallszahl. */
+        private string VegetationStandard()
+        {
+            VegetationOptions v = null;
+            try { if (!string.IsNullOrEmpty(_defaults?.Vegetation)) v = JsonConvert.DeserializeObject<VegetationOptions>(_defaults.Vegetation); }
+            catch (Exception e) { Mod.log.Warn("Vegetationsstandard unlesbar, Werkswerte: " + e.Message); }
+            v = v ?? new VegetationOptions();
+            v.Seed = 0;
+            return JsonConvert.SerializeObject(v);
+        }
+
+        private void SpeichereVegetationsstandard()
+        {
+            var v = Vegetation; v.Seed = 0;
+            var next = _defaults.Clone();
+            next.Vegetation = JsonConvert.SerializeObject(v);
+            if (!TryWriteDefaults(next)) return;
+            _defaults = next;
+            _vegetationDefault.Update(VegetationStandard());
+            SetStatus(ParkingLotTexte.T("Vegetation als Standard gespeichert.", "Vegetation saved as default."));
+        }
+
+        private void SetzeVegetationZurueck()
+        {
+            var v = JsonConvert.DeserializeObject<VegetationOptions>(VegetationStandard()) ?? new VegetationOptions();
+            // Die Zufallszahl bleibt: sonst stuenden die Pflanzen woanders.
+            v.Seed = Vegetation.Seed;
+            if (v.Enabled && v.Seed == 0) v.Seed = BitConverter.ToUInt32(Guid.NewGuid().ToByteArray(), 0) | 1u;
+            var tool = Tool(); var before = tool?.CaptureUndoState();
+            if (UpdateValue(_vegetation, JsonConvert.SerializeObject(v)))
+            {
+                tool?.CommitUndoState(before, ParkingLotTexte.T("Vegetation zurückgesetzt", "vegetation reset"));
+                tool?.RefreshVegetationPreview();
+            }
+            SetStatus(ParkingLotTexte.T("Vegetation auf den Standard zurückgesetzt.", "Vegetation reset to your default."));
+        }
+
         private void SaveVegetationSets()
         {
             Directory.CreateDirectory(Path.GetDirectoryName(VegetationSetsPath));

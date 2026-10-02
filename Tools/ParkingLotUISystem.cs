@@ -179,6 +179,13 @@ namespace ParkingLotTool.Tools
             [JsonProperty("PanelYHochkant", Required = Required.Default)]
             public float? PanelYHochkant { get; set; }
 
+            /**
+             * Das ganze Vegetationsfenster als Standard (Optionen-JSON ohne
+             * Zufallszahl). Fehlt es, gelten die Werkswerte.
+             */
+            [JsonProperty("Vegetation", Required = Required.Default)]
+            public string Vegetation { get; set; }
+
             internal UserDefaults Clone() => new UserDefaults
             {
                 Version = Version,
@@ -203,6 +210,7 @@ namespace ParkingLotTool.Tools
                 PanelY = PanelY,
                 PanelXHochkant = PanelXHochkant,
                 PanelYHochkant = PanelYHochkant,
+                Vegetation = Vegetation,
             };
         }
 
@@ -1897,6 +1905,7 @@ namespace ParkingLotTool.Tools
 
         private void PublishDefaults()
         {
+            _vegetationDefault?.Update(VegetationStandard());
             _edgeSetbackDefault.Update(_defaults.EdgeSetback);
             _aisleWidthDefault.Update(_defaults.AisleWidth);
             _crossWidthDefault.Update(_defaults.CrossWidth);

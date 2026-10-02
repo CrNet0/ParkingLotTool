@@ -16,6 +16,16 @@ namespace ParkingLotTool.Geometry
         public bool Line;
         public int Density = 50;
         public int Ages = 6;
+        /*
+         * BAEUME ALTERN NICHT - Standard an (Nutzer 2026-10-02).
+         *
+         * CS2s `TreeGrowthSystem` ueberspringt jeden Baum, dessen
+         * `Decoration` aktiv ist (Query `WithDisabled<Decoration>`). Gesetzt
+         * wird sie beim Erzeugen ueber `ObjectDefinition.m_IsDecoration` -
+         * derselbe Weg wie der "Decoration Mode" des Vanilla-Baumwerkzeugs.
+         * Fehlt das Feld in einem alten Zettel, gilt der Standard.
+         */
+        public bool NoAging = true;
         // Im Vegetationszettel gespeichert; keine neue Wuerfelung beim Laden.
         public uint Seed;
         public string[] Species = Array.Empty<string>();
@@ -57,6 +67,18 @@ namespace ParkingLotTool.Geometry
             for(int i=0;i<6;i++) if((mask & (1<<i))!=0 && selected--==0) return i;
             return 2;
         }
+        /** Stufe 0..5 -> Bits von `Game.Objects.TreeState` (0 = Setzling). */
+        public static int ZustandsBits(int index) => index <= 0 ? 0 : 1 << (index - 1);
+
+        /**
+         * Altersstufe aus der LAGE - fuer Baeume, deren Planwuerfel nicht
+         * mehr bekannt ist (Sync bestehender Parkplaetze). Dieselbe Lage
+         * ergibt immer dieselbe Stufe; die Verteilung folgt der Maske.
+         */
+        public static int SelectAgeAt(int mask, float2 position)
+            => SelectAge(mask, Hash(Hash((uint)(int)math.round(position.x * 16f))
+                ^ (uint)(int)math.round(position.y * 16f)));
+
         public static float AgeValue(int index)
             => index==0 ? .05f : index==1 ? .175f : index==2 ? .425f : index==3 ? .775f : 1f;
 
