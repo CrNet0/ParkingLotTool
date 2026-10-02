@@ -114,6 +114,9 @@ $fahrwege: #4fc3f7;
 $gruen: #7cd455;
 $zufahrt: #ff5fb0;
 $melden: #f2725c;
+// Gelb fuer "hier wartet etwas": Synchronisieren, Reparieren. Rot bleibt
+// Loeschen und Abbrechen vorbehalten (Nutzer, 2026-10-02).
+$hinweis: #f2c94c;
 
 /**
  * GRUND UND TEXT - AUS DEN VARIABLEN DES SPIELS.
@@ -2979,9 +2982,9 @@ $eck-reiter: 9rem;
 }
 .listeSchleierKnopf {
   padding: $s2 $s4;
-  border: 1rem solid $melden;
+  border: 1rem solid $hinweis;
   border-radius: $s2;
-  background-color: rgba(242, 114, 92, 0.2);
+  background-color: rgba(242, 201, 76, 0.2);
   color: #fff;
   font-weight: bold;
   cursor: pointer;
@@ -2995,12 +2998,21 @@ $eck-reiter: 9rem;
   padding: $s2 0 0;
   border: none;
   background-color: transparent;
-  color: $fahrwege;
+  color: $hinweis;
   font-size: $type-xs;
   text-align: left;
   cursor: pointer;
 }
 .syncKopfHinweis:hover { color: #fff; }
+
+/* Aktualisieren/Reparieren - immer hervorgehoben, nicht erst nach einem Klick. */
+.listeHinweisKnopf {
+  border-color: $hinweis;
+  background-color: rgba(242, 201, 76, 0.2);
+  color: #fff;
+  font-weight: bold;
+  &:hover { background-color: rgba(242, 201, 76, 0.35); }
+}
 
 .listeSyncZeile { display: flex; justify-content: flex-end; margin-top: $s3; }
 .listeSyncZeile .listeTextknopf { margin-bottom: 0; }

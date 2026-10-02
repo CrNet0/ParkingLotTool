@@ -279,6 +279,7 @@ export const reportPath$ = bindValue<string>(MOD, "ReportPath", "");
 
 export const togglePanel = () => trigger(MOD, "TogglePanel");
 export const toggleTool = () => trigger(MOD, "ToggleTool");
+export const oeffneListe = () => trigger(MOD, "OeffneListe");
 export const setPanelOpen = (open: boolean) => trigger(MOD, "SetPanelOpen", open);
 export const resetAll = () => trigger(MOD, "ResetAll");
 export const discardDefaults = () => trigger(MOD, "DiscardDefaults");

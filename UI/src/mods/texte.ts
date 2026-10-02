@@ -456,7 +456,7 @@ const en = {
   syncOffenMeldung: (n: number) => n === 1
     ? "1 parking lot can be updated - open the parking lot list to sync it."
     : `${n} parking lots can be updated - open the parking lot list to sync them.`,
-  syncSchliessen: "Click to close this message.",
+  syncSchliessen: "Click to open the parking lot list.",
   syncEinzeln: "Synchronize",
   syncAlle: (n: number) => `Synchronize all (${n})`,
   syncAutomatisch: "Synchronize automatically",
@@ -1059,7 +1059,7 @@ const de: Texte = {
   syncOffenMeldung: (n: number) => n === 1
     ? "1 Parkplatz kann aktualisiert werden - in der Parkplatzliste synchronisieren."
     : `${n} Parkplätze können aktualisiert werden - in der Parkplatzliste synchronisieren.`,
-  syncSchliessen: "Klicken, um die Meldung zu schließen.",
+  syncSchliessen: "Klicken öffnet die Parkplatzliste.",
   syncEinzeln: "Synchronisieren",
   syncAlle: (n: number) => `Alle synchronisieren (${n})`,
   syncAutomatisch: "Automatisch synchronisieren",

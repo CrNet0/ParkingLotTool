@@ -394,7 +394,7 @@ const Kachel = ({ platz, bloecke, slot, runde }: {
         {platz.sync && platz.waise !== 1 && platz.waise !== 2 && (
           <div className={styles.listeSyncZeile}>
             <TooltipKnopf text={t.tooltipSync}
-              className={styles.listeTextknopf}
+              className={`${styles.listeTextknopf} ${styles.listeHinweisKnopf}`}
               onClick={() => parkplatzSynchronisieren(platz.id)}>
               {t.syncEinzeln}
             </TooltipKnopf>
@@ -528,7 +528,7 @@ export const ListeTab = () => {
         <div className={styles.listeKopfAktionen}>
         {waisen > 0 && <div className={styles.listeFilter}>
           {reparierbar > 0 && <TooltipKnopf text={t.tooltipWaiseReparieren}
-            className={styles.listeTextknopf}
+            className={`${styles.listeTextknopf} ${styles.listeHinweisKnopf}`}
             onClick={parkplaetzeReparieren}>{t.waisenAlleReparieren(reparierbar)}</TooltipKnopf>}
           <TooltipKnopf text={t.tooltipWaisenAuto}
             className={`${styles.listeTextknopf} ${auto ? styles.listeAktiv : ""}`}
@@ -536,7 +536,7 @@ export const ListeTab = () => {
         </div>}
         <div className={styles.listeFilter}>
           {syncOffen > 0 && <TooltipKnopf text={t.tooltipSyncAlle}
-            className={styles.listeTextknopf}
+            className={`${styles.listeTextknopf} ${styles.listeHinweisKnopf}`}
             onClick={parkplaetzeSynchronisieren}>{t.syncAlle(syncOffen)}</TooltipKnopf>}
           <TooltipKnopf text={t.tooltipSyncAuto}
             className={`${styles.listeTextknopf} ${syncAuto ? styles.listeAktiv : ""}`}

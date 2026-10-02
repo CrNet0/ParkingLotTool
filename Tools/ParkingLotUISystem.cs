@@ -863,6 +863,7 @@ namespace ParkingLotTool.Tools
                 () => SetPanelOpen(!_panelOpen.value)));
             AddBinding(new TriggerBinding<bool>(Group, "SetPanelOpen", SetPanelOpen));
             AddBinding(new TriggerBinding(Group, "ToggleTool", ToggleTool));
+            AddBinding(new TriggerBinding(Group, "OeffneListe", OeffneListe));
             AddBinding(new TriggerBinding(Group, "PlaceEntrance",
                 () => Tool()?.PlaceEntranceFromPanel()));
             AddBinding(new TriggerBinding<float, float>(Group, "SetPanelPosition",
@@ -2345,6 +2346,20 @@ namespace ParkingLotTool.Tools
          * kennt, findet den Mod gar nicht. Jetzt ist er immer da und ist der
          * sichtbare Weg hinein.
          */
+        /*
+         * AUS DER MELDUNG UNTEN DIREKT IN DIE PARKPLATZLISTE (Nutzer,
+         * 2026-10-02). Erst den Reiter setzen, dann das Werkzeug starten:
+         * `SetToolActive(true)` uebernimmt den gesetzten Reiter.
+         */
+        private void OeffneListe()
+        {
+            SetTab("liste");
+            var toolSystem = World.GetOrCreateSystemManaged<Game.Tools.ToolSystem>();
+            var parkingTool = World.GetOrCreateSystemManaged<ParkingLotToolSystem>();
+            if (toolSystem.activeTool != parkingTool) toolSystem.activeTool = parkingTool;
+            else _panelOpen?.Update(true);
+        }
+
         private void ToggleTool()
         {
             var toolSystem = World.GetOrCreateSystemManaged<Game.Tools.ToolSystem>();

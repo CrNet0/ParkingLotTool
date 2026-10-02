@@ -1,6 +1,6 @@
 import { useValue } from "cs2/api";
 import {
-  syncAuto$, syncErgebnis$, syncErgebnisSchliessen, syncLaeuft$,
+  syncAuto$, syncErgebnis$, syncErgebnisSchliessen, syncLaeuft$, oeffneListe,
 } from "./bindings";
 import { TooltipKnopf } from "./controls";
 import { useTexte } from "./texte";
@@ -51,9 +51,11 @@ export const SyncFortschritt = () => {
   if (sync > 0) zeilen.push(t.syncFertig(sync));
   if (offen > 0) zeilen.push(t.syncOffenMeldung(offen));
   if (zeilen.length === 0) return null;
+  // Ein Klick fuehrt in die Parkplatzliste - dort stehen Sync- und
+  // Reparaturknoepfe gelb hervorgehoben.
   return <TooltipKnopf text={t.syncSchliessen}
     className={`${styles.syncFortschritt} ${styles.syncFertig}`}
-    role="status" onClick={syncErgebnisSchliessen}>
+    role="status" onClick={() => { syncErgebnisSchliessen(); oeffneListe(); }}>
     <div className={styles.syncMod}>
       {`${MODNAME}:`}
     </div>
