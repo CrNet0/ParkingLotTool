@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.4 — October 4, 2026
+
+- Traffic inside parking lots drives at 25 km/h, so through traffic avoids them.
+- "Update" brings existing lots to the new speed in seconds.
+- New option: trees don't age; save and reset for the vegetation window.
+- Pending updates are shown after loading; a click opens the lot list.
+- Fix: crash when editing a lot with bus stops while utilities were connected.
+- Fix: bus stops disappeared after editing a lot.
+- Fix: cancelling an edit could remove the lot's paths.
+
 ## 1.0.3 — October 1, 2026
 
 - Crash reports show how far the mod got while loading a save.
