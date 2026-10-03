@@ -7,13 +7,13 @@ namespace ParkingLotTool.Tools
 {
     /**
      * Schreibt alle 10 s ein Lebenszeichen (siehe ParkingLotSchrittmarke) und
-     * startet im ersten Bild den Burst-Messlauf, falls er angefordert ist.
+     * treibt den Burst-Messlauf an, falls er angefordert ist.
      * Laeuft in MainLoop, also auch im Hauptmenue.
      */
     public sealed partial class ParkingLotHerzschlagSystem : GameSystemBase
     {
         private ToolSystem _toolSystem;
-        private bool _gemessen;
+
 
         [Preserve]
         protected override void OnCreate()
@@ -25,11 +25,8 @@ namespace ParkingLotTool.Tools
         [Preserve]
         protected override void OnUpdate()
         {
-            if (!_gemessen)
-            {
-                _gemessen = true;
-                ParkingLotBurstjobs.MesseFallsGewuenscht();
-            }
+            var spiel = GameManager.instance;
+            ParkingLotBurstjobs.Takt(spiel != null && !spiel.isGameLoading && spiel.gameMode.IsGame());
             ParkingLotSchrittmarke.Herzschlag(Zustand);
         }
 

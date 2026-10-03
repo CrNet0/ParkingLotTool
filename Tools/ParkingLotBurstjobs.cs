@@ -27,18 +27,25 @@ namespace ParkingLotTool.Tools
      * sucht darin Zeiger, die genau auf einen Export zeigen. Der Name dieses
      * Exports ist der Hash.
      *
-     * Der Messlauf ist ein Werkzeug fuer uns, keine Funktion fuer Spieler:
-     * er laeuft nur, wenn `Logs/PLT-BURSTJOBS.txt` existiert, und loescht die
-     * Datei danach. Das Ergebnis (`Logs/ParkingLotTool-burstjobs.txt`) wird
-     * als Ressource in den Mod gelegt, damit jeder Absturzbericht Namen traegt.
-     * Die Tabelle gilt fuer eine Spielversion; nach einem Spielupdate passen
-     * die Hashes nicht mehr, und der Bericht nennt wieder nur Hashes.
+     * GEMESSEN 2026-10-04 im Hauptmenue: 90 von 1542 Jobs - genau die, die
+     * dort schon gelaufen waren (Rendering, Prefabs). Unity traegt den
+     * Burst-Zeiger erst beim ersten Lauf eines Jobs ein. Deshalb misst der
+     * Lauf, solange der Schalter liegt, im Spiel alle 5 Minuten nach, liest
+     * dann nur noch die fehlenden Bloecke und ergaenzt die Tabelle.
+     *
+     * Ein Werkzeug fuer uns, keine Funktion fuer Spieler: es laeuft nur, wenn
+     * `Logs/PLT-BURSTJOBS.txt` existiert. Das Ergebnis
+     * (`Logs/ParkingLotTool-burstjobs.txt`) wird als Ressource in den Mod
+     * gelegt, damit jeder Absturzbericht Namen traegt. Die Tabelle gilt fuer
+     * eine Spielversion; nach einem Spielupdate nennt der Bericht wieder nur
+     * Hashes.
      */
     internal static class ParkingLotBurstjobs
     {
         private const string Schalter = "PLT-BURSTJOBS.txt";
         private const string Ergebnis = "ParkingLotTool-burstjobs.txt";
         private const string Ressource = "ParkingLotTool.burst-jobs.txt";
+        private const float Abstand = 300f;
 
         private static string Logs => Path.Combine(Application.persistentDataPath, "Logs");
 
@@ -98,41 +105,103 @@ namespace ParkingLotTool.Tools
             }
         }
 
-        /** Beim ersten Bild aufrufen. Tut nur etwas, wenn der Schalter liegt. */
-        internal static void MesseFallsGewuenscht()
+        private static float _naechsteMessung;
+
+        /**
+         * Jedes Bild aufrufen. Misst im ersten Bild und danach im Spiel alle
+         * 5 Minuten - aber nur, solange der Schalter liegt.
+         */
+        internal static void Takt(bool imSpiel)
         {
-            var schalter = Path.Combine(Logs, Schalter);
-            if (!File.Exists(schalter)) return;
-            try
-            {
-                Messe();
-                File.Delete(schalter);
-            }
+            var jetzt = Time.realtimeSinceStartup;
+            if (jetzt < _naechsteMessung) return;
+            var erstesMal = _naechsteMessung == 0f;
+            _naechsteMessung = jetzt + Abstand;
+            if (!erstesMal && !imSpiel) return;
+            if (!File.Exists(Path.Combine(Logs, Schalter))) return;
+            try { Messe(); }
             catch (Exception ausnahme)
             {
+                _naechsteMessung = float.MaxValue;
                 Mod.log.Warn("PLT-Burstjobs: Messlauf abgebrochen: " + ausnahme);
             }
         }
 
+        private sealed class Kandidat
+        {
+            internal Type Job;
+            internal string Schnittstelle;
+            internal IntPtr Block;
+        }
+
+        private static List<Kandidat> _offen;
+        private static Dictionary<long, string> _adressen;
+        private static readonly Dictionary<string, string> _gefunden = new Dictionary<string, string>(StringComparer.Ordinal);
+        private static int _versucht, _gescheitert;
+
         private static void Messe()
         {
             var uhr = Stopwatch.StartNew();
+            if (_offen == null && !Vorbereiten()) return;
+
+            var neu = 0;
+            for (var i = _offen.Count - 1; i >= 0; i--)
+            {
+                var k = _offen[i];
+                var hashes = new List<string>();
+                for (var off = 0; off < 256; off += 8)
+                    if (_adressen.TryGetValue(Marshal.ReadInt64(k.Block, off), out var name))
+                    {
+                        var treffer = ParkingLotAbsturzabbild.HashMuster.Match(name);
+                        if (treffer.Success && !hashes.Contains(treffer.Value)) hashes.Add(treffer.Value);
+                    }
+                if (hashes.Count == 0) continue;
+                foreach (var h in hashes) _gefunden[h] = Jobname(k.Job) + "\t" + k.Schnittstelle;
+                _offen.RemoveAt(i);
+                neu++;
+            }
+
+            var text = new StringBuilder();
+            text.AppendLine("# Parking Lot Tool - Burst job hash table (hash, job, interface)");
+            text.AppendLine("# game " + Application.version);
+            foreach (var paar in _gefunden.OrderBy(p => p.Key, StringComparer.Ordinal))
+                text.AppendLine(paar.Key + "\t" + paar.Value);
+            File.WriteAllText(Path.Combine(Logs, Ergebnis), text.ToString(), new UTF8Encoding(false));
+            _tabelle = null;
+            Mod.log.Info($"PLT-Burstjobs: Messung in {uhr.ElapsedMilliseconds} ms: {neu} Job(s) neu, "
+                + $"{_gefunden.Count} Hashes in der Tabelle, {_offen.Count} von {_versucht} Jobs noch ohne "
+                + $"Burst-Zeiger (noch nie gelaufen oder nicht mit Burst), {_gescheitert} nicht lesbar.");
+        }
+
+        /** Einmal je Sitzung: Exporte, Erzeuger, Jobtypen, Reflection-Bloecke. */
+        private static bool Vorbereiten()
+        {
             ProcessModule bibliothek = null;
             foreach (ProcessModule m in Process.GetCurrentProcess().Modules)
                 if (string.Equals(m.ModuleName, "lib_burst_generated.dll", StringComparison.OrdinalIgnoreCase))
                 { bibliothek = m; break; }
-            if (bibliothek == null) { Mod.log.Warn("PLT-Burstjobs: lib_burst_generated.dll ist nicht geladen."); return; }
+            if (bibliothek == null) { Mod.log.Warn("PLT-Burstjobs: lib_burst_generated.dll ist nicht geladen."); return false; }
 
             var basis = bibliothek.BaseAddress.ToInt64();
-            var ende = basis + bibliothek.ModuleMemorySize;
             var exporte = ParkingLotAbsturzabbild.Exporte(bibliothek.FileName);
-            if (exporte == null) return;
-            var adressen = new Dictionary<long, string>();
+            if (exporte == null) return false;
+            _adressen = new Dictionary<long, string>();
             for (var i = 0; i < exporte.Rva.Length; i++)
             {
                 var a = basis + exporte.Rva[i];
-                if (!adressen.ContainsKey(a)) adressen[a] = exporte.Name[i];
+                if (!_adressen.ContainsKey(a)) _adressen[a] = exporte.Name[i];
             }
+
+            // Fruehere Messungen behalten: was einmal gelaufen ist, laeuft in
+            // dieser Sitzung vielleicht nicht wieder.
+            var datei = Path.Combine(Logs, Ergebnis);
+            if (File.Exists(datei))
+                foreach (var zeile in File.ReadAllLines(datei))
+                {
+                    if (zeile.Length == 0 || zeile[0] == '#') continue;
+                    var tab = zeile.IndexOf('\t');
+                    if (tab > 0) _gefunden[zeile.Substring(0, tab)] = zeile.Substring(tab + 1);
+                }
 
             var typen = AlleTypen();
             var erzeuger = new List<(Type Def, Type Schnittstelle, FieldInfo Feld)>();
@@ -149,52 +218,28 @@ namespace ParkingLotTool.Tools
                     if (c.IsInterface) erzeuger.Add((t, c, feld));
             }
 
-            var zeilen = new List<string>();
-            int versucht = 0, getroffen = 0, ohneBlock = 0, ohneTreffer = 0, gescheitert = 0;
-            var proben = new StringBuilder();
+            var bekannt = new HashSet<string>(_gefunden.Values.Select(v => v.Split('\t')[0]), StringComparer.Ordinal);
+            _offen = new List<Kandidat>();
             foreach (var job in typen)
             {
                 if (!job.IsValueType || job.IsGenericTypeDefinition || job.ContainsGenericParameters || job.IsPrimitive) continue;
                 foreach (var (def, schnittstelle, feld) in erzeuger)
                 {
                     if (!schnittstelle.IsAssignableFrom(job)) continue;
-                    versucht++;
+                    _versucht++;
+                    if (bekannt.Contains(Jobname(job))) continue;
                     try
                     {
                         var zu = def.MakeGenericType(job);
                         zu.GetMethod("Initialize", Statisch, null, Type.EmptyTypes, null).Invoke(null, null);
                         var block = LiesSharedStatic(zu.GetField(feld.Name, Statisch));
-                        if (block == IntPtr.Zero) { ohneBlock++; continue; }
-                        var treffer = new List<string>();
-                        for (var off = 0; off < 256; off += 8)
-                        {
-                            var wert = Marshal.ReadInt64(block, off);
-                            if (adressen.TryGetValue(wert, out var name)) treffer.Add(name);
-                            else if (ohneTreffer < 5 && proben.Length < 2000 && wert >= basis && wert < ende)
-                                proben.Append(" ").Append(job.Name).Append("+").Append(off).Append("=lib+0x")
-                                    .Append((wert - basis).ToString("X"));
-                        }
-                        var hashes = treffer.Select(n => ParkingLotAbsturzabbild.HashMuster.Match(n))
-                            .Where(m => m.Success).Select(m => m.Value).Distinct().ToList();
-                        if (hashes.Count == 0) { ohneTreffer++; continue; }
-                        getroffen++;
-                        foreach (var h in hashes)
-                            zeilen.Add(h + "\t" + Jobname(job) + "\t" + schnittstelle.Name);
+                        if (block == IntPtr.Zero) { _gescheitert++; continue; }
+                        _offen.Add(new Kandidat { Job = job, Schnittstelle = schnittstelle.Name, Block = block });
                     }
-                    catch { gescheitert++; }
+                    catch { _gescheitert++; }
                 }
             }
-
-            var text = new StringBuilder();
-            text.AppendLine("# Parking Lot Tool - Burst job hash table (hash, job, interface)");
-            text.AppendLine("# game " + Application.version);
-            foreach (var z in zeilen.Distinct().OrderBy(z => z, StringComparer.Ordinal)) text.AppendLine(z);
-            File.WriteAllText(Path.Combine(Logs, Ergebnis), text.ToString(), new UTF8Encoding(false));
-            _tabelle = null;
-            Mod.log.Info($"PLT-Burstjobs: Messlauf in {uhr.ElapsedMilliseconds} ms. {erzeuger.Count} Erzeuger, "
-                + $"{versucht} Jobs versucht, {getroffen} mit Hash, {ohneBlock} ohne Reflection-Block, "
-                + $"{ohneTreffer} ohne Exporttreffer, {gescheitert} gescheitert. Tabelle: {Ergebnis}."
-                + (proben.Length > 0 ? " Proben ohne Treffer:" + proben : ""));
+            return true;
         }
 
         /**
