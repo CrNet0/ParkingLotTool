@@ -9,6 +9,7 @@
 - Fix: crash when editing a lot with bus stops while utilities were connected.
 - Fix: bus stops disappeared after editing a lot.
 - Fix: cancelling an edit could remove the lot's paths.
+- Fix: crash after loading a save whose lots use surfaces from other mods.
 
 ## 1.0.3 — October 1, 2026
 

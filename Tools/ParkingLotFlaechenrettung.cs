@@ -42,7 +42,8 @@ namespace ParkingLotTool.Tools
      *    (Game.dll: PrefabSystem.GetObsoleteID, gesetzt von
      *    ResolvePrefabsSystem). Daraus liest `Flaechenklonname.TryLese`
      *    Vorbild, Prioritaet und Raeumwirkung. Ist das Vorbild jetzt da,
-     *    entsteht der Klon, und das Teil wird umgehaengt. Ist es nicht da,
+     *    entsteht der Klon, und das Teil wird mit ihm NEU ANGELEGT (nie
+     *    umgehaengt, siehe LegeNeuAn). Ist es nicht da,
      *    steht der Name im Log - dann fehlt ein Mod, und retten kann das
      *    niemand.
      *
@@ -189,18 +190,13 @@ namespace ParkingLotTool.Tools
                 }
                 if (klon == Entity.Null) { offen += paar.Value.Count; continue; }
 
+                var neu = 0;
                 foreach (var teil in paar.Value)
-                {
-                    EntityManager.SetComponentData(teil, new PrefabRef { m_Prefab = klon });
-                    if (!EntityManager.HasComponent<Updated>(teil))
-                        EntityManager.AddComponent<Updated>(teil);
-                    if (!EntityManager.HasComponent<BatchesUpdated>(teil))
-                        EntityManager.AddComponent<BatchesUpdated>(teil);
-                }
-                umgehaengt += paar.Value.Count;
-                Mod.log.Info("PLT-Flaechenrettung: " + paar.Value.Count
-                    + " Teil(e) von totem '" + gesucht + "' auf den neuen Klon "
-                    + "umgehaengt.");
+                    if (LegeNeuAn(teil, klon)) neu++;
+                umgehaengt += neu;
+                Mod.log.Info("PLT-Flaechenrettung: " + neu + " von "
+                    + paar.Value.Count + " Teil(en) mit totem '" + gesucht
+                    + "' geloescht und mit dem neuen Klon neu angelegt.");
             }
 
             _reparaturZyklen++;
@@ -212,6 +208,64 @@ namespace ParkingLotTool.Tools
                         + "warten nach " + _reparaturZyklen + " Zyklen noch auf "
                         + "ihren Klon und bleiben ohne Material.");
             }
+        }
+
+        /**
+         * NEU ANLEGEN, NIE UMHAENGEN (Absturz GitHub #6, 2026-10-02).
+         *
+         * Bis 1.0.3 bekam das tote Teil den neuen Klon direkt als PrefabRef.
+         * Vanilla aendert das Prefab einer Flaeche nie an Ort und Stelle:
+         * ApplyAreasSystem kopiert kein PrefabRef, es loescht und legt neu an.
+         * Der Grund steht im AreaBatchSystem. Ein sichtbares Teil steckt im
+         * Zeichenstapel SEINES Prefabs (Batch.m_BatchIndex + m_MetaIndex; ein
+         * totes Prefab zeichnet ueber den Stapel des Fehlmaterials). Nach dem
+         * Umhaengen setzt PassedCulling den Stapel des neuen Prefabs, behaelt
+         * aber den alten MetaIndex, und BatchAllocationJob schreibt mit ihm
+         * ohne Grenzpruefung in die Liste des neuen Stapels - ueber ihr Ende
+         * hinaus. Der Speicher ist kaputt, abgestuerzt wird spaeter bei einer
+         * fremden Freigabe: bei #6 im PathfindResultSystem, 100 ms nach dem
+         * Umhaengen von 223 Teilen, und nur mit dem Flaechenmod, dessen
+         * Vorbilder die Rettung ueberhaupt erst moeglich machten.
+         *
+         * Also wie Vanilla: eine feste Definition mit denselben Knoten und
+         * demselben Besitzer, das alte Teil geloescht. PrefabSystem laeuft in
+         * MainLoop vor ToolSystem und ModificationSystem (SystemOrder); beides
+         * liegt damit wie ein Werkzeug-Apply vor Modification1, wo
+         * GenerateAreasSystem die Definition im selben Bild liest.
+         */
+        private bool LegeNeuAn(Entity teil, Entity klon)
+        {
+            if (!EntityManager.HasBuffer<Game.Areas.Node>(teil)) return false;
+            // Vor jeder Strukturaenderung kopieren: sie macht den Puffer ungueltig.
+            var alt = EntityManager.GetBuffer<Game.Areas.Node>(teil, true).ToNativeArray(Allocator.Temp);
+            try
+            {
+                if (alt.Length < 3) return false;
+                var besitzer = EntityManager.HasComponent<Owner>(teil)
+                    ? EntityManager.GetComponentData<Owner>(teil).m_Owner : Entity.Null;
+                if (besitzer != Entity.Null && (!EntityManager.Exists(besitzer)
+                        || EntityManager.HasComponent<Deleted>(besitzer))) return false;
+
+                var d = EntityManager.CreateEntity();
+                EntityManager.AddComponentData(d, new CreationDefinition
+                {
+                    m_Prefab = klon,
+                    m_Owner = besitzer,
+                    m_Flags = CreationFlags.Permanent,
+                });
+                EntityManager.AddComponent<Updated>(d);
+                // GenerateAreasSystem: ohne Original macht erst der wiederholte
+                // erste Knoten die Flaeche "Complete" - wie unser Bau und das
+                // Flaechenwerkzeug.
+                var knoten = EntityManager.AddBuffer<Game.Areas.Node>(d);
+                knoten.ResizeUninitialized(alt.Length + 1);
+                for (var i = 0; i < alt.Length; i++) knoten[i] = alt[i];
+                knoten[alt.Length] = alt[0];
+                ParkingLotToolSystem.NurDiesesBild(EntityManager, d);
+                EntityManager.AddComponent<Deleted>(teil);
+                return true;
+            }
+            finally { alt.Dispose(); }
         }
 
         /**
