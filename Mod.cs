@@ -226,6 +226,11 @@ namespace ParkingLotTool
                 SystemUpdatePhase.UIUpdate);
             updateSystem.UpdateAt<ParkingLotToolSystem>(SystemUpdatePhase.ToolUpdate);
             updateSystem.UpdateAfter<ParkingLotHintergrundSystem, Game.Tools.ToolOutputBarrier>(SystemUpdatePhase.ToolUpdate);
+            // Sync-Schritt 9: Fahrwege per Vanilla-Ersetzen tauschen. Das
+            // Werkzeug laeuft wie jedes Werkzeug in ToolUpdate, die Steuerung
+            // schaltet es ausserhalb davon ein und wieder aus.
+            updateSystem.UpdateAt<ParkingLotFahrwegTauschWerkzeug>(SystemUpdatePhase.ToolUpdate);
+            updateSystem.UpdateAt<ParkingLotFahrwegTauschSystem>(SystemUpdatePhase.UIUpdate);
             updateSystem.UpdateAfter<ParkingLotExklusivesBildSystem, ParkingLotHintergrundSystem>(SystemUpdatePhase.ToolUpdate);
             updateSystem.UpdateAfter<ParkingLotDefinitionsendeSystem, Game.Tools.ToolReadyBarrier>(SystemUpdatePhase.PostTool);
             updateSystem.UpdateBefore<ParkingLotDauerkursSystem, Game.Tools.GenerateNodesSystem>(SystemUpdatePhase.Modification1);

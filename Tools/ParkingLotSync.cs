@@ -438,7 +438,7 @@ namespace ParkingLotTool.Tools
                     a.Ausfuehren(lot, traeger, teile);
                     ParkingLotSchrittmarke.Setze("Sync: Lot " + lot.Index
                         + " Schritt " + schritt.Nummer + " " + schritt.Name + " beendet");
-                    if (a.Hintergrund)
+                    if (a.Hintergrund || a.Tausch)
                     {
                         // Ein vorgemerkter Neubau ist noch KEINE Wirkung.
                         // Datenstand bleibt vor diesem Schritt, bis der echte
@@ -511,7 +511,7 @@ namespace ParkingLotTool.Tools
                 if (EntityManager.Exists(ziel) && !EntityManager.HasComponent<Deleted>(ziel))
                     _gescheitert.Add(ziel);
                 Mod.log.Warn("PLT-Sync: Fahrwege-Neubau von " + lot
-                    + " nicht abgeschlossen; " + ziel + " bleibt vor Schritt 8, neuer Versuch nach dem naechsten Laden.");
+                    + " nicht abgeschlossen; " + ziel + " bleibt auf seinem Datenstand, neuer Versuch nach dem naechsten Laden.");
             }
         }
 
@@ -555,7 +555,8 @@ namespace ParkingLotTool.Tools
                 LeereMeldung();
             if (_syncOffen.value != _offen.Count) _syncOffen.Update(_offen.Count);
             var arbeit = World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>();
-            var hintergrund = arbeit.Offen;
+            var hintergrund = arbeit.Offen
+                + World.GetOrCreateSystemManaged<ParkingLotFahrwegTauschSystem>().Offen;
             _gesamt = System.Math.Max(_gesamt,_warteschlange.Count + hintergrund);
             var fortschritt = HintergrundFortschritt.Zaehle(_gesamt, _warteschlange.Count, hintergrund);
             var laeuft = _warteschlange.Count + hintergrund > 0

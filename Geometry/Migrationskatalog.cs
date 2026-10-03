@@ -65,7 +65,12 @@ namespace ParkingLotTool.Geometry
                 + "Neue und selbst bearbeitete Parkplaetze fahren 25 km/h; "
                 + "der Hintergrund-Neubau folgt als eigener Schritt."),
             new Schritt(8, "Fahrwege25ImHintergrund",
-                "Exklusiver Permanent-Neubau mit zwei Besitzerstufen und gemessenem Rueckweg; Stand 8 erst nach echten Fahrspuren und Kosten."),
+                "Stillgelegt (2026-10-04): der Permanent-Neubau im Hintergrund kam nach neun "
+                + "Runden nicht zuverlaessig durch. Ersetzt durch Schritt 9."),
+            new Schritt(9, "Fahrwege25Tauschen",
+                "Alte unsichtbare Vanilla-Fahrwege bekommen per Vanilla-Ersetzen (Temp + Apply) "
+                + "den 25-km/h-Klon. Lage, Knoten, Anschluesse und Besitzer bleiben; Gassen und "
+                + "Zoningstrassen frischen ihre Spuren selbst auf."),
         };
 
         /** Der Stand, den ein heute gebauter Parkplatz hat. */
