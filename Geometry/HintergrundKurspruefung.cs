@@ -29,6 +29,12 @@ namespace ParkingLotTool.Geometry
         public static bool InnenhoeheVanilla(bool geradeKanten, bool bodengleich,
             bool beideParentMesh, bool flattenTerrain, bool besitzer)
             => !geradeKanten || bodengleich && !beideParentMesh && (!flattenTerrain || besitzer);
+        // Vorgeteilte Dauerkurse sehen nur GenerateEdges, nicht mehr CourseSplit.
+        // Daher bleibt innen Y auch bei !StraightEdges streng, sobald beide
+        // ParentMesh-Enden die Bodenanpassung sperren (GenerateEdges 1427ff).
+        public static bool InnenhoeheGeneratoren(bool bodengleich, bool beideParentMesh,
+            bool flattenTerrain, bool besitzer)
+            => bodengleich && !beideParentMesh && (!flattenTerrain || besitzer);
         public static bool KurveGleich((float3 A,float3 B,float3 C,float3 D) ist,
             (float3 A,float3 B,float3 C,float3 D) soll, bool umgekehrt = false)
         {

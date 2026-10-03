@@ -38,12 +38,12 @@ namespace ParkingLotTool.Tools
                 if (_lotOwner == Entity.Null || _lotCarrier == Entity.Null) throw new InvalidOperationException("Stufe A fehlt.");
                 if (Mod.Aus("hintergrund-nach-a")) throw new InvalidOperationException("Fehlerprobe nach Stufe A.");
                 _hintergrundStufeBBild = UnityEngine.Time.frameCount;
-                _bauportion = new HintergrundPortion(HintergrundBauschritte());
+                _bauportion = new HintergrundPortion(HintergrundBauschritte(),_hintergrundTempo);
             }
             MerkeHintergrundKnoten();
             var uhr = Stopwatch.StartNew();
             int n = _bauportion.Weiter(() => uhr.Elapsed.TotalMilliseconds);
-            ParkingLotNetzRueckweg.Melde($"Bauportion Auftrag {_definitionsauftrag}: {_bauportion.Einheiten}/8 Einheiten, {n} Definitionen, gesamt {_bauportion.Gesamt}, {uhr.Elapsed.TotalMilliseconds:F3} ms, fertig={_bauportion.Fertig}.");
+            if (_bauportion.Fertig) ParkingLotNetzRueckweg.Melde($"Bauausgabe Auftrag {_definitionsauftrag}: gesamt {_bauportion.Gesamt} Definitionen; adaptive Portion bis {_hintergrundTempo.Einheiten} Einheiten/{_hintergrundTempo.BudgetMs:F1} ms.");
             return n;
         }
 
@@ -104,7 +104,7 @@ namespace ParkingLotTool.Tools
 
         internal bool HintergrundRueckwegFlussPortion(Entity lot)
         {
-            _rueckflussportion ??= new HintergrundPortion(HintergrundRueckflussschritte(lot));
+            _rueckflussportion ??= new HintergrundPortion(HintergrundRueckflussschritte(lot),_hintergrundTempo);
             var uhr = Stopwatch.StartNew();
             _rueckflussportion.Weiter(() => uhr.Elapsed.TotalMilliseconds);
             return _rueckflussportion.Fertig;

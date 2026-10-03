@@ -41,6 +41,11 @@ namespace ParkingLotTool.Tools
             internal int RueckIst, RueckSoll;
             internal ParkingLotNetzRueckweg.Prueflauf Rueckpruefung;
             internal string Kindermessung;
+            internal readonly Dictionary<Phase,HintergrundZeitmessung> Zeiten = new Dictionary<Phase,HintergrundZeitmessung>();
+            internal readonly HintergrundTempo Tempo = new HintergrundTempo();
+            internal double BildMs;
+            internal bool Beendet;
+            internal HintergrundPortion Ersatzabriss;
         }
         private readonly List<Auftrag> _queue = new List<Auftrag>();
         private readonly HashSet<Entity> _angehalten = new HashSet<Entity>();
@@ -185,6 +190,10 @@ namespace ParkingLotTool.Tools
             }
             var a = _aktiv;
             if (a == null || a.GateOffen) return;
+            if (a.BildMs > 0)
+            {
+                a.Bauer?.HintergrundBildzeit(a.BildMs); a.Tempo.MeldeBild(a.BildMs); a.BildMs = 0;
+            }
             if (!HintergrundTakt.Faellig(bild,a.NaechstePruefung)) return;
             a.NaechstePruefung = bild + (a.Phase == Phase.Planung || a.Phase == Phase.Ausgabe
                 || a.Phase == Phase.Kinder || a.Phase == Phase.Fehlstellen || a.Phase == Phase.Anmeldung || a.Phase == Phase.Nachpruefung || a.Phase == Phase.Nebenarbeit
@@ -322,14 +331,26 @@ namespace ParkingLotTool.Tools
                         {
                             var ersatz = EntityManager.GetComponentData<ParkingLotOffenerErsatz>(a.Lot);
                             ParkingLotNetzerhalt.EntferneGelieheneVerweise(EntityManager,a.Lot,ersatz.Lot,ersatz.Traeger);
-                            foreach (var e in new[] { ersatz.Lot, ersatz.Traeger })
-                                if (ParkingLotNetzRueckweg.Lebt(EntityManager,e)) EntityManager.AddComponent<Deleted>(e);
+                            if (a.Bauer == null)
+                            {
+                                a.Ersatzabriss ??= new HintergrundPortion(ParkingLotErsatzabriss.Schritte(EntityManager,a.Lot,ersatz.Lot,ersatz.Traeger),a.Tempo);
+                                var uhr = Stopwatch.StartNew();
+                                a.Ersatzabriss.Weiter(() => uhr.Elapsed.TotalMilliseconds);
+                                if (!a.Ersatzabriss.Fertig) return 0;
+                            }
                         }
                         a.Phase = Phase.Ruhe; a.Seit = UnityEngine.Time.frameCount; return 0;
                     });
                     break;
                 case Phase.Ruhe:
                     if (bild-a.Seit < 3 || World.GetOrCreateSystemManaged<ParkingLotCleanupSystem>().AbrissLaeuft) return;
+                    if (EntityManager.HasComponent<ParkingLotOffenerErsatz>(a.Lot))
+                    {
+                        var ersatz = EntityManager.GetComponentData<ParkingLotOffenerErsatz>(a.Lot);
+                        int rest = ParkingLotErsatzabriss.Eigene(EntityManager,a.Lot,ersatz.Lot,ersatz.Traeger).Count;
+                        if (rest != 0) throw new InvalidOperationException($"Ruecknahme unvollstaendig: {rest} eigene Stage-B-Teile leben; 0 Rueckwegdefinitionen.");
+                        ParkingLotNetzRueckweg.Melde("Ruecknahme vollstaendig: 0 eigene Stage-B-Netzteile/Kinder leben; Rueckweg freigegeben.");
+                    }
                     a.Phase = Phase.Rueckweg; a.Seit = UnityEngine.Time.frameCount;
                     break;
                 case Phase.Rueckweg:
@@ -338,10 +359,11 @@ namespace ParkingLotTool.Tools
                     {
                         Exklusiv(a, () =>
                         {
-                            int n = ParkingLotNetzRueckweg.Erzeuge(EntityManager,a.Lot,a.Id,a.RueckwegIndex,4);
-                            a.RueckwegIndex += 4;
+                            int portion = Math.Min(64,a.Tempo.Einheiten);
+                            int n = ParkingLotNetzRueckweg.Erzeuge(EntityManager,a.Lot,a.Id,a.RueckwegIndex,portion,a.Tempo.BudgetMs,out int weiter);
+                            a.RueckwegIndex = weiter;
                             a.RueckwegAusgegeben = a.RueckwegIndex >= EntityManager.GetBuffer<ParkingLotRueckwegkurs>(a.Lot,true).Length;
-                            ParkingLotNetzRueckweg.Melde($"Rueckwegportion Lot {a.Lot.Index}: {n} Definitionen, Planindex {a.RueckwegIndex}; Ausgabe fertig={a.RueckwegAusgegeben}.");
+                            if (a.RueckwegAusgegeben) ParkingLotNetzRueckweg.Melde($"Rueckwegausgabe Lot {a.Lot.Index}: Planindex {a.RueckwegIndex}; Ausgabe fertig.");
                             a.Seit = UnityEngine.Time.frameCount;
                             return n;
                         });
@@ -353,7 +375,7 @@ namespace ParkingLotTool.Tools
                         return;
                     }
                     if (a.Rueckpruefung == null)
-                        a.Rueckpruefung = new ParkingLotNetzRueckweg.Prueflauf(EntityManager,a.Lot,diagnose:true);
+                        a.Rueckpruefung = new ParkingLotNetzRueckweg.Prueflauf(EntityManager,a.Lot,diagnose:true,tempo:a.Tempo);
                     a.Rueckpruefung.Weiter();
                     if (!a.Rueckpruefung.Fertig) return;
                     int ist = a.Rueckpruefung.Ist, soll = a.Rueckpruefung.Soll;
@@ -401,7 +423,8 @@ namespace ParkingLotTool.Tools
                 World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().MeldeHintergrundEnde(a.Lot,a.Neu,false);
                 Ende(a); return;
             }
-            if (a.Phase == Phase.Rueckweg || a.Phase == Phase.Rueckabschluss)
+            if (a.Phase == Phase.Ruecknahme || a.Phase == Phase.Ruhe
+                || a.Phase == Phase.Rueckweg || a.Phase == Phase.Rueckabschluss)
             {
                 HalteRueckwegAn(a); return;
             }
@@ -452,6 +475,8 @@ namespace ParkingLotTool.Tools
         }
         private void Ende(Auftrag a)
         {
+            a.Beendet = true;
+            a.Ersatzabriss?.Dispose(); a.Ersatzabriss = null;
             _regel.Ende(a.Lot);
             a.Rueckpruefung?.Dispose(); a.Rueckpruefung = null;
             a.Bauer?.HintergrundPortionenBeenden();
@@ -480,8 +505,19 @@ namespace ParkingLotTool.Tools
             finally
             {
                 double ms = uhr.Elapsed.TotalMilliseconds;
-                ParkingLotHintergrundDiagnose.Sicher(() => ParkingLotNetzRueckweg.Melde(FormattableString.Invariant(
-                        $"Bildzeit Auftrag {a.Id}, Versuch {a.Versuch}, Phase {phase}, {arbeit}, Bild {UnityEngine.Time.frameCount}: Spielthread {ms:F3} ms, voriges Bild {UnityEngine.Time.unscaledDeltaTime*1000f:F3} ms; Folgephase {a.Phase}.")));
+                a.BildMs += ms;
+                if (!a.Zeiten.TryGetValue(phase,out var zeit)) a.Zeiten[phase] = zeit = new HintergrundZeitmessung();
+                zeit.Fuege(UnityEngine.Time.frameCount,ms);
+                if (ms > 50) ParkingLotHintergrundDiagnose.Sicher(() => ParkingLotNetzRueckweg.Melde(FormattableString.Invariant(
+                    $"Bildzeit Ausreisser Auftrag {a.Id}, Phase {phase}, {arbeit}: Spielthread {ms:F3} ms, Bild {UnityEngine.Time.frameCount}.")));
+                foreach (var p in a.Zeiten.Keys.ToArray())
+                    if (p != a.Phase || a.Beendet)
+                    {
+                        var z = a.Zeiten[p];
+                        ParkingLotHintergrundDiagnose.Sicher(() => ParkingLotNetzRueckweg.Melde(FormattableString.Invariant(
+                            $"Phasenzeit Auftrag {a.Id}, Versuch {a.Versuch}, Phase {p}: Summe {z.Summe:F3} ms, Max {z.Max:F3} ms, Bilder {z.Bilder}.")));
+                        a.Zeiten.Remove(p);
+                    }
             }
         }
 
@@ -489,6 +525,7 @@ namespace ParkingLotTool.Tools
         {
             base.OnGameLoaded(context);
             _gate.Verwerfe(_aktiv?.Lot ?? Entity.Null);
+            _aktiv?.Ersatzabriss?.Dispose();
             _aktiv?.Rueckpruefung?.Dispose();
             if (_aktiv?.Bauer != null) World.DestroySystemManaged(_aktiv.Bauer);
             foreach (var b in _flussbeobachter) World.DestroySystemManaged(b);

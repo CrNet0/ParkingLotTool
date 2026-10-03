@@ -228,6 +228,7 @@ namespace ParkingLotTool
             updateSystem.UpdateAfter<ParkingLotHintergrundSystem, Game.Tools.ToolOutputBarrier>(SystemUpdatePhase.ToolUpdate);
             updateSystem.UpdateAfter<ParkingLotExklusivesBildSystem, ParkingLotHintergrundSystem>(SystemUpdatePhase.ToolUpdate);
             updateSystem.UpdateAfter<ParkingLotDefinitionsendeSystem, Game.Tools.ToolReadyBarrier>(SystemUpdatePhase.PostTool);
+            updateSystem.UpdateBefore<ParkingLotDauerkursSystem, Game.Tools.GenerateNodesSystem>(SystemUpdatePhase.Modification1);
             updateSystem.UpdateAt<ParkingLotAutoVersorgungApplySystem>(SystemUpdatePhase.PostTool);
             // Laeuft unabhaengig vom aktiven Werkzeug: der Nutzer schliesst
             // es nach dem Bau, um Zoning zu malen und Haeuser zu setzen.

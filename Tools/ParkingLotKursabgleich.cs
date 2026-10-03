@@ -30,6 +30,15 @@ namespace ParkingLotTool.Tools
                 (g.m_Flags & GeometryFlags.FlattenTerrain) != 0,besitzer != Entity.Null);
         }
 
+        internal static bool InnenhoeheNachGeneratoren(EntityManager em, Entity prefab, NetCourse kurs, Entity besitzer)
+        {
+            if (!ParkingLotDauerkursSystem.IstDirekt(em,prefab,kurs)) return true; // CourseSplit darf weiterhin innen Y aendern.
+            var g = em.GetComponentData<NetGeometryData>(prefab);
+            return HintergrundKurspruefung.InnenhoeheGeneratoren(math.all(kurs.m_Elevation == float2.zero),
+                kurs.m_StartPosition.m_ParentMesh >= 0 && kurs.m_EndPosition.m_ParentMesh >= 0,
+                (g.m_Flags & GeometryFlags.FlattenTerrain) != 0,besitzer != Entity.Null);
+        }
+
         internal static float Abstand(Bezier4x3 soll, Bezier4x3 ist, out float2 bereich, bool innenhoeheVanilla = false)
         {
             MathUtils.Distance(soll.xz,ist.a.xz,out float von);

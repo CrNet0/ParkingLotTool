@@ -47,7 +47,7 @@ namespace ParkingLotTool.Tools
 
         internal bool HintergrundFahrwegePortion()
         {
-            if (_spurportion == null) { _spurenRichtig = true; _spurportion = new HintergrundPortion(HintergrundSpurschritte()); }
+            if (_spurportion == null) { _spurenRichtig = true; _spurportion = new HintergrundPortion(HintergrundSpurschritte(),_hintergrundTempo); }
             var uhr = System.Diagnostics.Stopwatch.StartNew();
             _spurportion.Weiter(() => uhr.Elapsed.TotalMilliseconds);
             return _spurportion.Fertig && _spurenRichtig;

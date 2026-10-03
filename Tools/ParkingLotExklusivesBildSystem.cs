@@ -124,7 +124,7 @@ namespace ParkingLotTool.Tools
             var gemeldet = anlegen(ParkingLotDefinitionsmodus.Permanent);
             var anzahl = _definitionen.CalculateEntityCount();
             if (gemeldet != anzahl) Melde($"Definitionszaehler: Erzeuger {gemeldet}, ECS {anzahl}; ECS ist massgeblich.");
-            Melde($"exklusives Bild Lot {lot.Index}: fremde Definitionen 0, "
+            if (_wartendeBilder > 0) Melde($"exklusives Bild Lot {lot.Index}: fremde Definitionen 0, "
                 + $"Temps 0; {anzahl} Definitionen angelegt; "
                 + $"{_wartendeBilder} Bilder gewartet.");
         }

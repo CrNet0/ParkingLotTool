@@ -20,6 +20,21 @@ namespace ParkingLotTool.Tools
                 return;
             }
             if (anschluss.Entity != Entity.Null) return; // Expliziter Anschluss wird nicht durch einen Nahknoten ersetzt.
+            // Erhaltene Originale haben Vorrang vor neuen Portionsknoten.
+            // Eine bereits vorhandene Doppel-ID darf nicht gewinnen.
+            var kandidaten = new List<(int Id,float3 Lage)>();
+            foreach (var e in _erhalteneNetzteile)
+                if (ParkingLotNetzRueckweg.Lebt(EntityManager,e) && EntityManager.HasComponent<Game.Net.Node>(e))
+                    kandidaten.Add((e.Index,EntityManager.GetComponentData<Game.Net.Node>(e).m_Position));
+            int index = HintergrundAbgleich.ErhaltenerKnoten(lage.xz,kandidaten);
+            if (index == -2) throw new InvalidOperationException($"Mehrdeutiger erhaltener Anschluss bei {lage}; 0 Ausgabe dieses Kurses.");
+            foreach (var e in _erhalteneNetzteile)
+                if (e.Index == index)
+                {
+                    anschluss = new Anschluss { Entity = e };
+                    lage = EntityManager.GetComponentData<Game.Net.Node>(e).m_Position;
+                    return;
+                }
             var key = ((long)math.round(lage.x*40),(long)math.round(lage.z*40));
             var neue = new List<(Entity Id,float3 Lage)>();
             // 5 cm ueberdecken zwei 2,5-cm-Nachbarzellen in jeder Richtung.
@@ -32,25 +47,12 @@ namespace ParkingLotTool.Tools
             var knoten = HintergrundAbgleich.Knoten(lage,neue,Entity.Null);
             if (knoten != Entity.Null)
             { anschluss = new Anschluss {Entity = knoten}; lage = EntityManager.GetComponentData<Game.Net.Node>(knoten).m_Position; return; }
-            var kandidaten = new List<(int Id,float3 Lage)>();
-            foreach (var e in _erhalteneNetzteile)
-                if (ParkingLotNetzRueckweg.Lebt(EntityManager,e) && EntityManager.HasComponent<Game.Net.Node>(e))
-                    kandidaten.Add((e.Index,EntityManager.GetComponentData<Game.Net.Node>(e).m_Position));
-            int index = HintergrundAbgleich.ErhaltenerKnoten(lage.xz,kandidaten);
-            foreach (var e in _erhalteneNetzteile)
-                if (e.Index == index)
-                {
-                    anschluss = new Anschluss { Entity = e };
-                    lage = EntityManager.GetComponentData<Game.Net.Node>(e).m_Position;
-                    return;
-                }
-            if (index == -2) ParkingLotNetzRueckweg.Melde($"Mehrdeutiger erhaltener Anschluss bei {lage}; keine Original-ID geraten.");
         }
 
         private HintergrundPortion _anschlussportion;
         internal bool HintergrundMeldeAnschluesse()
         {
-            _anschlussportion ??= new HintergrundPortion(HintergrundAnschlussmeldeschritte());
+            _anschlussportion ??= new HintergrundPortion(HintergrundAnschlussmeldeschritte()) { Tempo = _hintergrundTempo };
             var uhr = System.Diagnostics.Stopwatch.StartNew();
             _anschlussportion.Weiter(() => uhr.Elapsed.TotalMilliseconds);
             return _anschlussportion.Fertig;

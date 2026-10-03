@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework>
+    <Kursquelle Condition="'$(Kursquelle)' == ''">../../Tools/ParkingLotDauerkursSystem.cs</Kursquelle>
+    <Abrissquelle Condition="'$(Abrissquelle)' == ''">../../Tools/ParkingLotErsatzabriss.cs</Abrissquelle>
+    <Rueckquelle Condition="'$(Rueckquelle)' == ''">../../Geometry/HintergrundRuecknahme.cs</Rueckquelle>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(Kursquelle);$(Abrissquelle);$(Rueckquelle)" />
+    <Compile Include="../../Geometry/HintergrundDauerkurs.cs;../../Geometry/HintergrundTempo.cs;../../Geometry/HintergrundPortion.cs;../../Geometry/HintergrundZeitmessung.cs" />
+    <Compile Include="../../Geometry/HintergrundKurspruefung.cs" />
+    <Reference Include="Unity.Mathematics"><HintPath>$(CSII_MANAGEDPATH)/Unity.Mathematics.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="$(PortionQuelle);$(SpurQuelle);$(AbgleichQuelle)" />
+    <Compile Include="../../Geometry/HintergrundTempo.cs" />
     <Reference Include="Unity.Mathematics"><HintPath>$(CSII_TOOLPATH)/UnityModsProject/Library/ScriptAssemblies/Unity.Mathematics.dll</HintPath></Reference>
   </ItemGroup>
 </Project>

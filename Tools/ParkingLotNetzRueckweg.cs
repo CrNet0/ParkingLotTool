@@ -131,6 +131,7 @@ namespace ParkingLotTool.Tools
                         m_FixedIndex = -1, m_Elevation = elevation,
                         m_StartPosition = Pos(edge.m_Start, start, curve.m_Bezier.a, true),
                         m_EndPosition = Pos(edge.m_End, ende, curve.m_Bezier.d, false) } };
+                if (!behalten) bestand = Originalkurs(em,bestand);
                 if (behalten)
                 {
                     bestand.Start = edge.m_Start; bestand.Ende = edge.m_End;
@@ -183,7 +184,13 @@ namespace ParkingLotTool.Tools
         }
 
         internal static int Erzeuge(EntityManager em, Entity lot, int auftrag, int anfang = 0, int anzahl = int.MaxValue)
+            => Erzeuge(em,lot,auftrag,anfang,anzahl,double.PositiveInfinity,out _);
+
+        internal static int Erzeuge(EntityManager em, Entity lot, int auftrag, int anfang, int anzahl,
+            double budgetMs, out int weiter)
         {
+            weiter = anfang;
+            var uhr = System.Diagnostics.Stopwatch.StartNew();
             if (!em.HasBuffer<ParkingLotRueckwegkurs>(lot)) return 0;
             // Strukturveraenderungen invalidieren DynamicBuffer: ZUERST kopieren.
             var kopie = em.GetBuffer<ParkingLotRueckwegkurs>(lot, true).ToNativeArray(Allocator.Temp);
@@ -208,7 +215,9 @@ namespace ParkingLotTool.Tools
                 int erzeugt = 0;
                 for (int i = anfang; i < kopie.Length && i - anfang < anzahl; i++)
                 {
-                    var alt = kopie[i];
+                    if (i > anfang && uhr.Elapsed.TotalMilliseconds >= budgetMs) break;
+                    weiter = i+1;
+                    var alt = Originalkurs(em,kopie[i]);
                     // Auch nach einem unterbrochenen Rueckweg: vorhandene
                     // exakte Ergebnisse nicht ein zweites Mal erzeugen.
                     if (FindeKurs(em,eigeneKanten,alt,benutzt,out _) != null) continue;
@@ -222,12 +231,13 @@ namespace ParkingLotTool.Tools
                         m_Owner = alt.Besitzer, m_Flags = CreationFlags.Permanent,
                         m_RandomSeed = math.max(1, d.Index) });
                     em.AddComponentData(d, Eingabekurs(alt));
-                    if (anzahl != int.MaxValue)
-                        em.SetComponentData(d, BindeRueckwegknoten(em,Eingabekurs(alt),eigeneKanten,alt.Besitzer));
+                    em.SetComponentData(d, BindeRueckwegknoten(em,Eingabekurs(alt),eigeneKanten,alt.Besitzer));
                     if (alt.HatUpgrade) em.AddComponentData(d, alt.Upgrade);
+                    ParkingLotToolSystem.NurDiesesBild(em, d);
+                    ParkingLotDauerkursSystem.Plane(em,d);
                     em.AddComponent<Updated>(d);
                     em.World.GetOrCreateSystemManaged<ParkingLotDefinitionsendeSystem>().Merke(alt.Besitzer,auftrag);
-                    ParkingLotToolSystem.NurDiesesBild(em, d); erzeugt++;
+                    erzeugt++;
                 }
                 return erzeugt;
             }
@@ -240,8 +250,8 @@ namespace ParkingLotTool.Tools
             internal int Ist, Soll;
             internal bool Richtig;
             internal bool Fertig => _portion.Fertig;
-            internal Prueflauf(EntityManager em,Entity lot,bool anschluesse=true,bool diagnose=false)
-            { _portion = new HintergrundPortion(Pruefschritte(em,lot,this,anschluesse,diagnose)); }
+            internal Prueflauf(EntityManager em,Entity lot,bool anschluesse=true,bool diagnose=false,HintergrundTempo tempo=null)
+            { _portion = new HintergrundPortion(Pruefschritte(em,lot,this,anschluesse,diagnose),tempo); }
             internal void Weiter()
             { var uhr = System.Diagnostics.Stopwatch.StartNew(); _portion.Weiter(() => uhr.Elapsed.TotalMilliseconds); }
             public void Dispose() { _portion.Dispose(); }
@@ -262,8 +272,9 @@ namespace ParkingLotTool.Tools
             var eigeneKanten = EigeneKanten(em,kurse);
             var benutzt = new HashSet<Entity>();
             int index = -1, fehlmeldungen = 0;
-            foreach (var alt in kurse)
+            foreach (var gespeichert in kurse)
             {
+                var alt = Originalkurs(em,gespeichert);
                 index++;
                 yield return 0;
                 lauf.Soll++;
@@ -285,7 +296,8 @@ namespace ParkingLotTool.Tools
                                 return $"Upgrade Soll vorhanden={alt.HatUpgrade}, Flags={u.m_Flags}; "
                                     + $"Ist vorhanden={em.HasComponent<Upgraded>(e)}, "
                                     + $"gleich={em.HasComponent<Upgraded>(e) == alt.HatUpgrade && (!alt.HatUpgrade || em.GetComponentData<Upgraded>(e).Equals(u))}";
-                            },ParkingLotKursabgleich.InnenhoeheVanilla(em,alt.Prefab,Eingabekurs(alt),alt.Besitzer)));
+                            },ParkingLotKursabgleich.InnenhoeheVanilla(em,alt.Prefab,Eingabekurs(alt),alt.Besitzer)
+                                && ParkingLotKursabgleich.InnenhoeheNachGeneratoren(em,alt.Prefab,Eingabekurs(alt),alt.Besitzer)));
                     }
                     continue;
                 }
@@ -311,8 +323,10 @@ namespace ParkingLotTool.Tools
         private static List<ParkingLotKursabgleich.Teil> FindeKurs(EntityManager em, IEnumerable<Entity> kanten,
             ParkingLotRueckwegkurs alt, HashSet<Entity> benutzt, out string grund)
         {
+            alt = Originalkurs(em,alt);
             var teile = ParkingLotKursabgleich.Sammle(em,kanten,alt.Kurs.m_Curve,alt.Prefab,alt.Besitzer,benutzt,
-                ParkingLotKursabgleich.InnenhoeheVanilla(em,alt.Prefab,Eingabekurs(alt),alt.Besitzer));
+                ParkingLotKursabgleich.InnenhoeheVanilla(em,alt.Prefab,Eingabekurs(alt),alt.Besitzer)
+                    && ParkingLotKursabgleich.InnenhoeheNachGeneratoren(em,alt.Prefab,Eingabekurs(alt),alt.Besitzer));
             int lage = teile.Count;
             teile.RemoveAll(p =>
             {
@@ -353,10 +367,21 @@ namespace ParkingLotTool.Tools
         {
             kurs.m_StartPosition = Binde(kurs.m_StartPosition);
             kurs.m_EndPosition = Binde(kurs.m_EndPosition);
+            var c = HintergrundDauerkurs.BindeEnden(ParkingLotKursabgleich.Form(kurs.m_Curve),
+                kurs.m_StartPosition.m_Position,kurs.m_EndPosition.m_Position);
+            kurs.m_Curve = new Bezier4x3(c.A,c.B,c.C,c.D);
+            kurs.m_Length = MathUtils.Length(kurs.m_Curve);
             return kurs;
             CoursePos Binde(CoursePos pos)
             {
-                if (pos.m_Entity != Entity.Null) return pos;
+                if (pos.m_Entity != Entity.Null)
+                {
+                    // 22:03: derselbe Originalknoten wurde mit zwei alten
+                    // Kurvenhoehen (122,684/122,844 m) angefordert. Die Node-ID
+                    // und ihre aktuelle Lage gehoeren gemeinsam zur Definition.
+                    pos.m_Position = em.GetComponentData<Game.Net.Node>(pos.m_Entity).m_Position;
+                    return pos;
+                }
                 foreach (var e in kanten)
                 {
                     var k = em.GetComponentData<Edge>(e);
@@ -364,7 +389,7 @@ namespace ParkingLotTool.Tools
                         if (Lebt(em,n) && em.HasComponent<Game.Net.Node>(n) && em.HasComponent<Owner>(n)
                             && em.GetComponentData<Owner>(n).m_Owner == owner
                             && math.distance(em.GetComponentData<Game.Net.Node>(n).m_Position,pos.m_Position) <= .05f)
-                        { pos.m_Entity = n; return pos; }
+                        { pos.m_Entity = n; pos.m_Position = em.GetComponentData<Game.Net.Node>(n).m_Position; return pos; }
                 }
                 return pos;
             }
@@ -380,6 +405,20 @@ namespace ParkingLotTool.Tools
             if (HintergrundKurspruefung.NullhoeheFixieren(kurs.m_Elevation))
             { kurs.m_StartPosition.m_ParentMesh = 0; kurs.m_EndPosition.m_ParentMesh = 0; }
             return kurs;
+        }
+
+        private static ParkingLotRueckwegkurs Originalkurs(EntityManager em, ParkingLotRueckwegkurs alt)
+        {
+            var kurs = alt.Kurs;
+            var a = kurs.m_Curve.a; var d = kurs.m_Curve.d;
+            if (alt.Start != Entity.Null && Lebt(em,alt.Start)) a = em.GetComponentData<Game.Net.Node>(alt.Start).m_Position;
+            if (alt.Ende != Entity.Null && Lebt(em,alt.Ende)) d = em.GetComponentData<Game.Net.Node>(alt.Ende).m_Position;
+            var c = HintergrundDauerkurs.BindeEnden(ParkingLotKursabgleich.Form(kurs.m_Curve),a,d);
+            kurs.m_Curve = new Bezier4x3(c.A,c.B,c.C,c.D);
+            kurs.m_StartPosition.m_Position = a; kurs.m_EndPosition.m_Position = d;
+            kurs.m_Length = MathUtils.Length(kurs.m_Curve);
+            alt.Kurs = kurs;
+            return alt;
         }
 
         private static bool Belegt(EntityManager em, IEnumerable<Entity> kanten, ParkingLotRueckwegkurs alt)

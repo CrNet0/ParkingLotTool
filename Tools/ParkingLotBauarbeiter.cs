@@ -33,6 +33,8 @@ namespace ParkingLotTool.Tools
         private EntityQuery _dauerhafteFlaechen;
         private readonly HashSet<Entity> _vorhandeneLots = new HashSet<Entity>();
         private readonly HashSet<Entity> _eigeneDauerteile = new HashSet<Entity>();
+        private readonly HintergrundTempo _hintergrundTempo = new HintergrundTempo();
+        internal void HintergrundBildzeit(double ms) => _hintergrundTempo.MeldeBild(ms);
         private bool _hintergrundPlanVorbereitet;
         private double _hintergrundRechenMs;
         private int _hintergrundRechenthread, _hintergrundSpielthread;
@@ -126,7 +128,7 @@ namespace ParkingLotTool.Tools
             _altesZoningprefab = _baukontext.Zoningstrasse;
             if (!_hintergrundPlanVorbereitet)
             {
-                _vorbereitungportion ??= new HintergrundPortion(HintergrundVorbereitungsschritte(layout));
+                _vorbereitungportion ??= new HintergrundPortion(HintergrundVorbereitungsschritte(layout),_hintergrundTempo);
                 var uhr = Stopwatch.StartNew();
                 _vorbereitungportion.Weiter(() => uhr.Elapsed.TotalMilliseconds);
                 if (!_vorbereitungportion.Fertig) return false;
@@ -145,7 +147,7 @@ namespace ParkingLotTool.Tools
         internal bool HintergrundAbrissFertig => _abrissportion?.Fertig == true;
         internal int HintergrundAbriss()
         {
-            if (_abrissportion == null) _abrissportion = new HintergrundPortion(EntferneAlteNetzeSchritte());
+            if (_abrissportion == null) _abrissportion = new HintergrundPortion(EntferneAlteNetzeSchritte(),_hintergrundTempo);
             var uhr = Stopwatch.StartNew();
             return _abrissportion.Weiter(() => uhr.Elapsed.TotalMilliseconds);
         }
@@ -202,7 +204,7 @@ namespace ParkingLotTool.Tools
         internal bool HintergrundKinderDa(out string messung)
         {
             if (_kinderportion == null || _kinderportion.Fertig)
-            { _kinderportion?.Dispose(); _kinderportion = new HintergrundPortion(HintergrundKinderschritte()); }
+            { _kinderportion?.Dispose(); _kinderportion = new HintergrundPortion(HintergrundKinderschritte(),_hintergrundTempo); }
             var uhr = Stopwatch.StartNew();
             _kinderportion.Weiter(() => uhr.Elapsed.TotalMilliseconds);
             messung = _kindermessung;
@@ -269,7 +271,8 @@ namespace ParkingLotTool.Tools
             {
                 yield return 0;
                 bool innenhoeheVanilla = r.Kurs.HasValue
-                    && ParkingLotKursabgleich.InnenhoeheVanilla(EntityManager,r.Prefab,r.Kurs.Value,_lotOwner);
+                    && ParkingLotKursabgleich.InnenhoeheVanilla(EntityManager,r.Prefab,r.Kurs.Value,_lotOwner)
+                    && ParkingLotKursabgleich.InnenhoeheNachGeneratoren(EntityManager,r.Prefab,r.Kurs.Value,_lotOwner);
                 var teile = r.Kurs.HasValue ? ParkingLotKursabgleich.Sammle(EntityManager,netze,
                     r.Kurs.Value.m_Curve,r.Prefab,_lotOwner,benutzt,innenhoeheVanilla) : new List<ParkingLotKursabgleich.Teil>();
                 bool hoehen = r.Kurs.HasValue;
@@ -378,7 +381,7 @@ namespace ParkingLotTool.Tools
         internal bool HintergrundRuecknahmeFertig => _ruecknahmeportion?.Fertig == true;
         internal int HintergrundRuecknahme()
         {
-            if (_ruecknahmeportion == null) _ruecknahmeportion = new HintergrundPortion(HintergrundRuecknahmeschritte());
+            if (_ruecknahmeportion == null) _ruecknahmeportion = new HintergrundPortion(HintergrundRuecknahmeschritte(),_hintergrundTempo);
             var uhr = Stopwatch.StartNew();
             return _ruecknahmeportion.Weiter(() => uhr.Elapsed.TotalMilliseconds);
         }
@@ -388,22 +391,7 @@ namespace ParkingLotTool.Tools
             // neue Besitzerkette faellt; ALTES Lot und erhaltene Netzstrassen leben.
             if (_lotOwner == Entity.Null && _areaTransferRecords.Count == 1) HintergrundBesitzerDa();
             ParkingLotNetzerhalt.EntferneGelieheneVerweise(EntityManager,_editLot,_lotOwner,_lotCarrier);
-            if (_lotOwner != Entity.Null) foreach (int n in SammleHintergrundteileSchritte()) yield return n;
-            // Knoten erst nach allen anderen Teilen und ohne Unterbrechung:
-            // ein portionsweise geloeschter Knoten wuerde am Bildende
-            // zerstoert, waehrend eine erst spaeter geloeschte Kante noch auf
-            // ihn zeigt (gleiche Regel wie EntferneAlteNetzeVorDemNeubau).
-            var knoten = new List<Entity>();
-            foreach (var e in _eigeneDauerteile)
-            {
-                if (EntityManager.HasComponent<Game.Net.Node>(e)) { knoten.Add(e); continue; }
-                if (ParkingLotNetzRueckweg.Lebt(EntityManager,e)) EntityManager.AddComponent<Deleted>(e);
-                yield return 0;
-            }
-            foreach (var e in knoten)
-                if (ParkingLotNetzRueckweg.Lebt(EntityManager,e)) EntityManager.AddComponent<Deleted>(e);
-            if (ParkingLotNetzRueckweg.Lebt(EntityManager,_lotOwner)) EntityManager.AddComponent<Deleted>(_lotOwner);
-            if (ParkingLotNetzRueckweg.Lebt(EntityManager,_lotCarrier)) EntityManager.AddComponent<Deleted>(_lotCarrier);
+            foreach (int n in ParkingLotErsatzabriss.Schritte(EntityManager,_editLot,_lotOwner,_lotCarrier)) yield return n;
             foreach (int n in RestoreHiddenPartsSchritte()) yield return n;
             VerwerfeEdithoehen();
         }

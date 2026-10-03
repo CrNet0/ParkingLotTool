@@ -185,6 +185,8 @@ namespace ParkingLotTool.Tools
                 From = from,
                 To = to,
             });
+            if (_bauarbeiter && _definitionsmodus == ParkingLotDefinitionsmodus.Permanent)
+                ParkingLotDauerkursSystem.Plane(EntityManager,definition);
         }
 
         private void RecordObjectDefinition(string kind, int index, Entity prefab,

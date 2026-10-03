@@ -137,7 +137,7 @@ namespace ParkingLotTool.Tools
         private HintergrundPortion _fehlstellenportion;
         internal bool HintergrundFehlstellen()
         {
-            _fehlstellenportion ??= new HintergrundPortion(HintergrundFehlstellenschritte());
+            _fehlstellenportion ??= new HintergrundPortion(HintergrundFehlstellenschritte(),_hintergrundTempo);
             var uhr = System.Diagnostics.Stopwatch.StartNew();
             try { _fehlstellenportion.Weiter(() => uhr.Elapsed.TotalMilliseconds); }
             catch (Exception e) { ParkingLotNetzRueckweg.Melde("Diagnose unvollstaendig: " + e.Message); return true; }
@@ -156,7 +156,8 @@ namespace ParkingLotTool.Tools
                 {
                     yield return 0;
                     var c = r.Kurs.GetValueOrDefault();
-                    bool innen = ParkingLotKursabgleich.InnenhoeheVanilla(EntityManager,r.Prefab,c,_lotOwner);
+                    bool innen = ParkingLotKursabgleich.InnenhoeheVanilla(EntityManager,r.Prefab,c,_lotOwner)
+                        && ParkingLotKursabgleich.InnenhoeheNachGeneratoren(EntityManager,r.Prefab,c,_lotOwner);
                     var teile = ParkingLotKursabgleich.Sammle(EntityManager,_eigeneDauerteile,c.m_Curve,r.Prefab,_lotOwner,innenhoeheVanilla:innen);
                     bool kette = ParkingLotKursabgleich.Kette(teile,out var start,out var ende);
                     string grund = !kette ? $"keine volle verbundene Kurvenkette ({teile.Count} Abschnitte innerhalb 5 cm)"

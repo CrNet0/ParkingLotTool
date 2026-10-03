@@ -46,7 +46,7 @@ namespace ParkingLotTool.Tools
         private HintergrundPortion _nebenportion;
         internal int HintergrundNebenbild()
         {
-            _nebenportion ??= new HintergrundPortion(HintergrundNebenschritte());
+            _nebenportion ??= new HintergrundPortion(HintergrundNebenschritte(),_hintergrundTempo);
             var uhr = System.Diagnostics.Stopwatch.StartNew();
             int n = _nebenportion.Weiter(() => uhr.Elapsed.TotalMilliseconds);
             _nebenbild = UnityEngine.Time.frameCount;
