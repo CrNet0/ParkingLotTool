@@ -152,6 +152,18 @@ namespace ParkingLotTool.Tools
             var entfernt = 0;
             var besessen = 0;
             var fremdeKnoten = new HashSet<Entity>();
+            /*
+             * KNOTEN ERST NACH ALLEN KANTEN, IN EINEM BILD (2026-10-03).
+             *
+             * Der Hintergrund-Neubau verteilt diese Schleife ueber mehrere
+             * Bilder. Ein in Bild 1 geloeschter Knoten wird am Bildende
+             * zerstoert; haengt an ihm eine erst in Bild 2 geloeschte Kante,
+             * zeigt sie ein Bild lang auf eine tote Entity -> nativer Absturz
+             * (Sync-Absturz nach "Schnappschuss Lot 447078"). Kanten duerfen
+             * portionsweise fallen, das ist Vanilla-normal; Knoten fallen
+             * gesammelt danach, ohne Unterbrechung.
+             */
+            var spaeteKnoten = new List<Entity>();
             for (var i = 0; i < teile.Length; i++)
             {
                 yield return 0;
@@ -193,9 +205,20 @@ namespace ParkingLotTool.Tools
                     MerkeAltkante(teil);
                     MerkeAltgassenende(teil);
                 }
-                else MerkeAltknotenhoehe(teil);
+                else
+                {
+                    MerkeAltknotenhoehe(teil);
+                    spaeteKnoten.Add(teil);
+                    continue;
+                }
 
                 EntityManager.AddComponent<Deleted>(teil);
+                entfernt++;
+            }
+            foreach (var knoten in spaeteKnoten)
+            {
+                if (!EntityManager.Exists(knoten) || EntityManager.HasComponent<Deleted>(knoten)) continue;
+                EntityManager.AddComponent<Deleted>(knoten);
                 entfernt++;
             }
 

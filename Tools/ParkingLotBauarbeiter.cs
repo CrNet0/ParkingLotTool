@@ -389,11 +389,19 @@ namespace ParkingLotTool.Tools
             if (_lotOwner == Entity.Null && _areaTransferRecords.Count == 1) HintergrundBesitzerDa();
             ParkingLotNetzerhalt.EntferneGelieheneVerweise(EntityManager,_editLot,_lotOwner,_lotCarrier);
             if (_lotOwner != Entity.Null) foreach (int n in SammleHintergrundteileSchritte()) yield return n;
+            // Knoten erst nach allen anderen Teilen und ohne Unterbrechung:
+            // ein portionsweise geloeschter Knoten wuerde am Bildende
+            // zerstoert, waehrend eine erst spaeter geloeschte Kante noch auf
+            // ihn zeigt (gleiche Regel wie EntferneAlteNetzeVorDemNeubau).
+            var knoten = new List<Entity>();
             foreach (var e in _eigeneDauerteile)
             {
+                if (EntityManager.HasComponent<Game.Net.Node>(e)) { knoten.Add(e); continue; }
                 if (ParkingLotNetzRueckweg.Lebt(EntityManager,e)) EntityManager.AddComponent<Deleted>(e);
                 yield return 0;
             }
+            foreach (var e in knoten)
+                if (ParkingLotNetzRueckweg.Lebt(EntityManager,e)) EntityManager.AddComponent<Deleted>(e);
             if (ParkingLotNetzRueckweg.Lebt(EntityManager,_lotOwner)) EntityManager.AddComponent<Deleted>(_lotOwner);
             if (ParkingLotNetzRueckweg.Lebt(EntityManager,_lotCarrier)) EntityManager.AddComponent<Deleted>(_lotCarrier);
             foreach (int n in RestoreHiddenPartsSchritte()) yield return n;
