@@ -332,6 +332,7 @@ namespace ParkingLotTool.Tools
                     ParkingFee = UnityEngine.Mathf.Clamp(
                         Mod.Optionen?.Parkgebuehr ?? 10, 0, 50),
                 };
+                ParkingLotSchrittmarke.Aenderung("Wirtschaft: Lot " + lot.Index + " bekommt Wirtschaftsdaten");
                 EntityManager.AddComponentData(lot, economy);
                 Mod.log.Info("PLT-Wirtschaft: Lot " + lot.Index + " aus "
                     + lanes + " echten Parkspuren gemessen: " + capacity
@@ -400,6 +401,7 @@ namespace ParkingLotTool.Tools
             if (EntityManager.HasComponent<Created>(lot)
                 || EntityManager.HasComponent<Deleted>(lot)
                 || EntityManager.HasComponent<Temp>(lot)) return;
+            ParkingLotSchrittmarke.Aenderung("Wirtschaft: UpdateFrame von Lot " + lot.Index + " abgenommen");
             EntityManager.RemoveComponent<UpdateFrame>(lot);
             Mod.log.Info("PLT-Wirtschaft: UpdateFrame von Lot " + lot.Index
                 + " abgenommen. Eine Flaeche darf sie nicht tragen - "
@@ -643,6 +645,7 @@ namespace ParkingLotTool.Tools
             var usage = (float)economy.Upkeep / UpkeepBasis;
             if (!EntityManager.HasComponent<ServiceUsage>(begleiter))
             {
+                ParkingLotSchrittmarke.Aenderung("Wirtschaft: ServiceUsage an Begleiter " + begleiter.Index);
                 EntityManager.AddComponentData(begleiter,
                     new ServiceUsage { m_Usage = usage });
                 Mod.log.Info("PLT-Wirtschaft: ServiceUsage an Begleiter "

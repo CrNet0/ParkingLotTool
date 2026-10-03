@@ -285,4 +285,12 @@
 		</PropertyGroup>
 	</Target>
 
+	<!--
+		Tabelle Burst-Hash -> Jobname fuer die Auswertung von Absturzabbildern
+		(ParkingLotBurstjobs). Entsteht im Messlauf auf dem Entwicklungsrechner
+		und gilt fuer eine Spielversion.
+	-->
+	<ItemGroup Condition="Exists('Ressourcen\burst-jobs.txt')">
+		<EmbeddedResource Include="Ressourcen\burst-jobs.txt" LogicalName="ParkingLotTool.burst-jobs.txt" />
+	</ItemGroup>
 </Project>

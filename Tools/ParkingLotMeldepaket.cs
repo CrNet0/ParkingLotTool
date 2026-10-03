@@ -230,6 +230,16 @@ namespace ParkingLotTool.Tools
                      * keinen managed Stacktrace aus. Ohne diese Datei ist der
                      * Bericht wertlos.
                      */
+                    /*
+                     * DIE JUENGSTEN ABSTURZABBILDER, AUSGEWERTET (2026-10-04).
+                     * Auch dann, wenn die Wache beim Start keinen Absturz
+                     * erkannt hat - "Report last crash" soll immer den
+                     * letzten Absturz zeigen. Nur Text, nie das Abbild.
+                     */
+                    if (anlass == Anlass.Absturz)
+                        LegeText(archiv, "crash-dumps.txt", ParkingLotAbsturzabbild.Bericht(
+                            ParkingLotAbsturzabbild.Juengste(3)));
+
                     if (anlass == Anlass.Absturz)
                         foreach (var pfad in
                                  ParkingLotAbsturzwache.Absturzdateien())

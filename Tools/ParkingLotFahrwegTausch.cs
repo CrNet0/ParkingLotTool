@@ -110,6 +110,7 @@ namespace ParkingLotTool.Tools
                         break;
                     }
                 case Stufe.Uebernehmen:
+                    ParkingLotSchrittmarke.Aenderung("Fahrwegtausch: Lot " + _lot.Index + " wird uebernommen (Apply)");
                     applyMode = ApplyMode.Apply;
                     _stufe = Stufe.Pruefen;
                     _seit = bild;
@@ -159,6 +160,7 @@ namespace ParkingLotTool.Tools
                 EntityManager.AddComponentData(d, kurs);
                 _definitionen.Add(d);
             }
+            ParkingLotSchrittmarke.Aenderung("Fahrwegtausch: Lot " + _lot.Index + ", " + _plan.Count + " Ersetzungs-Definitionen angelegt");
             Mod.log.Info($"PLT-Fahrwegtausch: Lot {_lot.Index}: {_plan.Count} Ersetzungs-Definitionen (Vanilla-Ersetzen, Temp + Apply).");
         }
 
@@ -198,6 +200,7 @@ namespace ParkingLotTool.Tools
             _lot = Entity.Null;
             _plan.Clear();
             Mod.log.Info($"PLT-Fahrwegtausch: Lot {lot.Index}: {(ok ? "fertig" : "abgebrochen")} - {text}.");
+            ParkingLotSchrittmarke.Aenderung("Fahrwegtausch: Lot " + lot.Index + (ok ? " fertig" : " abgebrochen"));
             Fertig?.Invoke(lot, ok, text);
         }
     }

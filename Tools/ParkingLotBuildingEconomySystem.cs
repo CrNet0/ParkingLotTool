@@ -262,6 +262,7 @@ namespace ParkingLotTool.Tools
             {
                 var objectData = EntityManager.GetComponentData<ObjectData>(prefab);
                 companion = EntityManager.CreateEntity(objectData.m_Archetype);
+                ParkingLotSchrittmarke.Aenderung("Begleiter: Lot " + lot.Index + " bekommt Begleiter " + companion.Index);
             }
             else if (!EntityManager.HasComponent<Game.Objects.Object>(companion))
             {
@@ -301,8 +302,11 @@ namespace ParkingLotTool.Tools
                 new Game.Objects.Attached(carrier, Entity.Null, 0f));
             if (!EntityManager.HasComponent<ParkingLotBuildingEconomyEnabled>(
                     companion))
+            {
+                ParkingLotSchrittmarke.Aenderung("Begleiter: Begleiter " + companion.Index + " fuer Lot " + lot.Index + " eingeschaltet");
                 EntityManager.AddComponent<ParkingLotBuildingEconomyEnabled>(
                     companion);
+            }
 
             var economy = EntityManager.GetComponentData<ParkingLotEconomyData>(lot);
             /*
@@ -886,6 +890,7 @@ namespace ParkingLotTool.Tools
                     continue;
                 }
 
+                ParkingLotSchrittmarke.Aenderung("Begleiter: Altparkplatz " + lot.Index + " abgeschaltet");
                 DisconnectElectricity(lot);
                 MarkParkingLanesUpdated(lot);
                 RemoveIfPresent<Building>(lot);
@@ -939,6 +944,7 @@ namespace ParkingLotTool.Tools
                 return;
             }
 
+            ParkingLotSchrittmarke.Aenderung("Begleiter: Begleiter " + companion.Index + " wird abgebaut");
             DisconnectElectricity(companion);
             if (EntityManager.HasComponent<ParkingLotPartRelation>(companion))
             {

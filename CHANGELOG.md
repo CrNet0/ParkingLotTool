@@ -6,6 +6,7 @@
 - "Update" brings existing lots to the new speed in seconds.
 - New option: trees don't age; save and reset for the vegetation window.
 - Pending updates are shown after loading; a click opens the lot list.
+- Crash reports now show where the game crashed; the button is now "Report the last crash".
 - Fix: crash when editing a lot with bus stops while utilities were connected.
 - Fix: bus stops disappeared after editing a lot.
 - Fix: cancelling an edit could remove the lot's paths.

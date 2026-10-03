@@ -75,6 +75,7 @@ namespace ParkingLotTool.Tools
                 EntityManager.AddBuffer<Employee>(companion);
             if (!EntityManager.HasComponent<WorkProvider>(companion))
             {
+                ParkingLotSchrittmarke.Aenderung("Angestellte: Arbeitsplaetze an Begleiter " + companion.Index);
                 EntityManager.AddComponentData(companion, new WorkProvider
                 {
                     m_MaxWorkers = workers,

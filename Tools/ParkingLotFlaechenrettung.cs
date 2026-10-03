@@ -190,6 +190,7 @@ namespace ParkingLotTool.Tools
                 }
                 if (klon == Entity.Null) { offen += paar.Value.Count; continue; }
 
+                ParkingLotSchrittmarke.Aenderung("Flaechenrettung: " + paar.Value.Count + " Teil(e) von '" + gesucht + "' werden neu angelegt");
                 var neu = 0;
                 foreach (var teil in paar.Value)
                     if (LegeNeuAn(teil, klon)) neu++;

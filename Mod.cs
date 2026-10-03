@@ -192,6 +192,8 @@ namespace ParkingLotTool
              */
 
             updateSystem.UpdateAt<ParkingLotUISystem>(SystemUpdatePhase.UIUpdate);
+            // Lebenszeichen fuer Absturzberichte, auch im Hauptmenue.
+            updateSystem.UpdateAt<ParkingLotHerzschlagSystem>(SystemUpdatePhase.MainLoop);
             // Der Gebuehrenabschnitt im Auswahlfenster. Er traegt sich in
             // OnCreate selbst bei SelectedInfoUISystem ein.
             updateSystem.UpdateAt<ParkingLotFeeSection>(SystemUpdatePhase.UIUpdate);

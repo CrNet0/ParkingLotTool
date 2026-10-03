@@ -342,6 +342,7 @@ namespace ParkingLotTool.Tools
                 return;
             }
             if (_pendingBusStops.Length == 0) return;
+            ParkingLotSchrittmarke.Aenderung("Bushalte: " + _pendingBusStops.Length + " Halt(e) an Traeger " + carrier.Index + " bestellt");
             // Uebernommene Halte existieren bereits; deren Linienverweise
             // duerfen nicht durch ein zweites Schild an derselben Lage leiden.
             var vorhandene = new List<float2>();
@@ -573,6 +574,8 @@ namespace ParkingLotTool.Tools
                         if (EntityManager.HasComponent<Game.Net.PedestrianLane>(lane)) walk++;
                     }
                 }
+                if (!EntityManager.HasComponent<ParkingLotPartRelation>(entity))
+                    ParkingLotSchrittmarke.Aenderung("Bushalte: Halt " + entity.Index + " dem Lot " + _pendingBusLot.Index + " zugeordnet");
                 if (!EntityManager.HasComponent<ParkingLotPartRelation>(entity))
                     EntityManager.AddComponentData(entity, new ParkingLotPartRelation
                     {

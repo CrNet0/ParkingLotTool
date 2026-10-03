@@ -219,6 +219,7 @@ namespace ParkingLotTool.Tools
         private bool Verbinden(Entity lot)
         {
             if (!_traegerVon.TryGetValue(lot, out var traeger)) return false;
+            ParkingLotSchrittmarke.Aenderung("Waisen: Lot " + lot.Index + " wird mit Traeger " + traeger.Index + " verbunden");
             // Die Zuordnung stammt vom Laden. Bis zum Klick kann sich der
             // Traeger geaendert haben (Codex, 2026-09-25) - deshalb alles,
             // worauf sie beruht, hier noch einmal.

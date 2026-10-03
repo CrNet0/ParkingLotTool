@@ -3,7 +3,7 @@ import { MitTooltip, Spalte } from "./controls";
 import {
   absturzBefund$, absturzErkannt$, baubefund$, baukurzinfo$,
   clearMarkers, icon, markerCount$, meldeLotWahl$,
-  markerMode$, meldungAbsturz, meldungBau, meldungOrdner, meldungPfad$,
+  markerMode$, meldungAbsturz, meldungOrdner, meldungPfad$,
   meldungVorschau, removeLastMarker, reportPath$, schalteMeldeLotWahl,
   setMarkerMode, writeReport,
   leistungRest$, starteLeistungstest,
@@ -173,29 +173,23 @@ export const ReportTab = () => {
       </Spalte>
 
       <Spalte title={t.meldungTitel} ton="Melden" breit>
+        {/*
+          NACH EINEM ABSTURZ NUR DER HINWEIS. Gemeldet wird ueber "Report
+          the last crash" im Gitter darunter; ein zweiter Knopf mit derselben
+          Wirkung stiftete nur Verwirrung (Nutzer, 2026-10-04).
+        */}
         {absturzErkannt ? (
-          <>
-            <div className={styles.explain}>
-              {t.meldungAbsturzTitel}
-              {absturzBefund ? " " + absturzBefund : ""}
-            </div>
-            <MitTooltip text={t.tooltipMeldungAbsturz}>
-            <button
-              className={`${styles.meldeKnopf} ${styles.meldeKnopfAn}`}
-              onClick={meldungAbsturz}
-            >
-              <img src={icon("DiskSave")} />
-              <span>{t.meldungAbsturzKnopf}</span>
-            </button>
-            </MitTooltip>
-          </>
+          <div className={styles.explain}>
+            {t.meldungAbsturzTitel}
+            {absturzBefund ? " " + absturzBefund : ""}
+          </div>
         ) : null}
 
         {/*
           VIER KNOEPFE, EINE GRUPPE.
 
-          Reihenfolge nach dem, was man meldet: erst die beiden, die den
-          aktuellen Zustand nehmen (Vorschau, letzter Bau), dann der, der
+          Reihenfolge nach dem, was man meldet: erst die Vorschau und der
+          letzte Absturz, dann der, der
           einen gebauten Parkplatz im Gelaende anklickt. "Ordner oeffnen"
           steht unten rechts - es meldet nichts, es zeigt nur, wo die Dateien
           liegen. Ausdruecklich so gewuenscht.
@@ -213,9 +207,9 @@ export const ReportTab = () => {
             </MitTooltip>
           </div>
           <div className={styles.meldeGitterKnopf}>
-            <MitTooltip text={t.tooltipMeldungBau}>
-            <button className={styles.smallButton} onClick={meldungBau}>
-              {t.meldungBauKnopf}
+            <MitTooltip text={t.tooltipMeldungAbsturz}>
+            <button className={styles.smallButton} onClick={meldungAbsturz}>
+              {t.meldungAbsturzKnopf}
             </button>
             </MitTooltip>
           </div>

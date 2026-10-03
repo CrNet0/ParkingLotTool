@@ -54,8 +54,11 @@ namespace ParkingLotTool.Tools
                 if (offen)
                 {
                     LetzteSitzungAbgestuerzt = true;
+                    var sitzungsstart = LiesStart(marke);
                     Befund = LiesVorigesLog();
-                    Rette();
+                    var abbild = ParkingLotAbsturzabbild.JuengsterAbsturzSeit(sitzungsstart);
+                    if (abbild != null) Befund += " " + ParkingLotAbsturzabbild.Kurz(abbild);
+                    Rette(sitzungsstart);
                     Mod.log.Warn("PLT-Absturzwache: die vorige Sitzung hat "
                         + "nicht ordentlich aufgehoert. " + Befund
                         + " Im Melde-Reiter steht jetzt ein Knopf fuer den "
@@ -217,7 +220,49 @@ namespace ParkingLotTool.Tools
          * Kopiert wird deshalb sofort und unter eigenem Namen. Was hier liegt,
          * gehoert zum Absturz und kann von nichts mehr verdraengt werden.
          */
-        private static void Rette()
+        /** Startzeit der abgestuerzten Sitzung aus ihrer Marke. */
+        private static DateTime LiesStart(string marke)
+        {
+            try
+            {
+                foreach (var zeile in File.ReadAllLines(marke))
+                    if (zeile.StartsWith("Gestartet: ", StringComparison.Ordinal)
+                        && DateTime.TryParseExact(zeile.Substring(11).Trim(), "yyyy-MM-dd HH:mm:ss",
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            System.Globalization.DateTimeStyles.None, out var start))
+                        return start;
+                return File.GetLastWriteTime(marke);
+            }
+            catch { return DateTime.MinValue; }
+        }
+
+        /**
+         * DAS ABSTURZABBILD UND DAS LETZTE LEBENSZEICHEN DAZU (2026-10-04).
+         *
+         * Beides gehoert zum abgestuerzten Lauf und kommt deshalb hier unter
+         * eigenem Stempel in die Rettung - das Lebenszeichen ueberschreibt
+         * die neue Sitzung nach zehn Sekunden.
+         */
+        private static int RetteAbbild(DateTime sitzungsstart, string stempel)
+        {
+            var gerettet = 0;
+            var herz = ParkingLotSchrittmarke.HerzschlagPfad;
+            var lebenszeichen = File.Exists(herz) ? File.ReadAllText(herz).Trim() : null;
+            if (lebenszeichen != null)
+            {
+                File.Copy(herz, Path.Combine(Ordner, Rettung + stempel + "-heartbeat.txt"), true);
+                gerettet++;
+            }
+            var abbilder = ParkingLotAbsturzabbild.Juengste(3)
+                .Where(p => File.GetLastWriteTime(p) >= sitzungsstart.AddSeconds(-5)).ToList();
+            var kopf = "Crashed session started " + sitzungsstart.ToString("yyyy-MM-dd HH:mm:ss")
+                + Environment.NewLine + (lebenszeichen ?? "No sign of life recorded.");
+            File.WriteAllText(Path.Combine(Ordner, Rettung + stempel + "-crashdump.txt"),
+                ParkingLotAbsturzabbild.Bericht(abbilder, kopf));
+            return gerettet + 1;
+        }
+
+        private static void Rette(DateTime sitzungsstart)
         {
             var gerettet = 0;
             /*
@@ -253,6 +298,12 @@ namespace ParkingLotTool.Tools
                         Rettung + stempel + "-" + Path.GetFileName(juengste)),
                         true);
                     gerettet++;
+                }
+
+                try { gerettet += RetteAbbild(sitzungsstart, stempel); }
+                catch (Exception ausnahme)
+                {
+                    Mod.log.Warn("PLT-Absturzwache: Absturzabbild nicht auswertbar: " + ausnahme.Message);
                 }
 
                 Mod.log.Warn($"PLT-Absturzwache: {gerettet} Datei(en) des "

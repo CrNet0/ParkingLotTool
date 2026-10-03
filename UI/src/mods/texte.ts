@@ -207,11 +207,10 @@ const en = {
   tooltipBerichtSchreiben:
     "Writes your marks and what the mod last did into one file you can send.",
   tooltipMeldungAbsturz:
-    "Collects the log of the run that crashed, before this one overwrites it.",
+    "Packs everything about the last crash into one file: what the mod did last, "
+    + "the game's crash dump read out, and the logs of that run.",
   tooltipMeldungVorschau:
     "Reports what the preview shows right now - nothing has to be built yet.",
-  tooltipMeldungBau:
-    "Reports the lot you built last, with the receipt of how it was made.",
   tooltipMeldeLot:
     "Then click a lot out in the world; right-click cancels.",
   tooltipMeldungOrdner:
@@ -230,10 +229,9 @@ const en = {
    * Spielers: nicht "Dump", nicht "Abzug", sondern "report" und "file".
    */
   meldungTitel: "Send a report",
-  meldungAbsturzTitel: "The game crashed last time",
-  meldungAbsturzKnopf: "Create crash report",
+  meldungAbsturzTitel: "The game crashed last time. Please use \"Report the last crash\".",
+  meldungAbsturzKnopf: "Report the last crash",
   meldungVorschauKnopf: "Report the preview",
-  meldungBauKnopf: "Report the last build",
   meldungOrdnerKnopf: "Open folder",
   meldungErklaerung:
     "Creates one file holding everything needed to look into it: what you "
@@ -803,11 +801,10 @@ const de: Texte = {
     "Schreibt deine Markierungen und was die Mod zuletzt tat in EINE Datei "
     + "zum Verschicken.",
   tooltipMeldungAbsturz:
-    "Sichert das Log des abgestürzten Laufs, bevor dieser es überschreibt.",
+    "Packt alles zum letzten Absturz in eine Datei: was die Mod zuletzt tat, "
+    + "das ausgelesene Absturzabbild des Spiels und die Logs dieses Laufs.",
   tooltipMeldungVorschau:
     "Meldet, was die Vorschau gerade zeigt - es muss noch nichts gebaut sein.",
-  tooltipMeldungBau:
-    "Meldet den zuletzt gebauten Parkplatz samt Bauzettel.",
   tooltipMeldeLot:
     "Danach einen Parkplatz im Gelände anklicken; Rechtsklick bricht ab.",
   tooltipMeldungOrdner:
@@ -821,10 +818,9 @@ const de: Texte = {
   reiterMelden: "Fehler melden",
   reiterDebug: "Dev-Debug",
   meldungTitel: "Bericht schicken",
-  meldungAbsturzTitel: "Das Spiel ist letztes Mal abgestürzt",
-  meldungAbsturzKnopf: "Absturzbericht erstellen",
+  meldungAbsturzTitel: "Das Spiel ist letztes Mal abgestürzt. Bitte \"Letzten Absturz melden\" nutzen.",
+  meldungAbsturzKnopf: "Letzten Absturz melden",
   meldungVorschauKnopf: "Vorschau melden",
-  meldungBauKnopf: "Letzten Bau melden",
   meldungOrdnerKnopf: "Ordner öffnen",
   meldungErklaerung:
     "Erstellt EINE Datei mit allem, was zum Nachsehen nötig ist: was du "

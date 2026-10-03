@@ -279,6 +279,7 @@ namespace ParkingLotTool.Tools
 
         private void SetzeBaumzustaende(Entity lot)
         {
+            ParkingLotSchrittmarke.Aenderung("Vegetation: Baumzustaende von Lot " + lot.Index + " nachgesetzt");
             if (_vegNachschauZiele.Count == 0) return;
             using var parts = _editRelatedParts.ToEntityArray(Allocator.Temp);
             int getroffen = 0, geaendert = 0, ohneZiel = 0;

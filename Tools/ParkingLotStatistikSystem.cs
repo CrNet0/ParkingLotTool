@@ -493,6 +493,7 @@ namespace ParkingLotTool.Tools
                 GebautFrame = _ersteProbeDerSitzung ? 0u : jetzt,
                 LetzteGebuehr = -1,
             };
+            ParkingLotSchrittmarke.Aenderung("Statistik: Lot " + lot.Index + " bekommt Statistik");
             EntityManager.AddComponentData(lot, frisch);
             return frisch;
         }
