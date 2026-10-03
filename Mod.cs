@@ -330,12 +330,21 @@ namespace ParkingLotTool
             updateSystem.UpdateAt<ParkingLotDebugTooltipSystem>(
                 SystemUpdatePhase.UITooltip);
             // Muss laufen, wenn das Werkzeug NICHT aktiv ist - der Bulldozer
-            // schlaegt genau dann zu. Phase 3 ist Pflicht, nicht Geschmack:
-            // `LaneSystem` raeumt in Phase 4 die Parkspuren geloeschter
-            // Besitzer weg. Wer spaeter markiert, laesst Waisen zurueck und
-            // reisst das Spiel ab.
+            // schlaegt genau dann zu. `LaneSystem` raeumt in Phase 4 die
+            // Parkspuren geloeschter Besitzer weg; wer spaeter markiert,
+            // laesst Waisen zurueck.
+            //
+            // MODIFICATION2, NICHT 3 (2026-10-03). Die Barriere von Phase 3
+            // spielt erst am ENDE von Phase 3 ab. `AttachSystem` und
+            // `SubObjectReferencesSystem` laufen davor in Phase 3 und sahen
+            // das `Deleted` unserer Haltestellen nie - ihr Eintrag blieb in
+            // der SubObject-Liste der Zoningkante stehen und zeigte nach dem
+            // Zerstoeren ins Leere. Das naechste Update dieser Kante (die
+            // Versorgungsleitung) liess `CompositionSelectSystem` den toten
+            // Eintrag lesen: nativer Absturz (Diagnose KANDIDAT SUBOBJECT).
+            // Mit Barriere 2 ist `Deleted` ab Phase 3 fuer alle sichtbar.
             updateSystem.UpdateAt<ParkingLotCleanupSystem>(
-                SystemUpdatePhase.Modification3);
+                SystemUpdatePhase.Modification2);
             /*
              * DIE STADTREINIGUNG MARKIERT UNMITTELBAR VOR DEM AUFRAEUMER.
              *

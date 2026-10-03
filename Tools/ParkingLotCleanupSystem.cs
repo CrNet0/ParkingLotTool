@@ -26,10 +26,15 @@ namespace ParkingLotTool.Tools
      *   aus der Absturzserie im Juli; ohne neuen Ingame-Stresstest gibt es
      *   keinen Messwert, der eine Erhoehung rechtfertigt.
      *
-     * Das System bleibt in Modification3 vor `LaneSystem` in Phase 4. So sieht
-     * Vanilla jedes geloeschte Decal noch rechtzeitig und raeumt dessen eigene
-     * Parkspur mit auf. Strukturaenderungen laufen ausschliesslich ueber die
-     * Barrier derselben Phase.
+     * Das System laeuft in Modification2 (seit 2026-10-03, vorher 3), seine
+     * Barriere spielt am Ende von Phase 2 ab. So sehen `AttachSystem` und
+     * `SubObjectReferencesSystem` (Phase 3) jedes geloeschte Teil und tragen
+     * es aus den SubObject-Listen aus - sonst bleiben tote Eintraege an der
+     * Zoningkante, und `CompositionSelectSystem` stuerzt beim naechsten
+     * Kanten-Update ab. `LaneSystem` (Phase 4) raeumt weiterhin die Parkspur
+     * jedes Decals mit auf. Netzkanten markiert der Aufraeumer nicht.
+     * Strukturaenderungen laufen ausschliesslich ueber die Barrier derselben
+     * Phase.
      */
     public sealed partial class ParkingLotCleanupSystem : GameSystemBase
     {
@@ -40,7 +45,7 @@ namespace ParkingLotTool.Tools
             internal bool Ready;
         }
 
-        private ModificationBarrier3 _barrier;
+        private ModificationBarrier2 _barrier;
         private EntityQuery _deletedLotQuery;
         private EntityQuery _partQuery;
         private EntityQuery _besitzQuery;
@@ -86,7 +91,7 @@ namespace ParkingLotTool.Tools
         protected override void OnCreate()
         {
             base.OnCreate();
-            _barrier = World.GetOrCreateSystemManaged<ModificationBarrier3>();
+            _barrier = World.GetOrCreateSystemManaged<ModificationBarrier2>();
 
             _deletedLotQuery = GetEntityQuery(new EntityQueryDesc
             {
@@ -428,7 +433,7 @@ namespace ParkingLotTool.Tools
                 if (IstPflanze(part)) pflanzen++;
 
                 // Ein Decal bringt eigene Parkspuren mit. Sie werden zusammen
-                // mit dem Teil in Modification3 markiert, damit LaneSystem in
+                // mit dem Teil in Modification2 markiert, damit LaneSystem in
                 // Phase 4 keine Waisen vorfindet.
                 if (EntityManager.HasBuffer<Game.Net.SubLane>(part))
                 {
