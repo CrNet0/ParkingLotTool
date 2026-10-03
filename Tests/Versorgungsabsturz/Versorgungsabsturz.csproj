@@ -4,12 +4,16 @@
     <Diagnosequelle Condition="'$(Diagnosequelle)' == ''">../../Tools/ParkingLotVersorgungsdiagnoseSystem.cs</Diagnosequelle>
     <Phasenquelle Condition="'$(Phasenquelle)' == ''">../../Tools/ParkingLotVersorgungsphasen.cs</Phasenquelle>
     <Datenquelle Condition="'$(Datenquelle)' == ''">../../Tools/ParkingLotVersorgungsdaten.cs</Datenquelle>
+    <Bushaltquelle Condition="'$(Bushaltquelle)' == ''">../../Tools/ParkingLotBushaltdiagnose.cs</Bushaltquelle>
+    <Teilnetzquelle Condition="'$(Teilnetzquelle)' == ''">../../Tools/ParkingLotTeilnetz.cs</Teilnetzquelle>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="artifacts/**/*.cs" />
     <Compile Include="$(Diagnosequelle)" Link="Diagnose.cs" />
     <Compile Include="$(Phasenquelle)" Link="Phasen.cs" />
     <Compile Include="$(Datenquelle)" Link="Daten.cs" />
+    <Compile Include="$(Bushaltquelle)" Link="Bushaltdiagnose.cs" />
+    <Compile Include="$(Teilnetzquelle)" Link="Teilnetz.cs" />
     <Compile Include="../../Tools/ParkingLotPuffer.cs" Link="Puffer.cs" />
     <Compile Include="../../Tools/ParkingLotVersorgungsgrenzen.cs" Link="Grenzen.cs" />
   </ItemGroup>

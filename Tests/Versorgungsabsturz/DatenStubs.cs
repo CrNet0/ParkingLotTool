@@ -3,6 +3,9 @@ using Unity.Entities;
 // Nur die Datenformen der ECS-API. Die Messung selbst ist Produktionscode.
 namespace Game.Net
 {
+    public struct Upgraded : IComponentData { }
+    public struct CarLane : IComponentData { }
+    public struct PedestrianLane : IComponentData { }
     public struct Lane : IComponentData { }
     public struct EdgeLane : IComponentData { }
     public struct SlaveLane : IComponentData { public ushort m_MasterIndex; }
@@ -13,6 +16,10 @@ namespace Game.Net
 }
 namespace Game.Objects
 {
+    public struct Attached : IComponentData { public Entity m_Parent, m_OldParent; public float m_CurvePosition; }
+    public struct Attachment : IComponentData { public Entity m_Attached; }
+    public struct Placeholder : IComponentData { }
+    public struct NetObject : IComponentData { }
     public struct Transform : IComponentData { }
     public struct SubObject : IBufferElementData { public Entity m_SubObject; }
 }
@@ -28,6 +35,10 @@ namespace Game.Simulation
 }
 namespace Game.Prefabs
 {
+    public struct NetObjectData : IComponentData { public CompositionFlags m_CompositionFlags; }
+    public struct PlaceableObjectData : IComponentData { }
+    public struct TransportStopData : IComponentData { }
+    public struct RouteConnectionData : IComponentData { }
     public struct NetData : IComponentData { }
     public struct NetGeometryData : IComponentData { }
     public struct RoadData : IComponentData { }
@@ -57,4 +68,20 @@ namespace Game.Prefabs
     public struct LodMesh : IBufferElementData { public Entity m_LodMesh; }
     public struct MeshMaterial : IBufferElementData { }
     public struct NetGeometryComposition : IBufferElementData { public Entity m_Composition; }
+}
+namespace Game.Tools
+{
+    public struct OwnerDefinition : IComponentData { }
+}
+namespace Game.Routes
+{
+    public struct TransportStop : IComponentData { }
+    public struct ConnectedRoute : IBufferElementData { public Entity m_Waypoint; }
+    public struct Connected : IComponentData { public Entity m_Connected; }
+    public struct RouteLane : IComponentData { public Entity m_StartLane, m_EndLane; }
+    public struct AccessLane : IComponentData { public Entity m_Lane; }
+}
+namespace ParkingLotTool.Tools
+{
+    public struct ParkingLotPartRelation : IComponentData { public Entity Lot, Carrier; }
 }

@@ -109,6 +109,49 @@ namespace ParkingLotTool.Tools
             if (tot + ohnePuffer > 0) Mod.log.Warn(text.ToString()); else Mod.log.Info(text.ToString());
             ParkingLotSchrittmarke.Setze("Netzbesitzer: " + (tot + ohnePuffer) + " ohne SubNet-Puffer/tot");
             PruefeWegbesitzer(netze);
+            PruefeKantenObjekte();
+        }
+
+        /**
+         * CompositionSelectSystem (Mod3) liest PrefabRef und Transform der
+         * SubObject-Eintraege einer aktualisierten Kante OHNE Pruefung. Unsere
+         * besitzerlosen PLT-Haltestellen stehen ueber AttachSystem in genau
+         * dieser Liste. Ein toter Eintrag dort = nativer Absturz in Mod3, und
+         * dort endet die Absturzspur (2026-10-03). Nur lesen.
+         */
+        private void PruefeKantenObjekte()
+        {
+            using var q = EntityManager.CreateEntityQuery(
+                ComponentType.ReadOnly<Game.Net.Edge>(), ComponentType.ReadOnly<Game.Objects.SubObject>(),
+                ComponentType.Exclude<Deleted>(), ComponentType.Exclude<Game.Tools.Temp>());
+            using var kanten = q.ToEntityArray(Allocator.Temp);
+            int eintraege = 0, tot = 0, ohnePrefab = 0, ohneTransform = 0, fremdAttached = 0;
+            var beispiele = new List<string>();
+            foreach (var k in kanten)
+            {
+                var puffer = EntityManager.GetBuffer<Game.Objects.SubObject>(k, true);
+                for (var i = 0; i < puffer.Length; i++)
+                {
+                    var o = puffer[i].m_SubObject;
+                    eintraege++;
+                    string fehler = null;
+                    if (!EntityManager.Exists(o)) { tot++; fehler = "existiert nicht"; }
+                    else if (!EntityManager.HasComponent<Game.Prefabs.PrefabRef>(o)) { ohnePrefab++; fehler = "ohne PrefabRef"; }
+                    else if (!EntityManager.HasComponent<Game.Objects.Transform>(o)) { ohneTransform++; fehler = "ohne Transform"; }
+                    else if (EntityManager.HasComponent<Game.Objects.Attached>(o)
+                             && !EntityManager.HasComponent<Game.Common.Owner>(o)
+                             && EntityManager.GetComponentData<Game.Objects.Attached>(o).m_Parent != k)
+                    { fremdAttached++; fehler = "Attached zeigt auf " + EntityManager.GetComponentData<Game.Objects.Attached>(o).m_Parent; }
+                    if (fehler != null && beispiele.Count < 8) beispiele.Add($"Kante {k} -> {o}: {fehler}");
+                }
+            }
+            var summe = tot + ohnePrefab + ohneTransform + fremdAttached;
+            var text = $"PLT-Kantenobjekte (nur lesen): {kanten.Length} Kanten mit SubObject-Liste, {eintraege} Eintraege; "
+                + $"{tot} tot, {ohnePrefab} ohne PrefabRef, {ohneTransform} ohne Transform, "
+                + $"{fremdAttached} besitzerlos mit fremdem Attached-Parent."
+                + (beispiele.Count > 0 ? " Beispiele: " + string.Join(" | ", beispiele) : "");
+            if (summe > 0) Mod.log.Warn(text); else Mod.log.Info(text);
+            ParkingLotSchrittmarke.Setze("Kantenobjekte: " + summe + " fehlerhafte Eintraege");
         }
 
         /**

@@ -19,18 +19,21 @@ namespace Unity.Entities
     }
     public sealed class FakeArray<T> : List<T>, IDisposable
     { public void Dispose() { } }
-    public sealed class EntityQuery
+    public sealed class EntityQuery : IDisposable
     {
+        public void Dispose() { }
         public FakeManager Manager;
         public ComponentType[] Types;
         public FakeArray<Entity> ToEntityArray(Unity.Collections.Allocator _)
         {
             var result = new FakeArray<Entity>();
-            result.AddRange(Manager.Data.Where(p => Types.All(t => p.Value.ContainsKey(t.Type) != t.Excluded)).Select(p => p.Key));
+            result.AddRange(Manager.Data.Where(p => Types.All(t =>
+                (p.Value.ContainsKey(t.Type) || p.Value.ContainsKey(typeof(List<>).MakeGenericType(t.Type)))
+                    != t.Excluded)).Select(p => p.Key));
             return result;
         }
     }
-    public sealed class FakeManager
+    public class FakeManager
     {
         public readonly Dictionary<Entity, Dictionary<Type, object>> Data = new();
         public void Add<T>(Entity e, T value)
@@ -49,6 +52,11 @@ namespace Unity.Entities
             foreach (var t in Data[e].Keys) a.Add(new(t, false));
             return a;
         }
+    }
+    public sealed class EntityManager : FakeManager
+    {
+        public EntityQuery CreateEntityQuery(params ComponentType[] types)
+            => new() { Manager = this, Types = types };
     }
     public sealed class DynamicBuffer<T>(List<T> data) : IEnumerable<T>
     {
@@ -76,7 +84,7 @@ namespace Game
     public enum SystemUpdatePhase { Modification1, Modification2, Modification3, Modification4, Modification4B, Modification5 }
     public abstract class GameSystemBase
     {
-        public Unity.Entities.FakeManager EntityManager = new();
+        public Unity.Entities.EntityManager EntityManager = new();
         public Unity.Entities.FakeWorld World = new();
         protected abstract void OnUpdate();
         public void Tick() => OnUpdate();
@@ -97,7 +105,7 @@ namespace Game.Common
 }
 namespace Game.Net
 {
-    public struct Edge { public Unity.Entities.Entity m_Start, m_End; }
+    public struct Edge : Unity.Entities.IComponentData { public Unity.Entities.Entity m_Start, m_End; }
     public struct Node { public string m_Position; }
     public struct Curve : Unity.Entities.IComponentData { public float m_Length; public FakeBezier m_Bezier; }
     public struct FakeBezier { public FakePoint a, d; }

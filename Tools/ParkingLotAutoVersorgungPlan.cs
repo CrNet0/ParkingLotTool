@@ -33,6 +33,7 @@ namespace ParkingLotTool.Tools
                 return trassen;
             }
             var e = AvLeseIstEingabe(traeger, zielstrassen, _avAlleEigenen);
+            AvMeldeBushaltAnschluesse(traeger);
             Versorgungsauswahl aus;
             var vor = _avVorplanBeimBau;
             var nummer = _avVorplanIndex + 1;
@@ -92,7 +93,7 @@ namespace ParkingLotTool.Tools
                 var g = aus.Gruppen[i];
                 var name = $"Netz {i + 1}/{aus.Gruppen.Count}";
                 var gesperrteStarts = g.Kanten.FindAll(k => k.AnschlussGesperrt).Count;
-                if (gesperrteStarts > 0)
+                if (gesperrteStarts > 0 && Mod.Aus("versorgung-ohne-zoningstart"))
                     Mod.log.Warn($"PLT-VERSORGUNG-DIAG OHNE-ZONINGSTART {name}: "
                         + $"{gesperrteStarts}/{g.Kanten.Count} Kanten als Start/Ziel gesperrt; "
                         + $"Stadtpfad={(g.AnStadt ? 1 : 0)}, Trasse={(g.Weg != null ? 1 : 0)}. "
@@ -251,7 +252,8 @@ namespace ParkingLotTool.Tools
                 var k = Hole(entity);
                 if (k != null) e.Hinderniskanten.Add(k);
             }
-            foreach (var entity in SammleUnsereKanten(traeger))
+            var eigeneKanten = SammleUnsereKanten(traeger);
+            foreach (var entity in eigeneKanten)
             {
                 var k = Hole(entity);
                 if (k == null) continue;
@@ -273,6 +275,9 @@ namespace ParkingLotTool.Tools
             }
             foreach (var v in _avVerbindungen)
                 e.Verbindungen.Add((v.Start.xz, v.Ziel.xz, v.ZielIstStadt));
+            if (Mod.Aus("versorgung-ohne-bushalt"))
+                foreach (var haltkante in ParkingLotTeilnetz.Bushaltkanten(EntityManager, eigeneKanten))
+                    e.Bushaltkanten.Add(haltkante.Index);
             foreach (var gruppe in SammleVersorgungsgruppen(
                 SammleUnsereKanten(traeger).FindAll(KanteNimmtVersorgung)))
             {

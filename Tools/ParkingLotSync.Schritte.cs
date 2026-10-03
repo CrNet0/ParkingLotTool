@@ -87,6 +87,7 @@ namespace ParkingLotTool.Tools
                 {
                     Braucht = (lot, traeger, teile) =>
                     {
+                        if (Mod.Aus("bushaltestellen")) return false;
                         foreach (var t in teile)
                             if (EntityManager.HasComponent<Game.Routes.TransportStop>(t)
                                 && EntityManager.HasComponent<Owner>(t))

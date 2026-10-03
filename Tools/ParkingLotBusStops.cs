@@ -333,6 +333,14 @@ namespace ParkingLotTool.Tools
 
         private void BuildBusStopsOnRoads(Entity carrier)
         {
+            if (Mod.Aus("bushaltestellen"))
+            {
+                if (_pendingBusStops.Length > 0)
+                    Mod.log.Warn($"PLT-BUSHALT-AUS: {_pendingBusStops.Length} Bestellungen ausgelassen; vorhandene Halte bleiben Vanilla ueberlassen.");
+                _pendingBusStops = Array.Empty<BusStopPlacement>();
+                _busStopBuildDeadline = -1;
+                return;
+            }
             if (_pendingBusStops.Length == 0) return;
             // Uebernommene Halte existieren bereits; deren Linienverweise
             // duerfen nicht durch ein zweites Schild an derselben Lage leiden.
@@ -341,17 +349,18 @@ namespace ParkingLotTool.Tools
                 foreach (var e in teile)
                     if (EntityManager.GetComponentData<ParkingLotPartRelation>(e).Lot == _pendingBusLot
                         && EntityManager.HasComponent<Game.Routes.TransportStop>(e)
+                        && ParkingLotTeilnetz.Lebt(EntityManager, e)
                         && EntityManager.HasComponent<Game.Objects.Transform>(e))
                         vorhandene.Add(EntityManager.GetComponentData<Game.Objects.Transform>(e).m_Position.xz);
             _pendingBusStops = _pendingBusStops.Where(s => !vorhandene.Any(p => math.distance(p,BusStopSnap.SignPosition(s)) < .5f)).ToArray();
             if (_pendingBusStops.Length == 0) return;
-            if (carrier != _pendingBusCarrier || !EntityManager.Exists(carrier)
-                || !EntityManager.HasBuffer<Game.Net.SubNet>(carrier)) return;
+            if (carrier != _pendingBusCarrier || !EntityManager.Exists(carrier)) return;
             if (!ResolveBusStopPrefab()) return;
-            var subnets = EntityManager.GetBuffer<Game.Net.SubNet>(carrier, true);
+            var kanten = ParkingLotTeilnetz.Kanten(EntityManager, _pendingBusLot, carrier);
             var routeData = EntityManager.GetComponentData<RouteConnectionData>(
                 _busStopPrefab);
             var built = 0;
+            var offen = new List<BusStopPlacement>();
             for (var i = 0; i < _pendingBusStops.Length; i++)
             {
                 var stop = _pendingBusStops[i];
@@ -360,9 +369,9 @@ namespace ParkingLotTool.Tools
                 var best = 1f;
                 var along = 0f;
                 var reversed = false;
-                for (var k = 0; k < subnets.Length; k++)
+                for (var k = 0; k < kanten.Count; k++)
                 {
-                    var candidate = subnets[k].m_SubNet;
+                    var candidate = kanten[k];
                     if (!EntityManager.Exists(candidate)
                         || !EntityManager.HasComponent<PrefabRef>(candidate)
                         || !EntityManager.HasComponent<Curve>(candidate)) continue;
@@ -383,8 +392,11 @@ namespace ParkingLotTool.Tools
                 }
                 if (edge == Entity.Null)
                 {
+                    var schild = BusStopSnap.SignPosition(stop);
                     Mod.log.Warn($"PLT-Bushalt {i}: keine gebaute Zoning-Kante "
-                        + $"bei {target.x:F1}/{target.y:F1}; Schild ausgelassen.");
+                        + $"bei {target.x:F1}/{target.y:F1}, Schild {schild.x:F1}/{schild.y:F1}, "
+                        + $"Seite={(stop.Left ? "links" : "rechts")}; Kandidaten={kanten.Count}; wartet auf Netz.");
+                    offen.Add(stop);
                     continue;
                 }
                 var carLanes = 0;
@@ -425,6 +437,7 @@ namespace ParkingLotTool.Tools
                     Mod.log.Warn($"PLT-Bushalt {i}: Zoning-Kante {edge.Index} "
                         + $"hat CarLane={carLanes}, PedestrianLane={walkLanes}; "
                         + "kein funktionsloses Schild gebaut.");
+                    offen.Add(stop);
                     continue;
                 }
                 var realSide = reversed ? !stop.Left : stop.Left;
@@ -480,13 +493,20 @@ namespace ParkingLotTool.Tools
             }
             Mod.log.Info("PLT-Bushalt: " + built + "/"
                 + _pendingBusStops.Length + " an Zoning-Kanten bestellt.");
-            _busStopAuditFrame = UnityEngine.Time.frameCount + 8;
-            _busStopBuildDeadline = -1;
-            _pendingBusStops = Array.Empty<BusStopPlacement>();
+            if (built > 0) _busStopAuditFrame = UnityEngine.Time.frameCount + 8;
+            _pendingBusStops = offen.ToArray();
+            if (offen.Count == 0) _busStopBuildDeadline = -1;
         }
 
         private void AuditBuiltBusStops()
         {
+            if (Mod.Aus("bushaltestellen")) return;
+            // 24 Bilder nach dem Bau fehlten im Nutzerlauf 0/2 Halte. Eine
+            // noch nicht materialisierte Kante ist kein endgueltiges Nein.
+            // Der Aufpasser begrenzt Wiederholungen auf dieselben 90 Aufrufe.
+            if (_pendingBusStops.Length > 0 && _busStopBuildDeadline > 0
+                && _busStopBuildDeadline % 8 == 0)
+                BuildBusStopsOnRoads(_pendingBusCarrier);
             if (_pendingBusStops.Length > 0
                 && _busStopBuildDeadline > 0
                 && --_busStopBuildDeadline == 0)
@@ -517,10 +537,8 @@ namespace ParkingLotTool.Tools
                 // UNSER Schild erkennt man an der Kante: sie ist eine
                 // Zoning-Kante dieses Parkplatzes (Owner = Lot). Einen
                 // eigenen Besitzer hat das Schild bis hierher nicht.
-                var unsere = EntityManager.Exists(edge)
-                    && EntityManager.HasComponent<Owner>(edge)
-                    && EntityManager.GetComponentData<Owner>(edge).m_Owner
-                        == _pendingBusLot;
+                var unsere = ParkingLotTeilnetz.GehoertZu(EntityManager,
+                    edge, _pendingBusLot, _pendingBusCarrier);
                 var schonZugeordnet = EntityManager
                         .HasComponent<ParkingLotPartRelation>(entity)
                     && EntityManager.GetComponentData<ParkingLotPartRelation>(
@@ -590,7 +608,7 @@ namespace ParkingLotTool.Tools
             }
             if (finalAudit)
                 Mod.log.Info("PLT-Bushalt Schlusspruefung: " + count
-                    + " TransportStop-Entities mit Besitzer und Kantenanbindung.");
+                    + " TransportStop-Entities mit Teilrelation und Kantenanbindung.");
         }
     }
 }

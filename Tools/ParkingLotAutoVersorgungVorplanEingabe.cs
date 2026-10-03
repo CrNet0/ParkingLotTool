@@ -138,6 +138,11 @@ namespace ParkingLotTool.Tools
                 }
             }
             if (e.Eigene.Count == 0) return null;
+            if (Mod.Aus("versorgung-ohne-bushalt"))
+                foreach (var k in e.Eigene)
+                    foreach (var stop in settings.BusStops ?? Array.Empty<BusStopPlacement>())
+                        if (BusStopSnap.TryProjectToEdge(stop, k.Startpunkt.xz, k.Endpunkt.xz,
+                            out _, out _, out _)) e.Bushaltkanten.Add(k.Id);
             var baum = _netSearchSystem.GetNetSearchTree(true, out var deps);
             deps.Complete();
             using var gefunden = new NativeList<Entity>(64, Allocator.Temp);

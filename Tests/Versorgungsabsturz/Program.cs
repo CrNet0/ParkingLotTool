@@ -98,7 +98,94 @@ internal static class Program
         Pruefe(ParkingLotSchrittmarke.Spur.Last().Contains("ToteReferenzen=1"),
             "aktueller physischer Verweis auf fehlende Flussnode wird auch ohne Flusskante erkannt");
         DatenLauf();
+        BushaltLauf();
         Console.WriteLine($"Versorgungsabsturz: {_pruefungen} Pruefungen, 0 Fehler.");
+    }
+
+    private static void BushaltLauf()
+    {
+        var d = new ParkingLotVersorgungsdiagnoseSystem(); var em = d.EntityManager;
+        var lot = new Entity(200); var carrier = new Entity(201); var anker = new Entity(202);
+        var k = new Entity(203); var stop = new Entity(204); var pf = new Entity(205);
+        em.Add(lot, new Updated()); em.Add(carrier, new Owner { m_Owner = lot });
+        em.Add(anker, new Owner { m_Owner = lot });
+        em.Add(k, new Edge()); em.Add(k, new Curve()); em.Add(k, new PrefabRef { m_Prefab = pf });
+        em.Add(k, new Owner { m_Owner = anker });
+        em.Add(stop, new Game.Routes.TransportStop()); em.Add(stop, new Game.Objects.Transform());
+        em.Add(stop, new Game.Objects.Attached { m_Parent = k, m_CurvePosition = .84f });
+        em.Add(stop, new PrefabRef { m_Prefab = pf });
+        em.Add(stop, new ParkingLotPartRelation { Lot = lot, Carrier = carrier });
+        em.Add(k, new List<Game.Objects.SubObject> { new() { m_SubObject = stop } });
+        Pruefe(ParkingLotTeilnetz.Kanten(em, lot, carrier).SequenceEqual(new[] { k }),
+            "erhaltene Kante am Besitzeranker ohne neuen Traeger-SubNet wird gefunden");
+        em.Add(carrier, new List<SubNet> { new() { m_SubNet = k }, new() { m_SubNet = k } });
+        Pruefe(ParkingLotTeilnetz.Kanten(em, lot, carrier).Count == 1, "Teilnetz vereint doppelte Inventarquellen");
+        em.Add(k, new Game.Tools.Temp());
+        Pruefe(ParkingLotTeilnetz.Kanten(em, lot, carrier).Count == 0, "Temp-Kante ist kein Wiederaufbauziel");
+        em.RemoveComponent<Game.Tools.Temp>(k); em.Add(k, new Deleted());
+        Pruefe(ParkingLotTeilnetz.Kanten(em, lot, carrier).Count == 0, "Deleted-Kante ist kein Wiederaufbauziel");
+        var ersatz = new Entity(210);
+        em.Add(ersatz, new Edge()); em.Add(ersatz, new Curve()); em.Add(ersatz, new PrefabRef());
+        em.Add(ersatz, new Owner { m_Owner = anker });
+        Pruefe(ParkingLotTeilnetz.Kanten(em, lot, carrier).SequenceEqual(new[] { ersatz }),
+            "Vanilla-Replace mit altem SubNet-Eintrag findet neue Kante ueber unveraenderten Besitzer");
+        em.Add(ersatz, new Deleted());
+        em.RemoveComponent<Deleted>(k);
+        var fremd = new Entity(206); em.Add(fremd, new Edge()); em.Add(fremd, new Curve());
+        em.Add(fremd, new PrefabRef()); em.Add(fremd, new ParkingLotPartRelation { Lot = new Entity(200, 2) });
+        Pruefe(!ParkingLotTeilnetz.Kanten(em, lot, carrier).Contains(fremd), "andere Entity-Version erbt keine Netzzuordnung");
+        var zyklus = new Entity(207); em.Add(zyklus, new Owner { m_Owner = zyklus });
+        Pruefe(!ParkingLotTeilnetz.GehoertZu(em, zyklus, lot, carrier), "Besitzzyklus wird endlich abgewiesen");
+        Pruefe(ParkingLotTeilnetz.Bushaltkanten(em).SetEquals(new[] { k }), "PLT-Halt liefert genau seine lebende Elternkante");
+        em.Add(stop, new Deleted());
+        Pruefe(ParkingLotTeilnetz.Bushaltkanten(em).Count == 0, "abgerissener Halt sperrt kein Leitungsnetz");
+        em.RemoveComponent<Deleted>(stop);
+        var w = new Entity(208); var lane = new Entity(209);
+        em.Add(stop, new List<Game.Routes.ConnectedRoute> { new() { m_Waypoint = w } });
+        em.Add(w, new Game.Routes.RouteLane { m_StartLane = lane, m_EndLane = lane });
+        em.Add(w, new Game.Routes.AccessLane { m_Lane = lane });
+        em.Add(lane, new Lane()); em.Add(lane, new Curve()); em.Add(lane, new PrefabRef());
+        d.Beginne(new[] { k }, "Bushalt"); d.Tick();
+        string Probe()
+        {
+            var start = ParkingLotSchrittmarke.Spur.Count;
+            var vorher = new HashSet<Entity>(em.Data.Keys);
+            d.Phasenmarke("vor-Mod3", true);
+            Pruefe(vorher.SetEquals(em.Data.Keys), "Bushaltprobe erzeugt und loescht 0 Entities");
+            return string.Join("\n", ParkingLotSchrittmarke.Spur.Skip(start));
+        }
+        var daten = Probe();
+        Pruefe(daten.Contains("BUSHALT PLT") && daten.Contains("m_CurvePosition=0.84")
+            && daten.Contains("BUSHALT-PARENT") && daten.Contains("SubObject=1")
+            && !daten.Contains("KANDIDAT BUSHALT"), "besitzerloser Halt mit Gegenrichtung wird positiv gemessen");
+        Pruefe(daten.Contains("BUSHALT-ROUTEN Anzahl=1") && daten.Contains("BUSHALT-LANE Access"),
+            "ConnectedRoute, RouteLane und AccessLane werden bis zur Spur verfolgt");
+        em.Add(carrier, new List<Game.Objects.SubObject> { new() { m_SubObject = stop } });
+        daten = Probe();
+        Pruefe(daten.Contains("BUSHALT-PUFFER " + carrier) && daten.Contains("Parent=0 Owner=0"),
+            "ehemaliger Besitzerpuffer bleibt nach Owner-Entfernung als eigener Befund sichtbar");
+        em.Add(stop, new Created()); em.Add(stop, new Owner { m_Owner = lot }); daten = Probe();
+        Pruefe(daten.Contains("fehlt Owner.SubObject; Leser=SubObjectReferences.Created"),
+            "Created-Halt mit pufferlosem Besitzer erreicht direkten Mod3-Leser");
+        em.RemoveComponent<Owner>(stop); em.RemoveComponent<Created>(stop);
+        em.GetBuffer<Game.Objects.SubObject>(k).Clear(); daten = Probe();
+        Pruefe(daten.Contains("fehlt Parent.SubObject-Gegenrichtung"), "fehlende Attach-Gegenrichtung sichtbar");
+        em.Data.Remove(lane); daten = Probe();
+        Pruefe(daten.Contains("toter Route-/AccessLane-Verweis"), "toter Linien-Spurrest sichtbar");
+        em.Data.Remove(w); daten = Probe();
+        Pruefe(daten.Contains("toter ConnectedRoute.Waypoint"), "toter Routenrest sichtbar");
+        em.Data.Remove(k); daten = Probe();
+        Pruefe(daten.Contains("toter Attached.Parent") && !daten.Contains("MESSFEHLER"), "tote Elternkante wird ohne Diagnoseausnahme gemessen");
+        // Derselbe legale Besitzerzustand bei einem Vanilla-Halt an einer
+        // betroffenen Strasse muss im Vergleich auftauchen.
+        em.Add(k, new Edge()); em.Add(k, new List<Game.Objects.SubObject> { new() { m_SubObject = stop } });
+        em.RemoveComponent<ParkingLotPartRelation>(stop); daten = Probe();
+        Pruefe(daten.Contains("VANILLA-VERGLEICH"), "Vanilla-Stop ohne Owner wird auf betroffener Strasse erfasst");
+        Pruefe(ParkingLotTeilnetz.Bushaltkanten(em, new[] { k }).SetEquals(new[] { k }),
+            "Halt an eigener Kante sperrt den Pfad auch vor seiner PLT-Audit-Zuordnung");
+        em.GetBuffer<Game.Objects.SubObject>(k).Add(new() { m_SubObject = new Entity(999) });
+        daten = Probe();
+        Pruefe(daten.Contains("KANDIDAT SUBOBJECT"), "toter Strassen-SubObject-Eintrag erreicht direkten Mod3-Leser");
     }
 
     private static void DatenLauf()

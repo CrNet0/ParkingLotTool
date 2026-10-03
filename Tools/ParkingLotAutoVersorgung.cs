@@ -73,25 +73,11 @@ namespace ParkingLotTool.Tools
         /** Alle dauerhaften Strassenkanten unseres Traegers. */
         private List<Entity> SammleUnsereKanten(Entity traeger)
         {
-            var kanten = new List<Entity>();
-            if (traeger == Entity.Null || !EntityManager.Exists(traeger))
-                return kanten;
-            if (!EntityManager.HasBuffer<Game.Net.SubNet>(traeger))
-                return kanten;
-            var subNets = EntityManager.GetBuffer<Game.Net.SubNet>(
-                traeger, true);
-            for (var i = 0; i < subNets.Length; i++)
-            {
-                var kante = subNets[i].m_SubNet;
-                if (kante == Entity.Null || !EntityManager.Exists(kante))
-                    continue;
-                if (!EntityManager.HasComponent<Game.Net.Edge>(kante)) continue;
-                if (EntityManager.HasComponent<Deleted>(kante)) continue;
-                if (EntityManager.HasComponent<Game.Tools.Temp>(kante))
-                    continue;
-                kanten.Add(kante);
-            }
-            return kanten;
+            var lot = EntityManager.HasComponent<ParkingLotPartRelation>(traeger)
+                ? EntityManager.GetComponentData<ParkingLotPartRelation>(traeger).Lot
+                : EntityManager.HasComponent<Owner>(traeger)
+                    ? EntityManager.GetComponentData<Owner>(traeger).m_Owner : Entity.Null;
+            return ParkingLotTeilnetz.Kanten(EntityManager, lot, traeger);
         }
 
         /**

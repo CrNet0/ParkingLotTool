@@ -29,6 +29,7 @@ namespace ParkingLotTool.Tools
                 // mehr als 'OnUpdate hat nur den Burst-Job eingereiht'.
                 EntityManager.CompleteAllTrackedJobs();
                 if (daten && _bilder <= 2) Datenstand(kopf);
+                if (daten) Bushaltdaten(kopf);
                 SchreibeDaten(kopf + " END");
             }
             catch (Exception ex) { SchreibeDaten(kopf + " MESSFEHLER " + ex); }

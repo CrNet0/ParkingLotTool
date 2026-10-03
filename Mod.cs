@@ -502,6 +502,8 @@ namespace ParkingLotTool
          *     versorgung-leitungsabriss alte Leitungen beim Edit behalten
          *     versorgung-kantenziel     nur bestehende Ziel-Endknoten waehlen
          *     versorgung-bilddiagnose   120-Bilder-Diagnose weglassen
+         *     versorgung-ohne-bushalt   keine neue Leitung an Netzen mit PLT-Halt
+         *     bushaltestellen          PLT-Bau/Audit/Sync der Halte auslassen
          *
          * Einmal beim Laden gelesen. Das ist ein Werkzeug zum Suchen, keine
          * Einstellung - wenn der Befund steht, faellt es wieder raus.

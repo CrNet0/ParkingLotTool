@@ -46,6 +46,7 @@ namespace ParkingLotTool.Geometry
         internal float Sicherheitszugabe, Anschlussbereich;
         internal Func<bool> Abgebrochen;
         internal bool NurKnotenziele;
+        internal readonly HashSet<int> Bushaltkanten = new HashSet<int>();
     }
 
     internal sealed class Versorgungsauswahl
@@ -277,6 +278,7 @@ namespace ParkingLotTool.Geometry
 
         private static Versorgungsauswahl Bereite(Versorgungseingabe e)
         {
+            BushaltAnschlussregel.Sperre(e);
             var aus = new Versorgungsauswahl();
             aus.EigeneKanten = e.Eigene.Count;
             aus.AlleZiele = e.Ziele.Count;

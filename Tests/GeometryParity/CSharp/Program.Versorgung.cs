@@ -453,6 +453,35 @@ internal static partial class Program
         zoningprobe.Ziele[0].AnschlussGesperrt = true;
         Pruefe(VersorgungstrassenPlan.Waehle(zoningprobe).Beste == null,
             "Zoningprobe: gesperrte Kante wird auch als Ziel abgewiesen");
+        var bushaltprobe = new Versorgungseingabe { Strombreite = 1, Wasserbreite = 1,
+            Sicherheitszugabe = .5f, Anschlussbereich = 8 };
+        var buskante = Kante(90, 0, false, 0, 30);
+        var busfortsetzung = Kante(91, 0, false, 30, 60);
+        busfortsetzung.Startknoten = buskante.Endknoten;
+        bushaltprobe.Eigene.AddRange(new[] { buskante, busfortsetzung });
+        bushaltprobe.Hinderniskanten.AddRange(bushaltprobe.Eigene);
+        bushaltprobe.Ziele.Add(Kante(92, 20, true, 0, 60));
+        var busvorplan = VersorgungstrassenPlan.PlaneFolge(bushaltprobe, out _);
+        Pruefe(busvorplan.Count == 1, "Bushaltprobe: ohne Schalter wird der gueltige Anschluss gebaut");
+        bushaltprobe.Verbindungen.Clear();
+        bushaltprobe.Bushaltkanten.Add(buskante.Id);
+        Pruefe(!VersorgungstrassenPlan.PruefeVorplan(bushaltprobe, busvorplan[0], out _, out _),
+            "Bushaltprobe: frische Halt-Sperre verwirft alten Vorplan vor erneuter Wahl");
+        var buswahl = VersorgungstrassenPlan.Waehle(bushaltprobe);
+        Pruefe(buswahl.Beste == null && buswahl.OffeneTeile == 1 && buswahl.Gruppen.Count == 1,
+            "Bushaltprobe: ganzes Halt-Netz hat 0 Trassen, Bedarf bleibt 1");
+        Pruefe(buskante.AnschlussGesperrt && busfortsetzung.AnschlussGesperrt,
+            "Bushaltprobe: Fortsetzung ohne Schild bleibt Teil der gesperrten Gruppe");
+        var bustarget = Kante(91, 0, false, 30, 60);
+        bushaltprobe.Ziele.Add(bustarget);
+        var busalternative = Kante(93, 40, false, 0, 30);
+        bushaltprobe.Eigene.Add(busalternative); bushaltprobe.Hinderniskanten.Add(busalternative);
+        buswahl = VersorgungstrassenPlan.Waehle(bushaltprobe);
+        Pruefe(bustarget.AnschlussGesperrt && !busalternative.AnschlussGesperrt,
+            "Bushaltprobe: separater Zieleintrag gesperrt, andere Gruppe bleibt frei");
+        Pruefe(buswahl.Beste != null && buswahl.Beste.Gruppe.Kanten.Contains(busalternative)
+            && buswahl.Beste.Zielkante.Id == 92 && buswahl.OffeneTeile == 2,
+            "Bushaltprobe: gueltige Alternative MUSS trotz gesperrtem Halt-Netz gefunden werden");
         Console.WriteLine($"Versorgungskurse: {pruefungen} Pruefungen, {fehler} Fehler.");
         return fehler == 0 ? 0 : 1;
     }
