@@ -19,6 +19,16 @@ namespace ParkingLotTool.Tools
     // bei ESC/Kamerawerkzeug, unabhaengig vom Werkzeugzustand.
     public sealed partial class ParkingLotVersorgungsdiagnoseSystem : GameSystemBase
     {
+        /**
+         * Die Bild-Diagnose nach jeder Leitung erzwingt an fuenf Phasengrenzen
+         * `CompleteAllTrackedJobs` und spuelt viel auf die Platte - fuer die
+         * Absturzsuche gebaut (Ursache gefunden 2026-10-03, c64569f). Laeuft
+         * nur noch mit eingeschalteter Absturzspur; `versorgung-bilddiagnose`
+         * in PLT-AUS.txt schaltet sie auch dann ab.
+         */
+        internal static bool DiagnoseAn
+            => ParkingLotSchrittmarke.Mitschreiben && !Mod.Aus("versorgung-bilddiagnose");
+
         private readonly HashSet<Entity> _physisch = new HashSet<Entity>();
         private readonly HashSet<Entity> _wurzeln = new HashSet<Entity>();
         private readonly HashSet<Entity> _flusskanten = new HashSet<Entity>();
@@ -39,7 +49,7 @@ namespace ParkingLotTool.Tools
                 if (lot != Entity.Null) _behalteneLots.Add(lot);
                 if (traeger != Entity.Null) _behalteneTraeger.Add(traeger);
             }
-            if (Mod.Aus("versorgung-bilddiagnose") && !behalten) return;
+            if (!DiagnoseAn && !behalten) return;
             var q = GetEntityQuery(ComponentType.ReadOnly<ParkingLotVersorgungsleitung>(),
                 ComponentType.ReadOnly<Edge>(), ComponentType.Exclude<Temp>());
             using var entities = q.ToEntityArray(Allocator.Temp);
@@ -51,7 +61,7 @@ namespace ParkingLotTool.Tools
                     || (traeger != Entity.Null && tag.Carrier == traeger)) roots.Add(e);
             }
             if (behalten) TrenneAbrissbesitz(roots, lot, traeger);
-            if (Mod.Aus("versorgung-bilddiagnose")) return;
+            if (!DiagnoseAn) return;
             _alte.Clear();
             _wurzeln.UnionWith(roots);
             ErfasseUmfeld(roots);
@@ -100,7 +110,7 @@ namespace ParkingLotTool.Tools
 
         internal void Beginne(IEnumerable<Entity> roots, string grund)
         {
-            if (Mod.Aus("versorgung-bilddiagnose")) return;
+            if (!DiagnoseAn) return;
             if (!_aktiv) _lauf++;
             _aktiv = true;
             _bilder = 0;

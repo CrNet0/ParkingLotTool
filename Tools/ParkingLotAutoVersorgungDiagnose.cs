@@ -46,7 +46,7 @@ namespace ParkingLotTool.Tools
 
         private void AvStarteBilddiagnose(string grund)
         {
-            if (Mod.Aus("versorgung-bilddiagnose")) return;
+            if (!ParkingLotVersorgungsdiagnoseSystem.DiagnoseAn) return;
             var roots = new HashSet<Entity>();
             foreach (var k in _avKurse)
             {

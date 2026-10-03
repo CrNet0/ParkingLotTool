@@ -162,6 +162,8 @@ namespace ParkingLotTool.Tools
     public static class ParkingLotSchrittmarke
     {
         public static readonly List<string> Spur = new();
+        // Wie mit eingeschalteter Absturzspur: die Diagnose soll messen.
+        public static bool Mitschreiben { get; set; } = true;
         public static void Setze(string _) { }
         public static void Versorgungsbild(string s) => Spur.Add(s);
     }
