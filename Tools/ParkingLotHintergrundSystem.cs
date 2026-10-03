@@ -30,23 +30,43 @@ namespace ParkingLotTool.Tools
         private sealed class Auftrag
         {
             internal Entity Lot, Neu, Traeger;
-            internal int Id, Seit, Versuch, PrefabSeit = -1;
-            internal bool NurRueckweg, GateOffen, AnschlussAngestossen;
+            internal int Id, Seit, Versuch, Rueckwegpruefungen, PrefabSeit = -1;
+            internal bool NurRueckweg, GateOffen, AnschlussAngestossen, RueckwegAusgegeben;
             internal Phase Phase;
             internal Task<ParkingLayout> Rechnung;
             internal ParkingLotToolSystem Bauer;
         }
         private readonly List<Auftrag> _queue = new List<Auftrag>();
+        private readonly HashSet<Entity> _angehalten = new HashSet<Entity>();
         private readonly List<ParkingLotToolSystem> _flussbeobachter = new List<ParkingLotToolSystem>();
         private HintergrundAuftragsregel<Entity> _regel = new HintergrundAuftragsregel<Entity>();
         private Auftrag _aktiv;
         private int _nummer;
         private ParkingLotExklusivesBildSystem _gate;
-        internal int Offen => _queue.Count + (_aktiv != null ? 1 : 0);
-        internal bool Gesperrt(Entity lot)
+        internal int Offen => _queue.Count + (_aktiv != null ? 1 : 0) + _angehalten.Count;
+        internal string Fortschrittshinweis
         {
+            get
+            {
+                if (_angehalten.Count > 0) return RueckwegHinweis;
+                if (_aktiv == null && _queue.Count > 0
+                    && World.GetExistingSystemManaged<ParkingLotToolSystem>()?.BearbeitetLot(_queue[0].Lot) == true)
+                    return ParkingLotTexte.T(
+                        "Synchronisation wartet: aktuelle Parkplatzbearbeitung abschliessen oder abbrechen und Panel/Werkzeug schliessen.",
+                        "Synchronization is waiting: finish or cancel the current parking lot edit and close the panel/tool.");
+                return _gate.Wartehinweis;
+            }
+        }
+        private static string RueckwegHinweis => ParkingLotTexte.T(
+            "Wiederherstellung angehalten. Parkplatz bleibt gesperrt. Bauzettel sichern und Spielstand vor der Synchronisation laden.",
+            "Restoration stopped. The parking lot remains locked. Keep the build log and load the save from before synchronization.");
+        internal bool Gesperrt(Entity lot) => Gesperrt(lot,out _);
+        private bool Gesperrt(Entity lot, out bool angehalten)
+        {
+            angehalten = false;
             for (int i = 0; i < 8 && lot != Entity.Null && EntityManager.Exists(lot); i++)
             {
+                if (_angehalten.Contains(lot)) { angehalten = true; return true; }
                 if (_regel.Gesperrt(lot) || _aktiv != null && (_aktiv.Neu == lot || _aktiv.Traeger == lot)
                     || _queue.Any(a => a.Neu == lot || a.Traeger == lot)) return true;
                 if (EntityManager.HasComponent<ParkingLotPartRelation>(lot))
@@ -59,8 +79,8 @@ namespace ParkingLotTool.Tools
         }
         internal bool Sperrmeldung(Entity lot)
         {
-            if (!Gesperrt(lot)) return false;
-            var text = ParkingLotTexte.T(
+            if (!Gesperrt(lot,out bool angehalten)) return false;
+            var text = angehalten ? RueckwegHinweis : ParkingLotTexte.T(
                 "Der Parkplatz wird im Hintergrund gebaut oder wiederhergestellt. Nach Abschluss erneut versuchen.",
                 "This parking lot is being rebuilt or restored in the background. Try again after completion.");
             World.GetOrCreateSystemManaged<ParkingLotUISystem>().SetStatus(text);
@@ -70,6 +90,7 @@ namespace ParkingLotTool.Tools
 
         internal void Einreihen(Entity lot, bool rueckweg = false)
         {
+            if (_angehalten.Contains(lot)) { Sperrmeldung(lot); return; }
             bool erster = Offen == 0;
             if (rueckweg)
             {
@@ -183,7 +204,11 @@ namespace ParkingLotTool.Tools
                     break;
                 case Phase.Kinder:
                     if (!a.Bauer.HintergrundKinderDa(out var messung))
-                    { if (bild-a.Seit > 90) throw new InvalidOperationException(messung); return; }
+                    {
+                        if (bild-a.Seit > 90)
+                        { a.Bauer.HintergrundFehlstellen(); throw new InvalidOperationException(messung); }
+                        return;
+                    }
                     ParkingLotNetzRueckweg.Melde(messung);
                     Exklusiv(a, () => { a.Bauer.HintergrundMeldeAnschluesse(); a.Phase = Phase.Anschluesse; a.Seit = UnityEngine.Time.frameCount; return 0; });
                     break;
@@ -248,19 +273,22 @@ namespace ParkingLotTool.Tools
                     if (!EntityManager.HasBuffer<ParkingLotRueckwegkurs>(a.Lot)) { RueckwegFertig(a,0,0); return; }
                     if (ParkingLotNetzRueckweg.Pruefe(EntityManager,a.Lot,out var ist,out var soll))
                     { RueckwegFertig(a,ist,soll); return; }
-                    if (a.Seit < 0)
+                    if (a.RueckwegAusgegeben)
                     {
                         if (!a.AnschlussAngestossen && ParkingLotNetzRueckweg.Pruefe(EntityManager,a.Lot,out _,out _,false))
                         {
                             Exklusiv(a, () => { ParkingLotNetzRueckweg.MeldeAnschluesse(EntityManager,a.Lot); a.AnschlussAngestossen = true; return 0; });
                             return;
                         }
-                        if (bild + a.Seit > 90)
+                        if (bild-a.Seit >= HintergrundRueckwegfrist.Fenster)
                         {
-                            // Kein erfolgreicher Rueckweg und KEINE Freigabe.
-                            // Der Save enthaelt weiter den unabhaengigen Plan.
-                            ParkingLotNetzRueckweg.Melde($"Rueckweg OFFEN: Kanten {ist}/{soll}; Lot {a.Lot.Index} bleibt gesperrt, Schnappschuss erhalten.");
-                            a.Seit = -bild;
+                            a.Rueckwegpruefungen++;
+                            ParkingLotNetzRueckweg.Pruefe(EntityManager,a.Lot,out _,out _,diagnose:true);
+                            ParkingLotNetzRueckweg.Melde($"Rueckweg OFFEN: Kanten {ist}/{soll}; Pruefung {a.Rueckwegpruefungen}/{HintergrundRueckwegfrist.MaxPruefungen}; "
+                                + $"Lot {a.Lot.Index} bleibt gesperrt; 0 neue Definitionen.");
+                            if (!HintergrundRueckwegfrist.Weiter(a.Rueckwegpruefungen))
+                            { HalteRueckwegAn(a); return; }
+                            a.Seit = bild;
                         }
                         return;
                     }
@@ -268,7 +296,8 @@ namespace ParkingLotTool.Tools
                     {
                         var n = ParkingLotNetzRueckweg.Erzeuge(EntityManager,a.Lot,a.Id);
                         ParkingLotNetzRueckweg.Melde($"Rueckweg gestartet: alte Kanten {n}; Lot {a.Lot.Index}.");
-                        a.Seit = -UnityEngine.Time.frameCount; return n;
+                        a.RueckwegAusgegeben = true;
+                        a.Seit = UnityEngine.Time.frameCount; return n;
                     });
                     break;
             }
@@ -303,11 +332,21 @@ namespace ParkingLotTool.Tools
             }
             if (a.Phase == Phase.Rueckweg)
             {
-                // Fehlende fremde IDs lassen sich nicht durch Wiederholung
-                // erfinden. Plan und Sperre behalten; keinen Teilerfolg melden.
-                a.Seit = -UnityEngine.Time.frameCount; return;
+                HalteRueckwegAn(a); return;
             }
             a.Phase = Phase.Ruecknahme;
+        }
+
+        private void HalteRueckwegAn(Auftrag a)
+        {
+            // Keine Freigabe bei 20/22 und keine neue Definitionsserie. Der
+            // serialisierte Schnappschuss bleibt auch nach World-Wechsel erhalten.
+            _angehalten.Add(a.Lot);
+            World.GetOrCreateSystemManaged<ParkingLotUISystem>().SetStatus(RueckwegHinweis);
+            ParkingLotNetzRueckweg.Melde($"Rueckweg ANGEHALTEN Lot {a.Lot.Index}, nach {a.Rueckwegpruefungen} Messfenstern; "
+                + "Schnappschuss und Sperre erhalten. " + RueckwegHinweis);
+            World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().MeldeHintergrundEnde(a.Lot,Entity.Null,false);
+            Ende(a);
         }
 
         private void RueckwegFertig(Auftrag a, int ist, int soll)
@@ -357,7 +396,7 @@ namespace ParkingLotTool.Tools
             if (_aktiv?.Bauer != null) World.DestroySystemManaged(_aktiv.Bauer);
             foreach (var b in _flussbeobachter) World.DestroySystemManaged(b);
             _flussbeobachter.Clear();
-            _aktiv = null; _queue.Clear(); _regel = new HintergrundAuftragsregel<Entity>();
+            _aktiv = null; _queue.Clear(); _angehalten.Clear(); _regel = new HintergrundAuftragsregel<Entity>();
             using var query = EntityManager.CreateEntityQuery(ComponentType.ReadOnly<ParkingLotRueckwegkurs>());
             using var lots = query.ToEntityArray(Allocator.Temp);
             foreach (var lot in lots)

@@ -31,12 +31,13 @@ export const SyncFortschritt = () => {
     const felder = lauf.split("\t");
     const erledigt = Number(felder[0]);
     const gesamt = Number(felder[1]);
-    if (felder.length !== 2 || !Number.isInteger(erledigt)
+    if (felder.length !== 3 || !Number.isInteger(erledigt)
         || !Number.isInteger(gesamt) || gesamt <= 0) return null;
     const anteil = Math.min(1, Math.max(0, erledigt / gesamt));
     return <div className={styles.syncFortschritt} role="status">
       <div className={styles.syncMod}>{`${MODNAME}:`}</div>
       <div className={styles.syncTitel}>{t.syncFortschritt(erledigt, gesamt)}</div>
+      {felder[2] && <div className={styles.syncTitel}>{felder[2]}</div>}
       <div className={styles.syncBalken}>
         <div className={styles.syncBalkenFuellung}
           style={{ width: `${Math.round(anteil * 100)}%` }} />

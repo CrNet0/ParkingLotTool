@@ -533,11 +533,12 @@ namespace ParkingLotTool.Tools
                 && _ergebnisUhr.Elapsed.TotalSeconds >= ErgebnisSekunden)
                 LeereMeldung();
             if (_syncOffen.value != _offen.Count) _syncOffen.Update(_offen.Count);
-            var hintergrund = World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>().Offen;
+            var arbeit = World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>();
+            var hintergrund = arbeit.Offen;
             _gesamt = System.Math.Max(_gesamt,_warteschlange.Count + hintergrund);
             var fortschritt = HintergrundFortschritt.Zaehle(_gesamt, _warteschlange.Count, hintergrund);
             var laeuft = _warteschlange.Count + hintergrund > 0
-                ? fortschritt.Fertig + "\t" + fortschritt.Gesamt
+                ? fortschritt.Fertig + "\t" + fortschritt.Gesamt + "\t" + arbeit.Fortschrittshinweis
                 : string.Empty;
             if (_syncLaeuft.value != laeuft) _syncLaeuft.Update(laeuft);
         }

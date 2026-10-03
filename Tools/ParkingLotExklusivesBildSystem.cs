@@ -28,6 +28,7 @@ namespace ParkingLotTool.Tools
         private int _letztesWartebild = -1;
         private int _letzteDefinitionen = -1, _letzteTemps = -1;
         private bool _letzteBereitschaft;
+        internal string Wartehinweis { get; private set; } = string.Empty;
 
         [Preserve]
         protected override void OnCreate()
@@ -61,6 +62,7 @@ namespace ParkingLotTool.Tools
             _wartendeBilder = 0;
             _letztesWartebild = -1;
             _letzteDefinitionen = _letzteTemps = -1;
+            Wartehinweis = string.Empty;
         }
 
         internal void Verwerfe(Entity lot)
@@ -68,6 +70,7 @@ namespace ParkingLotTool.Tools
             if (_lot != lot) return;
             _anlegen = null;
             _lot = Entity.Null;
+            Wartehinweis = string.Empty;
         }
 
         [Preserve]
@@ -83,6 +86,14 @@ namespace ParkingLotTool.Tools
             var temps = _temps.CalculateEntityCount();
             if (!ExklusivesBaubild.DarfAnlegen(definitionen, temps, bereit))
             {
+                var werkzeug = World.GetExistingSystemManaged<ParkingLotToolSystem>();
+                bool pltZeichnet = World.GetExistingSystemManaged<ToolSystem>()?.activeTool == werkzeug
+                    && (definitionen > 0 || temps > 0);
+                Wartehinweis = pltZeichnet ? ParkingLotTexte.T(
+                    "Synchronisation wartet: Parking-Lot-Panel/Werkzeug schliessen.",
+                    "Synchronization is waiting: close the Parking Lot panel/tool.")
+                    : ParkingLotTexte.T("Synchronisation wartet auf einen freien Bauzyklus. Aktuellen Werkzeugentwurf beenden.",
+                        "Synchronization is waiting for a free build cycle. Finish the current tool draft.");
                 var bild = UnityEngine.Time.frameCount;
                 var neuesBild = bild != _letztesWartebild;
                 if (neuesBild) _wartendeBilder++;
@@ -91,6 +102,7 @@ namespace ParkingLotTool.Tools
                     || bereit != _letzteBereitschaft || (neuesBild && _wartendeBilder % 120 == 0))
                     Melde($"wartet Lot {_lot.Index}: "
                         + ExklusivesBaubild.Wartegrund(definitionen, temps, bereit)
+                        + "; " + Wartehinweis
                         + $"; {_wartendeBilder} wartende Bilder.");
                 _letzteDefinitionen = definitionen;
                 _letzteTemps = temps;

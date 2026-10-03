@@ -109,6 +109,7 @@ namespace ParkingLotTool.Tools
             internal float3 From;
             internal float3 To;
             internal NetCourse? Kurs;
+            internal ObjectDefinition? Objekt;
         }
 
         private readonly List<PartTransferRecord> _netRecords =
@@ -196,6 +197,7 @@ namespace ParkingLotTool.Tools
                 Index = index,
                 Prefab = prefab,
                 Definition = definition,
+                Objekt = EntityManager.GetComponentData<ObjectDefinition>(definition),
                 From = position,
                 To = position,
             });

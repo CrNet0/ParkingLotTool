@@ -56,6 +56,8 @@ namespace ParkingLotTool.Tools
                 data.m_Flags |= CreationFlags.Attach;
             }
             EntityManager.SetComponentData(definition, data);
+            if (EntityManager.HasComponent<NetCourse>(definition))
+                World.GetOrCreateSystemManaged<ParkingLotDefinitionsendeSystem>().Merke(owner,_definitionsauftrag);
             NurDiesesBild(EntityManager, definition);
         }
 

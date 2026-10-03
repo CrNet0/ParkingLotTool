@@ -361,11 +361,12 @@ namespace ParkingLotTool.Tools
              */
             var strassenpunkt = new float3(mitte.x, strassenhoehe, mitte.y);
             var anschluss = AnschlussAnStrasse(strasse, t, ref strassenpunkt);
-            if (anschluss.Entity != Entity.Null
-                && math.distance(strassenpunkt.xz, mitte) > 1e-4f)
+            if (anschluss.Entity != Entity.Null)
             {
-                // Auf einen vorhandenen Knoten verschoben: Start und Hoehe
-                // wandern mit, damit Kurs und Knoten uebereinstimmen.
+                // Der berechnete Anschlusspunkt gilt IMMER - am Knoten dessen
+                // echte Lage samt Y (auch bei 0 m XZ-Abstand; Permanent nutzt
+                // den Knoten unveraendert, GenerateEdges 1236ff), an der Kante
+                // die Teilungsstelle (Fix 2026-09-24 gegen 0,1-0,26 m daneben).
                 mitte = strassenpunkt.xz;
                 strassenhoehe = strassenpunkt.y;
                 MerkeHoehe(mitte, strassenhoehe, heights);
@@ -1144,6 +1145,14 @@ namespace ParkingLotTool.Tools
                 from.y);
             var b = new float3(to.x, SampleCourseHeight(to, ref heightData, heights),
                 to.y);
+            if (_definitionsmodus == ParkingLotDefinitionsmodus.Permanent)
+            {
+                // Erhaltenes Zoning gehoert noch dem alten Anker. Ein Endpunkt
+                // auf dessen Knoten braucht die echte ID und volle Weltlage;
+                // blosses NodeMap-Matching nach Lage beweist diesen Anschluss nicht.
+                HintergrundKnotenanschluss(ref anschlussAnfang,ref a);
+                HintergrundKnotenanschluss(ref anschlussEnde,ref b);
+            }
             var length = math.distance(a, b);
             // Kuerzer als ein Meter ist kein Fahrweg, sondern ein Rundungsrest.
             // CS2 legt daraus einen Knoten ohne Kante an.

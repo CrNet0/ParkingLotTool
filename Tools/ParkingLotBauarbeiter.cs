@@ -51,6 +51,10 @@ namespace ParkingLotTool.Tools
         {
             Enabled = false;
             _terrainSystem = World.GetOrCreateSystemManaged<TerrainSystem>();
+            // 11:51:34: beide Vorflaechen meldeten "Kein Netz-Suchbaum".
+            // Diese Dienste sind Bauabhaengigkeiten, kein Debug-/Werkzeugeinstieg.
+            _netSearchSystem = World.GetOrCreateSystemManaged<Game.Net.SearchSystem>();
+            _areaSearchSystem = World.GetOrCreateSystemManaged<Game.Areas.SearchSystem>();
             _overlay = new ParkingLotOverlay();
             InitializeAreaPreview(); InitializeNetBuilder(); InitializeBayObjects();
             InitializeEntranceArrows(); InitializeLotOwner(); InitializeBusStops();
@@ -183,6 +187,8 @@ namespace ParkingLotTool.Tools
         internal bool HintergrundKinderDa(out string messung)
         {
             SammleHintergrundteile();
+            BerechneHintergrundObjektboden();
+            _fehlendeHintergrundobjekte.Clear(); _fehlendeHintergrundkurse.Clear();
             var areas = _eigeneDauerteile.Where(e => EntityManager.HasComponent<Game.Areas.Area>(e)).ToList();
             int flaechen = 0, objekte = 0, kurse = 0;
             var benutzt = new HashSet<Entity>();
@@ -196,44 +202,45 @@ namespace ParkingLotTool.Tools
                         benutzt.Add(a); flaechen++; break;
                     }
             foreach (var r in _objectRecords)
+            {
+                bool gefunden = false;
                 foreach (var e in _eigeneDauerteile)
                     if (!benutzt.Contains(e) && EntityManager.HasComponent<Game.Objects.Transform>(e)
                         && EntityManager.GetComponentData<PrefabRef>(e).m_Prefab == r.Prefab
-                        && math.distance(EntityManager.GetComponentData<Game.Objects.Transform>(e).m_Position, r.From) <= .05f)
+                        && EntityManager.HasComponent<Owner>(e) && EntityManager.GetComponentData<Owner>(e).m_Owner == _lotCarrier
+                        && EntityManager.HasComponent<Game.Objects.Attached>(e)
+                        && EntityManager.GetComponentData<Game.Objects.Attached>(e).m_Parent == _lotCarrier
+                        && HintergrundAbgleich.Objektlage(EntityManager.GetComponentData<Game.Objects.Transform>(e).m_Position,
+                            r.From,_hintergrundObjektboden[r].Position,_hintergrundObjektboden[r].Erlaubt))
                     {
-                        benutzt.Add(e); objekte++;
+                        benutzt.Add(e); objekte++; gefunden = true;
                         if (!EntityManager.HasComponent<ParkingLotPartRelation>(e))
                             EntityManager.AddComponentData(e, new ParkingLotPartRelation { Lot = _lotOwner, Carrier = _lotCarrier });
                         ApplyVegetationAge(e, r.Prefab); break;
                     }
+                if (!gefunden) _fehlendeHintergrundobjekte.Add(r);
+            }
             foreach (var r in _netRecords)
             {
-                var abschnitte = new List<float2>();
-                var deckendeKurven = new List<Bezier4x3>();
-                foreach (var e in _eigeneDauerteile)
-                {
-                    if (!EntityManager.HasComponent<Curve>(e) || !EntityManager.HasComponent<Edge>(e)
-                        || EntityManager.GetComponentData<PrefabRef>(e).m_Prefab != r.Prefab) continue;
-                    var c = EntityManager.GetComponentData<Curve>(e).m_Bezier;
-                    if (VersorgungskursPruefung.Abschnitt(r.From.xz, r.To.xz, c.a.xz,c.b.xz,c.c.xz,c.d.xz, out var abschnitt))
-                    {
-                        abschnitte.Add(abschnitt);
-                        deckendeKurven.Add(c);
-                    }
-                }
+                var teile = r.Kurs.HasValue ? ParkingLotKursabgleich.Sammle(EntityManager,_eigeneDauerteile,
+                    r.Kurs.Value.m_Curve,r.Prefab,_lotOwner,benutzt) : new List<ParkingLotKursabgleich.Teil>();
                 bool hoehen = r.Kurs.HasValue;
                 for (int s = 0; s <= 16 && hoehen; s++)
                 {
                     var punkt = MathUtils.Position(r.Kurs.Value.m_Curve,s/16f);
                     var projiziert = new List<float3>();
-                    foreach (var c in deckendeKurven)
+                    foreach (var teil in teile)
                     {
+                        var c = EntityManager.GetComponentData<Curve>(teil.Kante).m_Bezier;
                         MathUtils.Distance(c.xz,punkt.xz,out float t);
                         projiziert.Add(MathUtils.Position(c,t));
                     }
                     hoehen &= HintergrundKurspruefung.LageGedeckt(punkt,projiziert);
                 }
-                if (hoehen && VersorgungskursPruefung.Vollstaendig(math.distance(r.From.xz,r.To.xz),abschnitte)) kurse++;
+                if (hoehen && ParkingLotKursabgleich.Kette(teile,out var start,out var ende)
+                    && HintergrundSollanschluss(r,start,ende))
+                { kurse++; foreach (var teil in teile) benutzt.Add(teil.Kante); }
+                else _fehlendeHintergrundkurse.Add(r);
             }
             messung = $"Besitzerpruefung: Kurse mit 17 Hoehenproben (5 cm) {kurse}/{_netRecords.Count}, Flaechen {flaechen}/{_areaTransferRecords.Count}, Objekte {objekte}/{_objectRecords.Count}.";
             return _netRecords.Count > 0 && kurse == _netRecords.Count && flaechen == _areaTransferRecords.Count && objekte == _objectRecords.Count;

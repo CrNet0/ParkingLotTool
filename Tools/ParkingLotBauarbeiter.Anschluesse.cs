@@ -5,11 +5,36 @@ using Game.Net;
 using Game.Prefabs;
 using ParkingLotTool.Geometry;
 using Unity.Entities;
+using Unity.Mathematics;
+using System.Collections.Generic;
 
 namespace ParkingLotTool.Tools
 {
     public sealed partial class ParkingLotToolSystem
     {
+        private void HintergrundKnotenanschluss(ref Anschluss anschluss, ref float3 lage)
+        {
+            if (EntityManager.HasComponent<Game.Net.Node>(anschluss.Entity))
+            {
+                lage = HintergrundAbgleich.Anschlusslage(lage,EntityManager.GetComponentData<Game.Net.Node>(anschluss.Entity).m_Position,true);
+                return;
+            }
+            if (anschluss.Entity != Entity.Null) return; // Explizite Stadtkantenteilung bleibt bestehen.
+            var kandidaten = new List<(int Id,float3 Lage)>();
+            foreach (var e in _erhalteneZoningteile)
+                if (ParkingLotNetzRueckweg.Lebt(EntityManager,e) && EntityManager.HasComponent<Game.Net.Node>(e))
+                    kandidaten.Add((e.Index,EntityManager.GetComponentData<Game.Net.Node>(e).m_Position));
+            int index = HintergrundAbgleich.ErhaltenerKnoten(lage.xz,kandidaten);
+            foreach (var e in _erhalteneZoningteile)
+                if (e.Index == index)
+                {
+                    anschluss = new Anschluss { Entity = e };
+                    lage = EntityManager.GetComponentData<Game.Net.Node>(e).m_Position;
+                    return;
+                }
+            if (index == -2) ParkingLotNetzRueckweg.Melde($"Mehrdeutiger erhaltener Anschluss bei {lage}; keine Original-ID geraten.");
+        }
+
         internal void HintergrundMeldeAnschluesse()
         {
             StelleVersorgungsanschluesseWiederHer(_lotCarrier);
