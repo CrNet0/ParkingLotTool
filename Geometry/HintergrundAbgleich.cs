@@ -45,14 +45,15 @@ namespace ParkingLotTool.Geometry
         }
 
         public static float Kurvenabstand((float3 A,float3 B,float3 C,float3 D) a,
-            (float3 A,float3 B,float3 C,float3 D) b)
+            (float3 A,float3 B,float3 C,float3 D) b, bool innenhoeheVanilla = false)
         {
             if (!math.all(math.isfinite(a.A)) || !math.all(math.isfinite(a.B))
                 || !math.all(math.isfinite(a.C)) || !math.all(math.isfinite(a.D))
                 || !math.all(math.isfinite(b.A)) || !math.all(math.isfinite(b.B))
                 || !math.all(math.isfinite(b.C)) || !math.all(math.isfinite(b.D))) return float.PositiveInfinity;
-            return math.max(math.max(math.distance(a.A,b.A),math.distance(a.B,b.B)),
-                math.max(math.distance(a.C,b.C),math.distance(a.D,b.D)));
+            return math.max(math.max(math.distance(a.A,b.A),math.distance(a.D,b.D)),
+                innenhoeheVanilla ? math.max(math.distance(a.B.xz,b.B.xz),math.distance(a.C.xz,b.C.xz))
+                    : math.max(math.distance(a.B,b.B),math.distance(a.C,b.C)));
         }
 
         public static bool Teilparameter(float2 bereich, float lage, out float t)

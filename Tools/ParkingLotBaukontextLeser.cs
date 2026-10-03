@@ -22,7 +22,7 @@ namespace ParkingLotTool.Tools
                && em.HasBuffer<ParkingLotBuildText>(lot);
 
         internal static bool TryRead(EntityManager em, Entity lot,
-            out ParkingLotBaukontext kontext, out string grund)
+            out ParkingLotBaukontext kontext, out string grund, bool melden = true)
         {
             kontext = null;
             if (!TryReadWerte(em, lot, out var zettel, out var punkte,
@@ -40,8 +40,7 @@ namespace ParkingLotTool.Tools
                 + $"Punkte {punkte.Length}, Zugaenge {zugaenge.Length}, "
                 + $"Zoning {zonen?.Length ?? 0}, Seiten {seiten.Count}, "
                 + $"Bushalte {bus.Count}; nur gelesen, kein Neubau.";
-            Mod.log.Info(messung);
-            ParkingGeometry.Live(messung);
+            if (melden) { Mod.log.Info(messung); ParkingGeometry.Live(messung); }
             return true;
         }
 

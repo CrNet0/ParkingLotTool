@@ -29,7 +29,7 @@ namespace ParkingLotTool.Tools
 
         internal static void Kurs(EntityManager em, PrefabSystem prefabs, string phase, int index,
             string art, Entity prefab, Entity besitzer, Bezier4x3 soll, string grund,
-            Entity start = default, Entity ende = default, Func<Entity,bool,string> zusatz = null)
+            Entity start = default, Entity ende = default, Func<Entity,bool,string> zusatz = null, bool innenhoeheVanilla = false)
         {
             using var q = em.CreateEntityQuery(ComponentType.ReadOnly<Edge>(),ComponentType.ReadOnly<Curve>(),
                 ComponentType.ReadOnly<PrefabRef>(),ComponentType.Exclude<Temp>(),ComponentType.Exclude<Deleted>());
@@ -39,7 +39,7 @@ namespace ParkingLotTool.Tools
             foreach (var e in kandidaten)
             {
                 bool gleich = em.GetComponentData<PrefabRef>(e).m_Prefab == prefab;
-                float d = ParkingLotKursabgleich.Abstand(soll,em.GetComponentData<Curve>(e).m_Bezier,out _);
+                float d = ParkingLotKursabgleich.Abstand(soll,em.GetComponentData<Curve>(e).m_Bezier,out _,innenhoeheVanilla);
                 if (!math.isfinite(d) || gleicherPrefab && !gleich || gleich == gleicherPrefab && d >= abstand) continue;
                 naechster = e; abstand = d; gleicherPrefab = gleich;
             }
@@ -49,7 +49,8 @@ namespace ParkingLotTool.Tools
                 var c = em.GetComponentData<Curve>(naechster).m_Bezier;
                 var edge = em.GetComponentData<Edge>(naechster);
                 var owner = em.HasComponent<Owner>(naechster) ? em.GetComponentData<Owner>(naechster).m_Owner : Entity.Null;
-                ParkingLotKursabgleich.Abstand(soll,c,out var bereich);
+                ParkingLotKursabgleich.Abstand(soll,c,out var bereich,innenhoeheVanilla);
+                float roh = ParkingLotKursabgleich.Abstand(soll,c,out _);
                 bool um = bereich.x > bereich.y;
                 var gr = new List<string>();
                 if (!gleicherPrefab) gr.Add("Prefab verschieden");
@@ -69,7 +70,7 @@ namespace ParkingLotTool.Tools
                 ist = $"Ist {E(naechster)}, Prefab {Name(prefabs,em.GetComponentData<PrefabRef>(naechster).m_Prefab)}, "
                     + $"Besitzer {E(owner)}, {P(c.a)} -> {P(c.d)}, Kontrollen {P(c.b)}/{P(c.c)}, "
                     + $"Knoten {E(edge.m_Start)}/{E(edge.m_End)}, Teilparameter {bereich.x:F6}..{bereich.y:F6}, "
-                    + $"Richtung {(um ? "umgekehrt" : "gleich")}, Abstand {abstand:F5} m; "
+                    + $"Richtung {(um ? "umgekehrt" : "gleich")}, Pruefabstand {abstand:F5} m, 3D-Rohabstand {roh:F5} m, Innenhoehe Vanilla={innenhoeheVanilla}; "
                     + string.Join(", ",gr) + $"; Knotenlagen {nodeA}/{nodeD}; " + (zusatz?.Invoke(naechster,um) ?? "");
             }
             ParkingLotNetzRueckweg.Melde($"{phase} Soll-Kurs {index} ({art}), Prefab {Name(prefabs,prefab)}, "
@@ -128,14 +129,16 @@ namespace ParkingLotTool.Tools
                 foreach (var r in _fehlendeHintergrundkurse)
                 {
                     var c = r.Kurs.GetValueOrDefault();
-                    var teile = ParkingLotKursabgleich.Sammle(EntityManager,_eigeneDauerteile,c.m_Curve,r.Prefab,_lotOwner);
+                    bool innen = ParkingLotKursabgleich.InnenhoeheVanilla(EntityManager,r.Prefab,c,_lotOwner);
+                    var teile = ParkingLotKursabgleich.Sammle(EntityManager,_eigeneDauerteile,c.m_Curve,r.Prefab,_lotOwner,innenhoeheVanilla:innen);
                     bool kette = ParkingLotKursabgleich.Kette(teile,out var start,out var ende);
                     string grund = !kette ? $"keine volle verbundene Kurvenkette ({teile.Count} Abschnitte innerhalb 5 cm)"
                         : !HintergrundSollanschluss(r,start,ende) ? "erhaltener Anschlussknoten nicht benutzt" : "17 Lageproben/mehrfache Ergebniszuordnung";
                     ParkingLotHintergrundDiagnose.Kurs(EntityManager,_prefabSystem,"Stufe B",r.Index,r.Kind,
                         r.Prefab,_lotOwner,c.m_Curve,grund,
                         EntityManager.HasComponent<Game.Net.Node>(c.m_StartPosition.m_Entity) ? c.m_StartPosition.m_Entity : Entity.Null,
-                        EntityManager.HasComponent<Game.Net.Node>(c.m_EndPosition.m_Entity) ? c.m_EndPosition.m_Entity : Entity.Null);
+                        EntityManager.HasComponent<Game.Net.Node>(c.m_EndPosition.m_Entity) ? c.m_EndPosition.m_Entity : Entity.Null,
+                        innenhoeheVanilla:innen);
                 }
                 using var q = EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Game.Objects.Transform>(),
                     ComponentType.ReadOnly<PrefabRef>(),ComponentType.Exclude<Temp>(),ComponentType.Exclude<Deleted>());

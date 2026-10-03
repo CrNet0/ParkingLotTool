@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Colossal.Serialization.Entities;
 using Game;
@@ -31,6 +32,7 @@ namespace ParkingLotTool.Tools
         {
             internal Entity Lot, Neu, Traeger;
             internal int Id, Seit, Versuch, Rueckwegpruefungen, PrefabSeit = -1;
+            internal int Fruehestens, NaechstePruefung;
             internal bool NurRueckweg, GateOffen, AnschlussAngestossen, RueckwegAusgegeben;
             internal Phase Phase;
             internal Task<ParkingLayout> Rechnung;
@@ -42,8 +44,11 @@ namespace ParkingLotTool.Tools
         private HintergrundAuftragsregel<Entity> _regel = new HintergrundAuftragsregel<Entity>();
         private Auftrag _aktiv;
         private int _nummer;
+        private int _naechsterStart, _letztesArbeitsbild = -1;
         private ParkingLotExklusivesBildSystem _gate;
         internal int Offen => _queue.Count + (_aktiv != null ? 1 : 0) + _angehalten.Count;
+        internal bool IstErsatz(Entity lot) => _aktiv != null && _aktiv.Neu == lot
+            || _queue.Any(a => a.Neu == lot);
         internal string Fortschrittshinweis
         {
             get
@@ -52,8 +57,8 @@ namespace ParkingLotTool.Tools
                 if (_aktiv == null && _queue.Count > 0
                     && World.GetExistingSystemManaged<ParkingLotToolSystem>()?.BearbeitetLot(_queue[0].Lot) == true)
                     return ParkingLotTexte.T(
-                        "Synchronisation wartet: aktuelle Parkplatzbearbeitung abschliessen oder abbrechen und Panel/Werkzeug schliessen.",
-                        "Synchronization is waiting: finish or cancel the current parking lot edit and close the panel/tool.");
+                        "Synchronisation wartet: aktuelle Parkplatzbearbeitung abschliessen oder abbrechen.",
+                        "Synchronization is waiting: finish or cancel the current parking lot edit.");
                 return _gate.Wartehinweis;
             }
         }
@@ -88,9 +93,13 @@ namespace ParkingLotTool.Tools
             return true;
         }
 
-        internal void Einreihen(Entity lot, bool rueckweg = false)
+        internal void Einreihen(Entity lot, bool rueckweg = false, int fruehestens = 0)
         {
             if (_angehalten.Contains(lot)) { Sperrmeldung(lot); return; }
+            // 450157 war schon vor Repair ohne wiederherstellbare Bauwerte.
+            // Keine Sperre/Versuchszahl fuer einen Auftrag ohne lesbaren Plan.
+            if (!rueckweg && !KannNeubauen(lot,out var grund))
+            { World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().MeldeBauplanFehlt(lot,grund); return; }
             bool erster = Offen == 0;
             if (rueckweg)
             {
@@ -104,7 +113,7 @@ namespace ParkingLotTool.Tools
                     World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().MeldeHintergrundEnde(lot,Entity.Null,false);
                 return;
             }
-            var auftrag = new Auftrag { Lot = lot, Id = ++_nummer, NurRueckweg = rueckweg };
+            var auftrag = new Auftrag { Lot = lot, Id = ++_nummer, NurRueckweg = rueckweg, Fruehestens = fruehestens };
             if (EntityManager.HasComponent<ParkingLotOffenerErsatz>(lot))
             {
                 var ersatz = EntityManager.GetComponentData<ParkingLotOffenerErsatz>(lot);
@@ -124,6 +133,9 @@ namespace ParkingLotTool.Tools
         {
             var spiel = GameManager.instance;
             if (spiel == null || spiel.isGameLoading || !spiel.gameMode.IsGame()) return;
+            int bild = UnityEngine.Time.frameCount;
+            if (bild == _letztesArbeitsbild) return;
+            _letztesArbeitsbild = bild;
             for (int i = _flussbeobachter.Count-1; i >= 0; i--)
             {
                 var b = _flussbeobachter[i];
@@ -139,11 +151,21 @@ namespace ParkingLotTool.Tools
             if (_aktiv == null)
             {
                 if (_queue.Count == 0) return;
-                var next = _queue[0];
+                if (!HintergrundTakt.Faellig(bild,_naechsterStart)) return;
+                var next = _queue.Find(a => HintergrundTakt.Faellig(bild,a.Fruehestens));
+                if (next == null) return;
                 // Dasselbe Lot darf seinen bereits begonnenen Edit beenden.
                 // Andere Lots bleiben frei; 0/0 regelt nur Definitionsbilder.
                 if (World.GetOrCreateSystemManaged<ParkingLotToolSystem>().BearbeitetLot(next.Lot)) return;
-                _queue.RemoveAt(0); _aktiv = next;
+                _queue.Remove(next);
+                if (!next.NurRueckweg && !KannNeubauen(next.Lot,out var grund))
+                {
+                    _regel.Ende(next.Lot);
+                    World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().MeldeBauplanFehlt(next.Lot,grund);
+                    _naechsterStart = bild + HintergrundTakt.Auftragspause;
+                    return;
+                }
+                _aktiv = next;
                 next.Seit = UnityEngine.Time.frameCount;
                 next.Versuch = next.NurRueckweg ? _regel.StartRueckweg(next.Lot) : _regel.Start(next.Lot);
                 next.Phase = next.NurRueckweg ? (EntityManager.HasComponent<ParkingLotOffenerErsatz>(next.Lot)
@@ -151,13 +173,17 @@ namespace ParkingLotTool.Tools
                 ParkingLotNetzRueckweg.Melde($"Start Lot {next.Lot.Index}, Versuch {next.Versuch}/3; Auftrag {next.Id}; ohne Werkzeugeinstieg.");
                 if (!next.NurRueckweg)
                 {
-                    try { next.Bauer = ParkingLotToolSystem.Bauarbeiter(World); next.Rechnung = next.Bauer.BereiteHintergrund(next.Lot,next.Id); }
+                    try { Messe(next,"Start",() => { next.Bauer = ParkingLotToolSystem.Bauarbeiter(World); next.Rechnung = next.Bauer.BereiteHintergrund(next.Lot,next.Id); }); }
                     catch (Exception e) { Fehler(next,e); }
                 }
+                // Kein Start + Prefabvorbereitung/Abriss im selben Bild.
+                return;
             }
             var a = _aktiv;
             if (a == null || a.GateOffen) return;
-            try { Pflege(a); }
+            if (!HintergrundTakt.Faellig(bild,a.NaechstePruefung)) return;
+            a.NaechstePruefung = bild + HintergrundTakt.Pruefabstand;
+            try { Messe(a,"Pruefung",() => Pflege(a)); }
             catch (Exception e) { Fehler(a,e); }
         }
 
@@ -167,7 +193,7 @@ namespace ParkingLotTool.Tools
             _gate.Erwarte(a.Lot, _ =>
             {
                 a.GateOffen = false;
-                try { return arbeit(); }
+                try { int n = 0; Messe(a,"Exklusiv",() => n = arbeit()); return n; }
                 catch (Exception e) { Fehler(a,e); return 0; }
             });
         }
@@ -359,24 +385,24 @@ namespace ParkingLotTool.Tools
             }
             ParkingLotNetzRueckweg.FuellTraeger(EntityManager,a.Lot);
             ParkingLotNetzRueckweg.Melde(gesichert
-                ? $"Rueckweg geprueft: Kanten {ist}/{soll}, Kurven-/Hoehen-/Anschlussabweichungen 0; Versuch {a.Versuch}/3."
+                ? $"Rueckweg geprueft: Kanten {ist}/{soll}, Lage-/Anschlussabweichungen 0 (Enden 3D, innen gemaess Vanilla-Regel); Versuch {a.Versuch}/3."
                 : $"Auftrag vor eigenem Abriss beendet; kein Rueckweg erforderlich; Versuch {a.Versuch}/3.");
             if (EntityManager.HasBuffer<ParkingLotRueckwegkurs>(a.Lot)) EntityManager.RemoveComponent<ParkingLotRueckwegkurs>(a.Lot);
             if (EntityManager.HasComponent<ParkingLotOffenerErsatz>(a.Lot)) EntityManager.RemoveComponent<ParkingLotOffenerErsatz>(a.Lot);
             if (EntityManager.HasBuffer<ParkingLotRueckweganschluss>(a.Lot)) EntityManager.RemoveComponent<ParkingLotRueckweganschluss>(a.Lot);
             if (EntityManager.HasBuffer<ParkingLotStufeAKnoten>(a.Lot)) EntityManager.RemoveComponent<ParkingLotStufeAKnoten>(a.Lot);
             if (EntityManager.HasComponent<ParkingLotStufeAPrefab>(a.Lot)) EntityManager.RemoveComponent<ParkingLotStufeAPrefab>(a.Lot);
-            bool wieder = !a.NurRueckweg && _regel.Wiederholen(a.Lot,true);
+            bool wieder = !a.NurRueckweg && gesichert && _regel.Wiederholen(a.Lot,true);
             if (!a.NurRueckweg && !wieder) World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().MeldeHintergrundEnde(a.Lot,Entity.Null,false);
             if (!a.NurRueckweg && !wieder)
                 World.GetOrCreateSystemManaged<ParkingLotUISystem>().SetStatus(gesichert ? ParkingLotTexte.T(
                     "Hintergrundbau nach drei Versuchen beendet. Die alten Wege sind geprueft wiederhergestellt. Fuer einen neuen Versuch den Spielstand neu laden und synchronisieren.",
                     "Background rebuild stopped after three attempts. The restored old paths have been verified. Reload the save and synchronize to try again.") : ParkingLotTexte.T(
-                    "Hintergrundbau nach drei Versuchen beendet. Es wurden keine alten Wege abgerissen. Fuer einen neuen Versuch den Spielstand neu laden und synchronisieren.",
-                    "Background rebuild stopped after three attempts. No old paths were removed. Reload the save and synchronize to try again."));
+                    "Hintergrundplanung beendet. Es wurden keine alten Wege abgerissen. Bauzettel pruefen; neuer Versuch nach dem Laden.",
+                    "Background planning stopped. No old paths were removed. Check the build receipt; retry after reloading."));
             Ende(a);
             if (a.NurRueckweg) World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().MeldeRueckwegEnde();
-            if (wieder) Einreihen(a.Lot);
+            if (wieder) Einreihen(a.Lot,fruehestens:UnityEngine.Time.frameCount + HintergrundTakt.Versuchspause);
         }
         private void Ende(Auftrag a)
         {
@@ -387,6 +413,29 @@ namespace ParkingLotTool.Tools
                 else World.DestroySystemManaged(a.Bauer);
             }
             _aktiv = null;
+            _naechsterStart = UnityEngine.Time.frameCount + HintergrundTakt.Auftragspause;
+        }
+
+        internal bool KannNeubauen(Entity lot, out string grund)
+        {
+            grund = "Lot fehlt oder ist kein dauerhafter Parkplatz; Reparatur/Bauplan erforderlich";
+            return ParkingLotNetzRueckweg.Lebt(EntityManager,lot)
+                && EntityManager.HasComponent<Game.Areas.Area>(lot) && !EntityManager.HasComponent<Game.Tools.Temp>(lot)
+                && ParkingLotBaukontextLeser.TryRead(EntityManager,lot,out _,out grund,melden:false);
+        }
+
+        private static void Messe(Auftrag a, string arbeit, Action schritt)
+        {
+            var phase = a.Phase;
+            var uhr = Stopwatch.StartNew();
+            try { schritt(); }
+            finally
+            {
+                double ms = uhr.Elapsed.TotalMilliseconds;
+                if (arbeit != "Pruefung" || phase != a.Phase || ms >= 5 || UnityEngine.Time.frameCount % 30 == 0)
+                    ParkingLotHintergrundDiagnose.Sicher(() => ParkingLotNetzRueckweg.Melde(FormattableString.Invariant(
+                        $"Bildzeit Auftrag {a.Id}, Versuch {a.Versuch}, Phase {phase}, {arbeit}, Bild {UnityEngine.Time.frameCount}: Spielthread {ms:F3} ms, voriges Bild {UnityEngine.Time.unscaledDeltaTime*1000f:F3} ms; Folgephase {a.Phase}.")));
+            }
         }
 
         protected override void OnGameLoaded(Context context)
@@ -397,6 +446,7 @@ namespace ParkingLotTool.Tools
             foreach (var b in _flussbeobachter) World.DestroySystemManaged(b);
             _flussbeobachter.Clear();
             _aktiv = null; _queue.Clear(); _angehalten.Clear(); _regel = new HintergrundAuftragsregel<Entity>();
+            _naechsterStart = 0; _letztesArbeitsbild = -1;
             using var query = EntityManager.CreateEntityQuery(ComponentType.ReadOnly<ParkingLotRueckwegkurs>());
             using var lots = query.ToEntityArray(Allocator.Temp);
             foreach (var lot in lots)

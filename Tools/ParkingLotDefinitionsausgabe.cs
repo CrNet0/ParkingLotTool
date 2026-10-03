@@ -14,6 +14,7 @@ namespace ParkingLotTool.Tools
         private ParkingLotDefinitionsmodus _definitionsmodus;
         private int _definitionsauftrag;
         internal bool BearbeitetLot(Entity lot) => _editLot == lot || _pendingEditLot == lot;
+        internal bool HatAktivenEntwurf => _points.Count > 0 || _buildStage != BuildStage.Idle;
 
         /** Gemeinsamer Abschluss ALLER Definitionen. Vanilla liest den Owner
          *  in Nodes 100-123, Edges 1534-1542, Areas 264-269, Objects 1251-1253.
@@ -28,6 +29,10 @@ namespace ParkingLotTool.Tools
                 if ((EntityManager.GetComponentData<CreationDefinition>(definition).m_Flags
                         & CreationFlags.Permanent) != 0)
                     NurDiesesBild(EntityManager, definition);
+                else if (EntityManager.HasComponent<NetCourse>(definition))
+                    World.GetOrCreateSystemManaged<ParkingLotDefinitionsendeSystem>().MerkeTemp(
+                        EntityManager.GetComponentData<CreationDefinition>(definition),
+                        EntityManager.GetComponentData<NetCourse>(definition));
                 return;
             }
             var data = EntityManager.GetComponentData<CreationDefinition>(definition);

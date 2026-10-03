@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Colossal.Mathematics;
 using Colossal.Serialization.Entities;
@@ -148,26 +148,24 @@ namespace ParkingLotTool.Tools
                     ComponentType.ReadOnly<Owner>(), ComponentType.ReadOnly<PrefabRef>(),
                     ComponentType.Exclude<Deleted>(), ComponentType.Exclude<Temp>());
                 using var kanten = q.ToEntityArray(Allocator.Temp);
+                var eigeneKanten = EigeneKanten(em,kanten,kopie.ToArray());
                 var benutzt = new HashSet<Entity>();
                 int erzeugt = 0;
                 foreach (var alt in kopie)
                 {
                     // Auch nach einem unterbrochenen Rueckweg: vorhandene
                     // exakte Ergebnisse nicht ein zweites Mal erzeugen.
-                    if (FindeKurs(em,kanten,alt,benutzt,out _) != null) continue;
+                    if (FindeKurs(em,eigeneKanten,alt,benutzt,out _) != null) continue;
                     // Ein vorhandener falscher/teilweiser Kurs darf nach Laden
                     // keinen deckungsgleichen zweiten Satz bekommen.
-                    if (Belegt(em,kanten,alt))
+                    if (Belegt(em,eigeneKanten,alt))
                     { Melde($"Rueckweg Originalkante {alt.Kante}: XZ bereits belegt; 0 weitere Definitionen fuer diesen Kurs."); continue; }
                     var d = em.CreateEntity();
                     em.AddComponentData(d, new ParkingLotAuftragsdefinition { Auftrag = auftrag });
                     em.AddComponentData(d, new CreationDefinition { m_Prefab = alt.Prefab,
                         m_Owner = alt.Besitzer, m_Flags = CreationFlags.Permanent,
                         m_RandomSeed = math.max(1, d.Index) });
-                    var kurs = alt.Kurs;
-                    if (HintergrundKurspruefung.NullhoeheFixieren(kurs.m_Elevation))
-                    { kurs.m_StartPosition.m_ParentMesh = 0; kurs.m_EndPosition.m_ParentMesh = 0; }
-                    em.AddComponentData(d, kurs);
+                    em.AddComponentData(d, Eingabekurs(alt));
                     if (alt.HatUpgrade) em.AddComponentData(d, alt.Upgrade);
                     em.AddComponent<Updated>(d);
                     em.World.GetOrCreateSystemManaged<ParkingLotDefinitionsendeSystem>().Merke(alt.Besitzer,auftrag);
@@ -187,13 +185,14 @@ namespace ParkingLotTool.Tools
                 ComponentType.Exclude<Deleted>(), ComponentType.Exclude<Temp>());
             using var kanten = query.ToEntityArray(Allocator.Temp);
             using var kurse = em.GetBuffer<ParkingLotRueckwegkurs>(lot,true).ToNativeArray(Allocator.Temp);
+            var eigeneKanten = EigeneKanten(em,kanten,kurse.ToArray());
             var benutzt = new HashSet<Entity>();
             int index = -1;
             foreach (var alt in kurse)
             {
                 index++;
                 soll++;
-                var teile = FindeKurs(em,kanten,alt,benutzt,out string grund);
+                var teile = FindeKurs(em,eigeneKanten,alt,benutzt,out string grund);
                 if (teile != null && anschluesse && !SeitenanschluesseDa(em,lot,index,teile))
                 { grund = "seitlicher Anschluss/Parameter nicht beidseitig vorhanden"; teile = null; }
                 if (teile == null)
@@ -211,7 +210,7 @@ namespace ParkingLotTool.Tools
                                 return $"Upgrade Soll vorhanden={alt.HatUpgrade}, Flags={u.m_Flags}; "
                                     + $"Ist vorhanden={em.HasComponent<Upgraded>(e)}, "
                                     + $"gleich={em.HasComponent<Upgraded>(e) == alt.HatUpgrade && (!alt.HatUpgrade || em.GetComponentData<Upgraded>(e).Equals(u))}";
-                            }));
+                            },ParkingLotKursabgleich.InnenhoeheVanilla(em,alt.Prefab,Eingabekurs(alt),alt.Besitzer)));
                     }
                     continue;
                 }
@@ -219,10 +218,11 @@ namespace ParkingLotTool.Tools
             }
             return ist == soll;
         }
-        private static List<ParkingLotKursabgleich.Teil> FindeKurs(EntityManager em, NativeArray<Entity> kanten,
+        private static List<ParkingLotKursabgleich.Teil> FindeKurs(EntityManager em, IEnumerable<Entity> kanten,
             ParkingLotRueckwegkurs alt, HashSet<Entity> benutzt, out string grund)
         {
-            var teile = ParkingLotKursabgleich.Sammle(em,kanten.ToArray(),alt.Kurs.m_Curve,alt.Prefab,alt.Besitzer,benutzt);
+            var teile = ParkingLotKursabgleich.Sammle(em,kanten,alt.Kurs.m_Curve,alt.Prefab,alt.Besitzer,benutzt,
+                ParkingLotKursabgleich.InnenhoeheVanilla(em,alt.Prefab,Eingabekurs(alt),alt.Besitzer));
             int lage = teile.Count;
             teile.RemoveAll(p =>
             {
@@ -241,7 +241,31 @@ namespace ParkingLotTool.Tools
             grund = "vollstaendig"; return teile;
         }
 
-        private static bool Belegt(EntityManager em, NativeArray<Entity> kanten, ParkingLotRueckwegkurs alt)
+        private static List<Entity> EigeneKanten(EntityManager em, NativeArray<Entity> kandidaten, ParkingLotRueckwegkurs[] kurse)
+        {
+            var besitzer = new HashSet<Entity>();
+            foreach (var k in kurse) besitzer.Add(k.Besitzer);
+            var eigene = new List<Entity>();
+            foreach (var e in kandidaten)
+                if (besitzer.Contains(em.GetComponentData<Owner>(e).m_Owner)) eigene.Add(e);
+            // Eine Stadtkantenkopie je Messung statt je Sollkurs. Prefab,
+            // Owner, Lage, Upgrade und Knoten werden danach unveraendert geprueft.
+            return eigene;
+        }
+
+        private static NetCourse Eingabekurs(ParkingLotRueckwegkurs alt)
+        {
+            var kurs = alt.Kurs;
+            // Zulassung und Erzeugung muessen dieselben ParentMesh-Werte
+            // sehen. Der gespeicherte Schnappschuss hat hier noch -1/-1;
+            // ohne diesen gemeinsamen Adapter wuerde der Abgleich auch fuer
+            // feste StraightEdges irrtuemlich Vanilla-Y freigeben.
+            if (HintergrundKurspruefung.NullhoeheFixieren(kurs.m_Elevation))
+            { kurs.m_StartPosition.m_ParentMesh = 0; kurs.m_EndPosition.m_ParentMesh = 0; }
+            return kurs;
+        }
+
+        private static bool Belegt(EntityManager em, IEnumerable<Entity> kanten, ParkingLotRueckwegkurs alt)
         {
             Bezier4x3 Flach(Bezier4x3 c) => new Bezier4x3(new float3(c.a.x,0,c.a.z),new float3(c.b.x,0,c.b.z),
                 new float3(c.c.x,0,c.c.z),new float3(c.d.x,0,c.d.z));
@@ -261,11 +285,12 @@ namespace ParkingLotTool.Tools
                 ComponentType.ReadOnly<Owner>(),ComponentType.ReadOnly<PrefabRef>(),
                 ComponentType.Exclude<Deleted>(),ComponentType.Exclude<Temp>());
             using var kanten = q.ToEntityArray(Allocator.Temp);
+            var eigeneKanten = EigeneKanten(em,kanten,kurse.ToArray());
             var benutzt = new HashSet<Entity>();
             var paare = new List<(Entity Kante,Entity Knoten,Entity Prefab)>();
             for (int i = 0; i < kurse.Length; i++)
             {
-                var teile = FindeKurs(em,kanten,kurse[i],benutzt,out _);
+                var teile = FindeKurs(em,eigeneKanten,kurse[i],benutzt,out _);
                 if (teile == null) continue;
                 foreach (var a in seiten)
                     if (a.Kursindex == i)

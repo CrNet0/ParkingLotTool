@@ -375,6 +375,7 @@ namespace ParkingLotTool.Tools
                 built = false;
             }
             _buildStage = BuildStage.Idle;
+            if (built) TryDestroyDefinitionEntities("Bau angewendet; Werkzeug leer");
             // Erst jetzt gibt es ueberhaupt etwas nachzumessen. Die Messung
             // selbst folgt ein paar Bilder spaeter - eine Strassenteilung
             // braucht mehr als ein Bild.

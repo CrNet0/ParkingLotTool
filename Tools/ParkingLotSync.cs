@@ -47,6 +47,7 @@ namespace ParkingLotTool.Tools
         private readonly List<Entity> _offen = new List<Entity>();
         private readonly HashSet<Entity> _offenMenge = new HashSet<Entity>();
         private readonly HashSet<Entity> _gescheitert = new HashSet<Entity>();
+        private readonly HashSet<Entity> _ohneBauplan = new HashSet<Entity>();
         // Keine Queue<T>: der Typ steht in CS2 in System UND mscorlib.
         private readonly List<Entity> _warteschlange = new List<Entity>();
         private int _gesamt;
@@ -116,6 +117,7 @@ namespace ParkingLotTool.Tools
         /** Die Waisen-Automatik meldet hier, was sie getan hat. */
         internal void MeldeWaisenreparatur(bool verbunden, bool bauplan)
         {
+            if (bauplan) _neuAufnehmen = true;
             if (verbunden) _meldungWaisen++;
             if (bauplan) _meldungBauplaene++;
             if (verbunden || bauplan) VeroeffentlicheMeldung();
@@ -198,6 +200,7 @@ namespace ParkingLotTool.Tools
             _offen.Clear();
             _offenMenge.Clear();
             _gescheitert.Clear();
+            _ohneBauplan.Clear();
             _warteschlange.Clear();
             _gesamt = _erledigt = 0;
             _letzterBestand = -1;
@@ -302,7 +305,9 @@ namespace ParkingLotTool.Tools
             for (var i = 0; i < lots.Length; i++)
             {
                 var lot = lots[i];
-                if (World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>().Gesperrt(lot))
+                var hintergrund = World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>();
+                if (hintergrund.IstErsatz(lot)) continue;
+                if (hintergrund.Gesperrt(lot))
                 { _offen.Add(lot); _offenMenge.Add(lot); continue; }
                 var stand = StandVon(lot);
                 if (stand >= Migrationskatalog.Aktuell) continue;
@@ -310,7 +315,14 @@ namespace ParkingLotTool.Tools
                 var traeger = EntityManager.GetComponentData<
                     ParkingLotCarrierReference>(lot).Carrier;
                 if (!index.TryGetValue(lot, out var teile)) teile = new List<Entity>();
-                if (NaechsterNoetigerSchritt(lot, traeger, teile, stand) < 0)
+                int noetig = NaechsterNoetigerSchritt(lot, traeger, teile, stand);
+                if (noetig >= 0 && _ausfuehrungen.TryGetValue(
+                        Migrationskatalog.Schritte[noetig].Name,out var ausfuehrung)
+                    && ausfuehrung.Hintergrund
+                    && !hintergrund.KannNeubauen(lot,out var grund))
+                { MeldeBauplanFehlt(lot,grund); continue; }
+                _ohneBauplan.Remove(lot);
+                if (noetig < 0)
                 {
                     // Nichts zu tun - nur Buchfuehrung, die Welt bleibt gleich.
                     SetzeStand(lot, Migrationskatalog.Aktuell);
@@ -419,6 +431,8 @@ namespace ParkingLotTool.Tools
                 }
                 if (a.Braucht(lot, traeger, teile))
                 {
+                    if (a.Hintergrund && !World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>().KannNeubauen(lot,out var grund))
+                    { MeldeBauplanFehlt(lot,grund); return false; }
                     ParkingLotSchrittmarke.Setze("Sync: Lot " + lot.Index
                         + " Schritt " + schritt.Nummer + " " + schritt.Name + " beginnt");
                     a.Ausfuehren(lot, traeger, teile);
@@ -499,6 +513,13 @@ namespace ParkingLotTool.Tools
                 Mod.log.Warn("PLT-Sync: Fahrwege-Neubau von " + lot
                     + " nicht abgeschlossen; " + ziel + " bleibt vor Schritt 8, neuer Versuch nach dem naechsten Laden.");
             }
+        }
+
+        internal void MeldeBauplanFehlt(Entity lot, string grund)
+        {
+            _offen.Remove(lot); _offenMenge.Remove(lot);
+            if (!_ohneBauplan.Add(lot)) return;
+            Mod.log.Warn($"PLT-Sync: Lot {lot.Index} braucht Reparatur/Bauplan: {grund}; Schritt 8 nicht eingereiht, 0 Neubauversuche.");
         }
 
         internal void MeldeRueckwegEnde()

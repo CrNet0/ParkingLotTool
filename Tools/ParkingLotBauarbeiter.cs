@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Game.Common;
 using Game.Net;
@@ -32,6 +33,9 @@ namespace ParkingLotTool.Tools
         private EntityQuery _dauerhafteFlaechen;
         private readonly HashSet<Entity> _vorhandeneLots = new HashSet<Entity>();
         private readonly HashSet<Entity> _eigeneDauerteile = new HashSet<Entity>();
+        private bool _hintergrundPlanVorbereitet;
+        private double _hintergrundRechenMs;
+        private int _hintergrundRechenthread, _hintergrundSpielthread;
 
         internal static ParkingLotToolSystem Bauarbeiter(World world)
         {
@@ -103,22 +107,37 @@ namespace ParkingLotTool.Tools
             settings.Ausrichtwinkel = double.IsNaN(k.Zettel.Ausrichtwinkel) ? (double?)null : k.Zettel.Ausrichtwinkel;
             _areaPreviewSettings = settings;
             _alteZoningkurse = null; _erhalteneZoningteile.Clear(); _zoningErhalten = false;
-            return Task.Run(() => ParkingGeometry.Build(k.Punkte.Select(p => p.xz).ToArray(), settings));
+            var polygon = k.Punkte.Select(p => p.xz).ToArray();
+            _hintergrundSpielthread = System.Threading.Thread.CurrentThread.ManagedThreadId;
+            return Task.Run(() =>
+            {
+                var uhr = Stopwatch.StartNew();
+                _hintergrundRechenthread = System.Threading.Thread.CurrentThread.ManagedThreadId;
+                var layout = ParkingGeometry.Build(polygon,settings);
+                _hintergrundRechenMs = uhr.Elapsed.TotalMilliseconds;
+                return layout;
+            });
         }
 
         internal bool HintergrundPrefabs(ParkingLayout layout)
         {
             _areaPreviewLayout = layout;
             _altesZoningprefab = _baukontext.Zoningstrasse;
-            var altkurse = new List<float2[]>();
-            using (var teile = _editOwnerParts.ToEntityArray(Allocator.Temp))
-                foreach (var e in teile)
-                    if (ParkingLotBesitz.GehoertZu(EntityManager,EntityManager.GetComponentData<Owner>(e).m_Owner,_editLot)
-                        && EntityManager.HasComponent<Edge>(e) && EntityManager.HasComponent<Curve>(e)
-                        && _prefabSystem.GetPrefabName(EntityManager.GetComponentData<PrefabRef>(e).m_Prefab) == "PLT Zoningstrasse (" + _altesZoningprefab + ")")
-                    { var c = EntityManager.GetComponentData<Curve>(e).m_Bezier; altkurse.Add(new[] { c.a.xz,c.d.xz }); }
-            _alteZoningkurse = altkurse.ToArray();
-            ErgaenzeVorflaechen(layout, _areaPreviewSettings, _points.ToArray());
+            if (!_hintergrundPlanVorbereitet)
+            {
+                ParkingLotNetzRueckweg.Melde($"Geometrie Auftrag {_definitionsauftrag}: {_hintergrundRechenMs:F3} ms im Thread {_hintergrundRechenthread}; Spielthread {_hintergrundSpielthread}; 1 Layoutrechnung.");
+                var altkurse = new List<float2[]>();
+                using (var teile = _editOwnerParts.ToEntityArray(Allocator.Temp))
+                    foreach (var e in teile)
+                        if (ParkingLotBesitz.GehoertZu(EntityManager,EntityManager.GetComponentData<Owner>(e).m_Owner,_editLot)
+                            && EntityManager.HasComponent<Edge>(e) && EntityManager.HasComponent<Curve>(e)
+                            && _prefabSystem.GetPrefabName(EntityManager.GetComponentData<PrefabRef>(e).m_Prefab) == "PLT Zoningstrasse (" + _altesZoningprefab + ")")
+                        { var c = EntityManager.GetComponentData<Curve>(e).m_Bezier; altkurse.Add(new[] { c.a.xz,c.d.xz }); }
+                _alteZoningkurse = altkurse.ToArray();
+                ErgaenzeVorflaechen(layout, _areaPreviewSettings, _points.ToArray());
+                _hintergrundPlanVorbereitet = true;
+                ParkingLotNetzRueckweg.Melde("Planvorbereitung: 1 Vorflaechenlauf je Auftrag; weitere Prefabpruefungen verwenden diesen Plan.");
+            }
             SyncAreaPreview(prefabsOnly: true);
             bool netze = ResolvePathPrefabs();
             foreach (var stueck in layout.NetLine)
@@ -190,6 +209,15 @@ namespace ParkingLotTool.Tools
             BerechneHintergrundObjektboden();
             _fehlendeHintergrundobjekte.Clear(); _fehlendeHintergrundkurse.Clear();
             var areas = _eigeneDauerteile.Where(e => EntityManager.HasComponent<Game.Areas.Area>(e)).ToList();
+            var netze = _eigeneDauerteile.Where(e => EntityManager.HasComponent<Edge>(e)).ToArray();
+            var objektindex = new Dictionary<Entity,HintergrundLageindex<Entity>>();
+            foreach (var e in _eigeneDauerteile)
+            {
+                if (!EntityManager.HasComponent<Game.Objects.Transform>(e) || !EntityManager.HasComponent<PrefabRef>(e)) continue;
+                var prefab = EntityManager.GetComponentData<PrefabRef>(e).m_Prefab;
+                if (!objektindex.TryGetValue(prefab,out var index)) objektindex.Add(prefab,index = new HintergrundLageindex<Entity>());
+                index.Fuege(EntityManager.GetComponentData<Game.Objects.Transform>(e).m_Position.xz,e);
+            }
             int flaechen = 0, objekte = 0, kurse = 0;
             var benutzt = new HashSet<Entity>();
             foreach (var r in _areaTransferRecords)
@@ -204,7 +232,7 @@ namespace ParkingLotTool.Tools
             foreach (var r in _objectRecords)
             {
                 bool gefunden = false;
-                foreach (var e in _eigeneDauerteile)
+                foreach (var e in objektindex.TryGetValue(r.Prefab,out var index) ? index.Nahe(r.From.xz) : Array.Empty<Entity>())
                     if (!benutzt.Contains(e) && EntityManager.HasComponent<Game.Objects.Transform>(e)
                         && EntityManager.GetComponentData<PrefabRef>(e).m_Prefab == r.Prefab
                         && EntityManager.HasComponent<Owner>(e) && EntityManager.GetComponentData<Owner>(e).m_Owner == _lotCarrier
@@ -222,8 +250,10 @@ namespace ParkingLotTool.Tools
             }
             foreach (var r in _netRecords)
             {
-                var teile = r.Kurs.HasValue ? ParkingLotKursabgleich.Sammle(EntityManager,_eigeneDauerteile,
-                    r.Kurs.Value.m_Curve,r.Prefab,_lotOwner,benutzt) : new List<ParkingLotKursabgleich.Teil>();
+                bool innenhoeheVanilla = r.Kurs.HasValue
+                    && ParkingLotKursabgleich.InnenhoeheVanilla(EntityManager,r.Prefab,r.Kurs.Value,_lotOwner);
+                var teile = r.Kurs.HasValue ? ParkingLotKursabgleich.Sammle(EntityManager,netze,
+                    r.Kurs.Value.m_Curve,r.Prefab,_lotOwner,benutzt,innenhoeheVanilla) : new List<ParkingLotKursabgleich.Teil>();
                 bool hoehen = r.Kurs.HasValue;
                 for (int s = 0; s <= 16 && hoehen; s++)
                 {
@@ -235,14 +265,14 @@ namespace ParkingLotTool.Tools
                         MathUtils.Distance(c.xz,punkt.xz,out float t);
                         projiziert.Add(MathUtils.Position(c,t));
                     }
-                    hoehen &= HintergrundKurspruefung.LageGedeckt(punkt,projiziert);
+                    hoehen &= HintergrundKurspruefung.LageGedeckt(punkt,projiziert,innenhoeheVanilla && s > 0 && s < 16);
                 }
                 if (hoehen && ParkingLotKursabgleich.Kette(teile,out var start,out var ende)
                     && HintergrundSollanschluss(r,start,ende))
                 { kurse++; foreach (var teil in teile) benutzt.Add(teil.Kante); }
                 else _fehlendeHintergrundkurse.Add(r);
             }
-            messung = $"Besitzerpruefung: Kurse mit 17 Hoehenproben (5 cm) {kurse}/{_netRecords.Count}, Flaechen {flaechen}/{_areaTransferRecords.Count}, Objekte {objekte}/{_objectRecords.Count}.";
+            messung = $"Besitzerpruefung: Kurse mit 17 Lageproben (5 cm; Enden 3D, innen XZ nur bei Vanilla-Y) {kurse}/{_netRecords.Count}, Flaechen {flaechen}/{_areaTransferRecords.Count}, Objekte {objekte}/{_objectRecords.Count}.";
             return _netRecords.Count > 0 && kurse == _netRecords.Count && flaechen == _areaTransferRecords.Count && objekte == _objectRecords.Count;
         }
 
@@ -306,6 +336,9 @@ namespace ParkingLotTool.Tools
                 Randzoning = k.Randzoning, FlaecheStrasse = k.FlaecheStrasse,
                 FlaecheDekoration = k.FlaecheDekoration, FlaecheZoning = k.FlaecheZoning };
             if (!SchreibeBauzettel(_lotOwner,q)) throw new InvalidOperationException("Neuer Bauzettel fehlt.");
+            if (!ParkingLotBaukontextLeser.TryRead(EntityManager,_lotOwner,out var gelesen,out var grund,melden:false))
+                throw new InvalidOperationException("Neuer Bauzettel unvollstaendig: " + grund);
+            ParkingLotNetzRueckweg.Melde($"Neuer Bauzettel geschrieben/gelesen: Lot {_lotOwner.Index}, {gelesen.Punkte.Length} Punkte, {gelesen.Zugaenge.Length} Zugaenge, {gelesen.Bushalte.Count} Bushalte.");
             NameLotOwner(_areaPreviewLayout.Stalls);
             AppendBuildJournal(_areaPreviewLayout,_areaPreviewSettings,k.Punkte,OwnerDisplayName(_lotOwner),
                 _eigeneDauerteile.Count(e => EntityManager.HasComponent<Edge>(e) || EntityManager.HasComponent<Game.Net.Node>(e)),

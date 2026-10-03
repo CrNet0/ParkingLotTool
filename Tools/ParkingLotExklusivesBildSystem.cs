@@ -3,6 +3,7 @@ using Game;
 using Game.SceneFlow;
 using Game.Tools;
 using ParkingLotTool.Geometry;
+using Unity.Collections;
 using Unity.Entities;
 using UnityEngine.Scripting;
 
@@ -88,10 +89,10 @@ namespace ParkingLotTool.Tools
             {
                 var werkzeug = World.GetExistingSystemManaged<ParkingLotToolSystem>();
                 bool pltZeichnet = World.GetExistingSystemManaged<ToolSystem>()?.activeTool == werkzeug
-                    && (definitionen > 0 || temps > 0);
+                    && werkzeug?.HatAktivenEntwurf == true;
                 Wartehinweis = pltZeichnet ? ParkingLotTexte.T(
-                    "Synchronisation wartet: Parking-Lot-Panel/Werkzeug schliessen.",
-                    "Synchronization is waiting: close the Parking Lot panel/tool.")
+                    "Synchronisation wartet: Entwurf beenden oder Parking-Lot-Panel/Werkzeug schliessen.",
+                    "Synchronization is waiting: finish the draft or close the Parking Lot panel/tool.")
                     : ParkingLotTexte.T("Synchronisation wartet auf einen freien Bauzyklus. Aktuellen Werkzeugentwurf beenden.",
                         "Synchronization is waiting for a free build cycle. Finish the current tool draft.");
                 var bild = UnityEngine.Time.frameCount;
@@ -100,10 +101,16 @@ namespace ParkingLotTool.Tools
                 _letztesWartebild = bild;
                 if (definitionen != _letzteDefinitionen || temps != _letzteTemps
                     || bereit != _letzteBereitschaft || (neuesBild && _wartendeBilder % 120 == 0))
+                {
                     Melde($"wartet Lot {_lot.Index}: "
                         + ExklusivesBaubild.Wartegrund(definitionen, temps, bereit)
                         + "; " + Wartehinweis
                         + $"; {_wartendeBilder} wartende Bilder.");
+                    // Der Lauf 13:01 enthaelt 0 Tor-Wartezeilen und keine
+                    // Blockierer-ID. Beim naechsten Befund Herkunft lesen,
+                    // ohne eine fremde Definition/Temp zu veraendern.
+                    ParkingLotHintergrundDiagnose.Sicher(() => MeldeDefinitionen(werkzeug?.HatAktivenEntwurf == true));
+                }
                 _letzteDefinitionen = definitionen;
                 _letzteTemps = temps;
                 _letzteBereitschaft = bereit;
@@ -134,6 +141,24 @@ namespace ParkingLotTool.Tools
             var zeile = "PLT-Hintergrund: " + text;
             Mod.log.Info(zeile);
             ParkingGeometry.Live(zeile);
+        }
+
+        private void MeldeDefinitionen(bool entwurf)
+        {
+            var prefabs = World.GetExistingSystemManaged<Game.Prefabs.PrefabSystem>();
+            using var eingaben = _definitionen.ToEntityArray(Allocator.Temp);
+            for (int i = 0; i < eingaben.Length && i < 12; i++)
+            {
+                var e = eingaben[i]; var d = EntityManager.GetComponentData<CreationDefinition>(e);
+                string prefab = prefabs != null ? ParkingLotHintergrundDiagnose.Name(prefabs,d.m_Prefab) : d.m_Prefab.ToString();
+                string auftrag = EntityManager.HasComponent<ParkingLotAuftragsdefinition>(e)
+                    ? EntityManager.GetComponentData<ParkingLotAuftragsdefinition>(e).Auftrag.ToString() : "fremd/unmarkiert";
+                Melde($"Torbelegung: Definition {e}, Prefab {prefab}, Flags {d.m_Flags}, Owner {d.m_Owner}, Original {d.m_Original}, "
+                    + $"Auftrag {auftrag}, Updated={EntityManager.HasComponent<Game.Common.Updated>(e)}, "
+                    + $"NetCourse={EntityManager.HasComponent<NetCourse>(e)}, Objekt={EntityManager.HasComponent<ObjectDefinition>(e)}, "
+                    + $"Flaechenpuffer={EntityManager.HasBuffer<Game.Areas.Node>(e)}, PLT-Entwurf={entwurf}.");
+            }
+            if (eingaben.Length > 12) Melde($"Torbelegung: weitere {eingaben.Length-12} Definitionen nur gezaehlt.");
         }
     }
 }
