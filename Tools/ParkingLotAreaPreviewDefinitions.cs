@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Game.Common;
 using Game.Prefabs;
 using Game.Simulation;
@@ -14,6 +14,13 @@ namespace ParkingLotTool.Tools
     public sealed partial class ParkingLotToolSystem
     {
         private int CreateAreaPreviewDefinitions(ParkingLayout layout)
+        {
+            int n = 0;
+            foreach (int teil in CreateAreaPreviewDefinitionsSchritte(layout)) n += teil;
+            return n;
+        }
+
+        private System.Collections.Generic.IEnumerable<int> CreateAreaPreviewDefinitionsSchritte(ParkingLayout layout)
         {
             var strasseAn = _baukontext?.Zettel.SurfaceRoadOn ?? _uiSystem?.FlaecheStrasseAn ?? true;
             var dekoAn = _baukontext?.Zettel.SurfaceDecorationOn ?? _uiSystem?.FlaecheDekoAn ?? true;
@@ -89,24 +96,26 @@ namespace ParkingLotTool.Tools
             var sampled = 0;
             var minimum = float.PositiveInfinity;
             var maximum = float.NegativeInfinity;
-            MeasureAreaPreviewGroup(gras, ref heightData,
-                ref sampled, ref minimum, ref maximum);
-            MeasureAreaPreviewGroup(asphalt, ref heightData,
-                ref sampled, ref minimum, ref maximum);
             // Die Vorflaeche liegt AUSSERHALB des Polygons, also ausserhalb
             // des schon gemessenen Bereichs. Ohne diese Zeile fehlten ihre
             // Knoten in der Terrainpruefung.
-            MeasureAreaPreviewGroup(einzelneVorflaechen, ref heightData,
-                ref sampled, ref minimum, ref maximum);
-            MeasureAreaPreviewGroup(verschmolzen, ref heightData,
-                ref sampled, ref minimum, ref maximum);
+            foreach (var gruppe in new[] { gras, asphalt, einzelneVorflaechen, verschmolzen })
+            {
+                if (gruppe == null) continue;
+                foreach (var ring in gruppe)
+                {
+                    MeasureAreaPreviewGroup(new[] {ring}, ref heightData,
+                        ref sampled, ref minimum, ref maximum);
+                    yield return 0;
+                }
+            }
 
             if (sampled == 0)
             {
                 SetAreaTerrainTransfer(0, 0f, 0f, 0f,
                     limitTriggered: false,
                     "Keine übergabefähigen Flächenknoten vorhanden.");
-                return 0;
+                yield break;
             }
 
             var span = maximum - minimum;
@@ -128,7 +137,7 @@ namespace ParkingLotTool.Tools
                 Mod.log.Warn($"PLT-Flächenvorschau wegen unplausibler Terrainhöhen "
                     + $"verworfen: {span:F2} m > {MaxCourseHeightDeviation:F0} m "
                     + $"(Minimum {minimum:F2} m, Maximum {maximum:F2} m).");
-                return 0;
+                yield break;
             }
 
             var created = 0;
@@ -137,6 +146,7 @@ namespace ParkingLotTool.Tools
             // taucht sie im Abzug oben auf.
             ProtokolliereBauschritt("CreateLotOwnerDefinition");
             created += CreateLotOwnerDefinition(ref heightData);
+            yield return created;
             /**
              * HIER wirken die Flaechenschalter unabhaengig - und NUR hier.
              *
@@ -181,8 +191,9 @@ namespace ParkingLotTool.Tools
                     + "Gelaendebaeume: der PLT-Raeumbelag ist noch nicht "
                     + "bereit; der Bau verwendet die gewaehlte Vanilla-Flaeche.");
             if (dekoAn)
-                flaechen += CreateAreaPreviewGroup("Grass", gras,
-                    grasPrefab, ref heightData);
+                foreach (int n in CreateAreaPreviewGroupSchritte("Grass", gras,
+                    grasPrefab, heightData))
+                { flaechen += n; yield return n; }
             /*
              * DER HAUPTBELAG BEKOMMT DIESELBEN DECAL-EBENEN WIE DIE
              * VORFLAECHE, ABER EINEN EIGENEN KLON MIT RAEUMFLAG.
@@ -209,11 +220,12 @@ namespace ParkingLotTool.Tools
                     RecordPreviewDiagnostic("Warning", "Asphalt raeumt keine "
                         + "Gelaendebaeume: der PLT-Raeumbelag ist noch nicht "
                         + "bereit; der Bau verwendet die gewaehlte Vanilla-Flaeche.");
-                flaechen += CreateAreaPreviewGroup("Asphalt", asphalt,
+                foreach (int n in CreateAreaPreviewGroupSchritte("Asphalt", asphalt,
                     _asphaltBelagPrefab != Entity.Null
                         ? _asphaltBelagPrefab
                         : _pavementSurfacePrefab,
-                    ref heightData);
+                    heightData))
+                { flaechen += n; yield return n; }
             }
             /*
              * DAS BAULAND HAT SEINEN EIGENEN SCHALTER NICHT.
@@ -226,7 +238,7 @@ namespace ParkingLotTool.Tools
             if (!ZoningFlaecheAus
                 && layout.ZoningSurface != null
                 && layout.ZoningSurface.Length > 0)
-                flaechen += CreateAreaPreviewGroup("Zoning",
+                foreach (int n in CreateAreaPreviewGroupSchritte("Zoning",
                     layout.ZoningSurface,
                     // Mit Rueckfall wie bei der Dekoflaeche: klappt der Klon
                     // nicht, wird mit dem Vanilla-Prefab gebaut statt gar
@@ -234,7 +246,8 @@ namespace ParkingLotTool.Tools
                     _zoningBodenPrefab != Entity.Null
                         ? _zoningBodenPrefab
                         : _zoningSurfacePrefab,
-                    ref heightData);
+                    heightData))
+                { flaechen += n; yield return n; }
             /*
              * Immer gesetzt, wie die Parzellen selbst: ohne diesen Belag
              * saehe man Autos ueber Gras fahren, denn die Zoning-Strasse ist
@@ -245,9 +258,10 @@ namespace ParkingLotTool.Tools
             {
                 if (_zoningBelagPrefab != Entity.Null)
                 {
-                    flaechen += CreateAreaPreviewGroup("Zoningstrasse",
+                    foreach (int n in CreateAreaPreviewGroupSchritte("Zoningstrasse",
                         layout.ZoningRoadSurface, _zoningBelagPrefab,
-                        ref heightData);
+                        heightData))
+                { flaechen += n; yield return n; }
                 }
                 else
                 {
@@ -275,14 +289,16 @@ namespace ParkingLotTool.Tools
                 }
             }
             if (strasseAn && verschmolzen.Length > 0)
-                flaechen += CreateAreaPreviewGroup("Asphalt mit Vorflaeche",
+                foreach (int n in CreateAreaPreviewGroupSchritte("Asphalt mit Vorflaeche",
                     verschmolzen,
                     _asphaltBelagPrefab != Entity.Null
                         ? _asphaltBelagPrefab : vorflaechenPrefab,
-                    ref heightData);
+                    heightData))
+                { flaechen += n; yield return n; }
             if (strasseAn && einzelneVorflaechen.Length > 0)
-                flaechen += CreateAreaPreviewGroup("Vorflaeche",
-                    einzelneVorflaechen, vorflaechenPrefab, ref heightData);
+                foreach (int n in CreateAreaPreviewGroupSchritte("Vorflaeche",
+                    einzelneVorflaechen, vorflaechenPrefab, heightData))
+                { flaechen += n; yield return n; }
             created += flaechen;
             // Die beiden Zoning-Listen zaehlen mit: sie werden immer
             // gesetzt, unabhaengig von den Schaltern fuer Strasse und
@@ -317,11 +333,19 @@ namespace ParkingLotTool.Tools
              * Zustaende erzeugen, sobald einer davon fehlschlaegt.
              */
             ProtokolliereBauschritt("CreateNetDefinitions");
-            created += CreateNetDefinitions(layout, _areaPreviewSettings,
-                ref heightData);
+            foreach (int n in CreateNetDefinitionsSchritte(layout, _areaPreviewSettings,
+                heightData))
+            { created += n; yield return n; }
+            if (_bauarbeiter)
+            {
+                int netzbild = UnityEngine.Time.frameCount;
+                while (UnityEngine.Time.frameCount - netzbild < 3) yield return 0;
+                foreach (int n in SchliesseHintergrundNetzbesitz()) yield return n;
+            }
             ProtokolliereBauschritt("CreateBayDecalDefinitions");
-            created += CreateBayDecalDefinitions(layout, _areaPreviewSettings,
-                ref heightData);
+            foreach (int n in CreateBayDecalDefinitionsSchritte(layout, _areaPreviewSettings,
+                heightData))
+            { created += n; yield return n; }
             ProtokolliereBauschritt("CreateVegetationDefinitions");
             /*
              * DIE BEPFLANZUNG HAENGT NICHT AM DEKO-SCHALTER.
@@ -332,11 +356,12 @@ namespace ParkingLotTool.Tools
              * sie bekommen nur keinen Belag; ein Baum braucht darunter
              * keinen.
              */
-            created += CreateVegetationDefinitions(
-                layout.GrassForVegetation, ref heightData);
+            foreach (int n in CreateVegetationDefinitionsSchritte(layout.GrassForVegetation, heightData))
+            { created += n; yield return n; }
             ProtokolliereBauschritt("CreateEntranceArrowDefinitions");
-            created += CreateEntranceArrowDefinitions(layout, ref heightData);
-            return created;
+            foreach (int n in CreateEntranceArrowDefinitionsSchritte(layout, heightData))
+            { created += n; yield return n; }
+            yield break;
         }
 
         private static void MeasureAreaPreviewGroup(
@@ -380,15 +405,24 @@ namespace ParkingLotTool.Tools
             Entity prefab,
             ref TerrainHeightData heightData)
         {
-            if (polygons == null) return 0;
+            int n = 0;
+            foreach (int teil in CreateAreaPreviewGroupSchritte(kind, polygons, prefab, heightData)) n += teil;
+            return n;
+        }
+
+        private System.Collections.Generic.IEnumerable<int> CreateAreaPreviewGroupSchritte(string kind, float2[][] polygons, Entity prefab, TerrainHeightData heightData)
+        {
+            if (polygons == null) yield break;
 
             ProtokolliereBauschritt("CreateAreaPreviewGroup " + kind);
             var created = 0;
             for (var i = 0; i < polygons.Length; i++)
-                if (CreateAreaPreviewDefinition(
-                    kind, i, polygons[i], prefab, ref heightData))
-                    created++;
-            return created;
+            {
+                yield return 0;
+                if (CreateAreaPreviewDefinition(kind, i, polygons[i], prefab, ref heightData))
+                { created++; yield return 1; }
+            }
+            yield break;
         }
 
         private bool CreateAreaPreviewDefinition(

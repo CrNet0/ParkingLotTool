@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Text;
 using System.Security.Cryptography;
@@ -409,6 +409,13 @@ namespace ParkingLotTool.Tools
         }
         private int CreateVegetationDefinitions(float2[][] grass, ref TerrainHeightData heightData)
         {
+            int n = 0;
+            foreach (int teil in CreateVegetationDefinitionsSchritte(grass, heightData)) n += teil;
+            return n;
+        }
+
+        private System.Collections.Generic.IEnumerable<int> CreateVegetationDefinitionsSchritte(float2[][] grass, TerrainHeightData heightData)
+        {
             _vegetationPreserve=false; _vegetationCount=0; _vegetationTreeStates.Clear(); _vegetationPlanned.Clear();
             _vegZustandGesetzt=0; _vegOhneTreeKomponente=0; _vegOhneZiel=0;
             var options = _bauvegetation ?? _uiSystem?.Vegetation ?? new VegetationOptions();
@@ -419,7 +426,7 @@ namespace ParkingLotTool.Tools
             {
                 _vegetationPreserve=true;
                 Mod.log.Info("PLT-Vorbauzettel Vegetation: unveraendert, bestehende Pflanzen werden uebernommen. " + json);
-                return 0;
+                yield break;
             }
             /*
              * WARUM NEU GEPFLANZT WIRD - DIE ANDERE HAELFTE DER AUSKUNFT.
@@ -450,7 +457,9 @@ namespace ParkingLotTool.Tools
             var assets=(_baupflanzen ?? _uiSystem?.VegetationAssets ?? Array.Empty<VegetationAsset>()).Where(a=>options.Species.Contains(a.Id)).ToArray();
             var species=assets.Select(a=>new VegetationSpecies {Id=a.Id,Tree=a.Tree,Spacing=a.Spacing}).ToArray();
             ParkingVegetation.Dichtefaktor = Mod.Optionen?.Vegetationsdichte ?? 1f;
-            var plan=ParkingVegetation.Plan(grass,options,species);
+            var rechnung = _bauarbeiter ? System.Threading.Tasks.Task.Run(() => ParkingVegetation.Plan(grass,options,species)) : null;
+            while (rechnung != null && !rechnung.IsCompleted) yield return 0;
+            var plan = rechnung != null ? rechnung.GetAwaiter().GetResult() : ParkingVegetation.Plan(grass,options,species);
             Mod.log.Info("PLT-Vorbauzettel Vegetation: Dichtefaktor "
                 + ParkingVegetation.Dichtefaktor.ToString("F1") + "; " + json + "; Kandidaten="+plan.Candidates+"; Pflanzen="+plan.Plants.Count+"; Grenze="+plan.Limited
                 + "; verworfen: Rand="+plan.RandVerworfen+", Wuerfel="+plan.WuerfelVerworfen
@@ -461,6 +470,7 @@ namespace ParkingLotTool.Tools
             var erwartet=new System.Collections.Generic.Dictionary<string,int>();
             foreach(var plant in plan.Plants)
             {
+                yield return 0;
                 var asset=assets[plant.Species];
                 var position=new float3(plant.Position.x,0,plant.Position.y);
                 position.y=TerrainUtils.SampleHeight(ref heightData,position);
@@ -486,6 +496,7 @@ namespace ParkingLotTool.Tools
                     m_Probability=100,m_PrefabSubIndex=-1,m_Scale=new float3(1),m_Intensity=1,m_ParentMesh=-1,
                     m_Age=age,m_IsDecoration=options.NoAging });
                 RecordObjectDefinition("Vegetation",_vegetationCount++,asset.Prefab,definition,position);
+                yield return 1;
             }
             var stufen=new[]{"Jung","Teen","Erwachsen","Elderly","Tot","Stumpf"};
             Mod.log.Info("PLT-Vegetation WAHL: Maske="+(options.Ages&63)
@@ -497,7 +508,7 @@ namespace ParkingLotTool.Tools
                 + string.Join(", ", erwartet.Select(p=>p.Key+"="+p.Value))
                 + ". Steht darunter 'PLT-Vegetation IST' etwas anderes, "
                 + "ueberlebt der Zustand den Bau nicht.");
-            return _vegetationCount;
+            yield break;
         }
         /** Kurzform einer Unterschrift - acht Zeichen genuegen zum Vergleichen. */
         private static string Kurz(string s)

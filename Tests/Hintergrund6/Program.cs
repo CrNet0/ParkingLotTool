@@ -131,10 +131,10 @@ Pruefe(sync.Contains("hintergrund.IstErsatz(lot)")&&sync.Contains("MeldeBauplanF
 Pruefe(bau.Contains("Task.Run(() =>")&&bau.Contains("_hintergrundRechenthread")&&bau.Contains("if (!_hintergrundPlanVorbereitet)"),"Gemessener Hintergrundtask und einmalige Vorflaechenvorbereitung");
 Pruefe(preview.Contains("WerkzeugdefinitionBeenden(eigen,permanent,false)")&&!preview.Contains("_definitionQuery = GetDefinitionQuery()"),"Definitionsende umfasst nur eigene Temp-Eingaben, auch Updated");
 Pruefe(Lies("Tools/ParkingLotBuildStages.cs").Contains("if (built) TryDestroyDefinitionEntities"),"Normalbau beendet seine Eingaben nach Apply");
-Pruefe(Lies("Tools/ParkingLotDefinitionsausgabe.cs").Contains(".MerkeTemp(")&&Lies("Tools/ParkingLotDefinitionsendeSystem.cs").Contains("MarkiereTempAbschnitte(kurse)"),"Temp-Herkunft vor CourseSplit erfassen, danach zuordnen");
+Pruefe(Lies("Tools/ParkingLotDefinitionsausgabe.cs").Contains(".MerkeWerkzeugentwurf(")&&Lies("Tools/ParkingLotDefinitionsendeSystem.cs").Contains("MarkiereTempAbschnitte(kurse)"),"Temp-Herkunft vor CourseSplit erfassen, danach zuordnen");
 Pruefe(Lies("Tools/ParkingLotExklusivesBildSystem.cs").Contains("werkzeug?.HatAktivenEntwurf == true"),"Panel offen allein ist kein Entwurf");
 var rueckweg=Lies("Tools/ParkingLotNetzRueckweg.cs");
 Pruefe(rueckweg.Contains("em.AddComponentData(d, Eingabekurs(alt))")&&rueckweg.Contains("InnenhoeheVanilla(em,alt.Prefab,Eingabekurs(alt),alt.Besitzer)"),"Rueckweg erzeugt und prueft mit denselben ParentMesh-Werten");
-Pruefe(Lies("Tools/ParkingLotNetBuilder.cs").Contains("if (anschluss.Entity != Entity.Null)\n")||Lies("Tools/ParkingLotNetBuilder.cs").Contains("if (anschluss.Entity != Entity.Null)\r\n"),"Nutzerkorrektur fuer Knoten UND Kanten erhalten");
+Pruefe(Lies("Tools/ParkingLotGassenkurs.cs").Contains("if (anschluss.Entity != Entity.Null)\n")||Lies("Tools/ParkingLotGassenkurs.cs").Contains("if (anschluss.Entity != Entity.Null)\r\n"),"Nutzerkorrektur fuer Knoten UND Kanten erhalten");
 Console.WriteLine($"HINTERGRUND6: {n} Pruefungen, {fehler} Fehler (Rechenregeln, echter Bauzettelschreiber/-leser und Quellenvertrag; keine ECS-Abnahme).");
 return fehler==0?0:1;

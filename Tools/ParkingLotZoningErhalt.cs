@@ -17,7 +17,7 @@ namespace ParkingLotTool.Tools
     {
         private float2[][] _alteZoningkurse;
         private string _altesZoningprefab;
-        private readonly HashSet<Entity> _erhalteneZoningteile = new HashSet<Entity>();
+        private readonly HashSet<Entity> _erhalteneNetzteile = new HashSet<Entity>();
         private bool _zoningErhalten;
 
         private static float2[][] Zoningkurse(ParkingLayout layout)
@@ -30,83 +30,57 @@ namespace ParkingLotTool.Tools
             _altesZoningprefab = _baukontext?.Zoningstrasse ?? _uiSystem.CurrentSettings().Zoningstrasse;
         }
 
-        private void PlaneZoningerhalt()
-        {
-            _zoningErhalten = SammleErhalteneZoningteile(_erhalteneZoningteile, true);
-        }
-
         /**
          * Welche Zoningteile des bearbeiteten Parkplatzes bleiben stehen?
          * Ohne Nebenwirkung auf den Bau: die Vorplanung der Leitungen fragt
          * das waehrend des Bearbeitens laufend (`melden: false`), der Bau
-         * genau einmal ueber `PlaneZoningerhalt`.
+         * genau einmal ueber `PlaneNetzerhaltSchritte`.
          */
         private bool SammleErhalteneZoningteile(HashSet<Entity> ziel, bool melden)
+        {
+            foreach (int n in SammleErhalteneZoningteileSchritte(ziel,melden)) { }
+            return ziel.Count > 0;
+        }
+
+        private IEnumerable<int> SammleErhalteneZoningteileSchritte(HashSet<Entity> ziel, bool melden)
         {
             ziel.Clear();
             if (!IsEditing || _areaPreviewLayout == null || !ZoningErhalt.Gleich(
                 _alteZoningkurse, Zoningkurse(_areaPreviewLayout), _altesZoningprefab,
-                _baukontext?.Zoningstrasse ?? _uiSystem.CurrentSettings().Zoningstrasse)) return false;
+                _baukontext?.Zoningstrasse ?? _uiSystem.CurrentSettings().Zoningstrasse)) yield break;
 
-            using var teile = _editOwnerParts.ToEntityArray(Allocator.Temp);
-            foreach (var teil in teile)
-            {
-                if (!ParkingLotBesitz.GehoertZu(EntityManager,EntityManager.GetComponentData<Owner>(teil).m_Owner,_editLot)
-                    || !EntityManager.HasComponent<Edge>(teil)
-                    || EntityManager.HasComponent<Deleted>(teil)
-                    || EntityManager.HasComponent<Temp>(teil)
-                    || !EntityManager.HasComponent<PrefabRef>(teil)) continue;
-                var prefab = EntityManager.GetComponentData<PrefabRef>(teil).m_Prefab;
-                if (!_prefabSystem.TryGetPrefab<PrefabBase>(prefab, out var asset)
-                    || asset.name != "PLT Zoningstrasse (" + _altesZoningprefab + ")") continue;
-                ziel.Add(teil);
-                var edge = EntityManager.GetComponentData<Edge>(teil);
-                ziel.Add(edge.m_Start);
-                ziel.Add(edge.m_End);
-            }
-            /*
-             * ERHALTEN NUR, WENN AUCH DIE SEITEN STIMMEN.
-             *
-             * Die Seiten kommen seit 2026-09-25 ausschliesslich ueber die
-             * Baudefinition (`EntscheideZoningseiten`). Eine erhaltene Kante
-             * wird nicht neu definiert - hat der Nutzer eine Seite
-             * umgeschaltet, kaeme die Aenderung nie an. Dann wird neu gebaut.
-             */
+            Entity[] kandidaten;
+            if (_bauarbeiter) kandidaten = ParkingLotNetzRueckweg.Besitzteile(EntityManager,_editLot);
+            else using (var teile = _editOwnerParts.ToEntityArray(Allocator.Temp)) kandidaten = teile.ToArray();
+            if (!TryResolveZoningRoad(_altesZoningprefab,out var prefab)) yield break;
             MerkeZoningSeitenGrundlage();
-            foreach (var teil in ziel)
+            var indizes = new List<int>();
+            for (int i = 0; i < _areaPreviewLayout.NetLine.Length; i++)
             {
-                if (!EntityManager.HasComponent<Edge>(teil)
-                    || !EntityManager.HasComponent<Curve>(teil)) continue;
-                var kurve = EntityManager.GetComponentData<Curve>(teil).m_Bezier;
-                if (!EntscheideZoningseiten(kurve.a.xz, kurve.d.xz, false,
-                        out var linksAus, out var rechtsAus, out _)) continue;
-                if (LiestSeite(teil, true) == linksAus
-                    && LiestSeite(teil, false) == rechtsAus) continue;
-                if (melden)
-                    Mod.log.Info("PLT-Vorbauzettel Zoningerhalt: Strassenplan gleich, "
-                        + "aber eine Seite wurde umgeschaltet - die Zoningstrassen "
-                        + "werden neu gebaut.");
+                var piece = _areaPreviewLayout.NetLine[i];
+                if (piece.Kind != "zoning") continue;
+                indizes.Add(i);
+                if (FindeNetzerhalt(i,piece,piece.A,piece.B,prefab,Entity.Null,kandidaten,ziel,melden)) { yield return 0; continue; }
                 ziel.Clear();
-                break;
+                if (melden) foreach (int index in indizes) _erhalteneKursketten.Remove(("zoning",index));
+                if (melden) Mod.log.Info($"PLT-Vorbauzettel Netzerhalt: Zoningkurs {i} in Kurs/Prefab/Seiten/Anschluss veraendert oder unvollstaendig; 0 Zoningkurse erhalten.");
+                yield break;
             }
-            if (melden)
-                Mod.log.Info("PLT-Vorbauzettel Zoningerhalt: unveraenderter Strassenplan; "
-                    + ziel.Count + " bestehende Kanten/Knoten erhalten. "
-                    + "Zonenbloecke und Gebaeude werden nicht neu erzeugt.");
-            return ziel.Count > 0;
+            if (melden) Mod.log.Info($"PLT-Vorbauzettel Netzerhalt: {indizes.Count} unveraenderte Zoningkurse, {ziel.Count} Kanten/Knoten erhalten.");
+
         }
 
         /**
-         * Erhaltene Zoningstrassen behalten Kante, Owner und Geometrie; nur
+         * Erhaltene Netzstrassen behalten Kante, Owner und Geometrie; nur
          * ihre Fahrspuren stammen noch aus dem alten Prefabstand. `Updated`
          * laesst Vanilla sie aus den fertigen Klonen neu ableiten (25 km/h,
          * Kosten). Gilt fuer Edit UND Hintergrund-Neubau (2026-10-02: nach
          * einem Edit standen 8 Vanilla-Spuren auf erhaltenen Kanten).
          */
-        private int MeldeErhalteneZoningteileAn()
+        private int MeldeErhalteneNetzteileAn()
         {
             int n = 0;
-            foreach (var e in _erhalteneZoningteile)
+            foreach (var e in _erhalteneNetzteile)
                 if (ParkingLotNetzRueckweg.Lebt(EntityManager, e))
                 { EntityManager.AddComponent<Updated>(e); n++; }
             return n;
@@ -114,8 +88,8 @@ namespace ParkingLotTool.Tools
 
         private void UebertrageZoningbestand(Entity old, Entity next, Entity carrier)
         {
-            if (!_zoningErhalten) return;
-            foreach (var teil in _erhalteneZoningteile)
+            if (_erhalteneNetzteile.Count == 0) return;
+            foreach (var teil in _erhalteneNetzteile)
             {
                 if (!EntityManager.Exists(teil) || EntityManager.HasComponent<Deleted>(teil)) continue;
                 if (!_bauarbeiter && EntityManager.HasComponent<Owner>(teil))
@@ -159,7 +133,7 @@ namespace ParkingLotTool.Tools
             if (!EntityManager.Exists(owner) || !EntityManager.HasBuffer<SubNet>(owner)) return;
             var nets = EntityManager.GetBuffer<SubNet>(owner);
             for (int i = nets.Length - 1; i >= 0; i--)
-                if (_erhalteneZoningteile.Contains(nets[i].m_SubNet)) nets.RemoveAt(i);
+                if (_erhalteneNetzteile.Contains(nets[i].m_SubNet)) nets.RemoveAt(i);
         }
     }
 }

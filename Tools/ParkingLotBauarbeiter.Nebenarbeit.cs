@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Game.Common;
@@ -43,7 +43,23 @@ namespace ParkingLotTool.Tools
 
         /** Der Erzeuger wird IMMER durch E1 aufgerufen. Die Trassenwahl und
          *  die Kursdefinitionen sind dieselben wie im regulaeren Edit. */
+        private HintergrundPortion _nebenportion;
         internal int HintergrundNebenbild()
+        {
+            _nebenportion ??= new HintergrundPortion(HintergrundNebenschritte());
+            var uhr = System.Diagnostics.Stopwatch.StartNew();
+            int n = _nebenportion.Weiter(() => uhr.Elapsed.TotalMilliseconds);
+            _nebenbild = UnityEngine.Time.frameCount;
+            // Auch das Zoning-Nachmessen kann eine Haltdefinition liefern.
+            // Das Gate protokolliert die tatsaechlichen eigenen Definitionen.
+            using var a = GetEntityQuery(ComponentType.ReadOnly<CreationDefinition>(),
+                ComponentType.ReadOnly<ParkingLotAuftragsdefinition>()).ToEntityArray(Allocator.Temp);
+            n = 0;
+            foreach (var e in a)
+                if (EntityManager.GetComponentData<ParkingLotAuftragsdefinition>(e).Auftrag == _definitionsauftrag) n++;
+            return n;
+        }
+        private IEnumerable<int> HintergrundNebenschritte()
         {
             PruefeUeberlebendeAusgeblendete();
             if (!_nebenarbeitBegonnen)
@@ -66,6 +82,7 @@ namespace ParkingLotTool.Tools
                 // Ihr Haltestellenerzeuger laeuft hier ebenfalls unter E1.
                 _zoningSeitenFrames = _zoningBlockFrames = 1;
                 PflegeZoningBlockmessung();
+                yield return 0;
             }
             if (!_busDefinitionenFertig)
             {
@@ -75,17 +92,10 @@ namespace ParkingLotTool.Tools
             if (_avPhase == AvPhase.LotWarten)
             {
                 _avKurse.Clear();
-                StarteAutoVersorgung(_lotCarrier);
+                foreach (int n in StarteAutoVersorgungSchritte(_lotCarrier)) yield return n;
                 _versorgungAnschlussAngestossen = false;
             }
-            _nebenbild = UnityEngine.Time.frameCount;
-            var q = GetEntityQuery(ComponentType.ReadOnly<CreationDefinition>(),
-                ComponentType.ReadOnly<ParkingLotAuftragsdefinition>());
-            using var definitionen = q.ToEntityArray(Allocator.Temp);
-            int n = 0;
-            foreach (var e in definitionen)
-                if (EntityManager.GetComponentData<ParkingLotAuftragsdefinition>(e).Auftrag == _definitionsauftrag) n++;
-            return n;
+
         }
 
         /** 0 wartet auf Materialisierung, 1 braucht ein weiteres exklusives
@@ -96,6 +106,11 @@ namespace ParkingLotTool.Tools
             PruefeUeberlebendeAusgeblendete();
             if (!_nebenarbeitBegonnen)
                 return UnityEngine.Time.frameCount-_hintergrundStufeBBild < 36 ? 0 : 1;
+            if (_nebenportion != null)
+            {
+                if (!_nebenportion.Fertig) return 1;
+                _nebenportion.Dispose(); _nebenportion = null;
+            }
             int vergangen = UnityEngine.Time.frameCount-_nebenbild;
             if (vergangen < 3) return 0;
             AuditBuiltBusStops();

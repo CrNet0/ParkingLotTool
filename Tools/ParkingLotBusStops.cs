@@ -360,8 +360,11 @@ namespace ParkingLotTool.Tools
             var routeData = EntityManager.GetComponentData<RouteConnectionData>(
                 _busStopPrefab);
             var built = 0;
-            var offen = new List<BusStopPlacement>();
-            for (var i = 0; i < _pendingBusStops.Length; i++)
+            int portion = _bauarbeiter ? 1 : _pendingBusStops.Length;
+            // Offene Positionen ans Ende rotieren: ein unmoeglicher erster
+            // Halt darf die gueltigen dahinter nicht bei jedem Bild verdrängen.
+            var offen = _pendingBusStops.Skip(portion).ToList();
+            for (var i = 0; i < portion; i++)
             {
                 var stop = _pendingBusStops[i];
                 var target = stop.Position;
@@ -504,7 +507,7 @@ namespace ParkingLotTool.Tools
             // 24 Bilder nach dem Bau fehlten im Nutzerlauf 0/2 Halte. Eine
             // noch nicht materialisierte Kante ist kein endgueltiges Nein.
             // Der Aufpasser begrenzt Wiederholungen auf dieselben 90 Aufrufe.
-            if (_pendingBusStops.Length > 0 && _busStopBuildDeadline > 0
+            if (!_bauarbeiter && _pendingBusStops.Length > 0 && _busStopBuildDeadline > 0
                 && _busStopBuildDeadline % 8 == 0)
                 BuildBusStopsOnRoads(_pendingBusCarrier);
             if (_pendingBusStops.Length > 0

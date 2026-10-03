@@ -58,9 +58,12 @@ namespace ParkingLotTool.Tools
         }
 
         private void RestoreHiddenParts()
+        { foreach (int n in RestoreHiddenPartsSchritte()) { } }
+        private IEnumerable<int> RestoreHiddenPartsSchritte()
         {
             foreach (var part in _hiddenByEdit)
             {
+                yield return 0;
                 if (!EntityManager.Exists(part)
                     || !EntityManager.HasComponent<Hidden>(part)) continue;
                 EntityManager.RemoveComponent<Hidden>(part);
@@ -101,9 +104,12 @@ namespace ParkingLotTool.Tools
          * bis der Neubau vollstaendig ist.
          */
         private void EntferneAlteNetzeVorDemNeubau()
+        { foreach (int n in EntferneAlteNetzeSchritte()) { } }
+        private IEnumerable<int> EntferneAlteNetzeSchritte()
         {
-            if (!IsEditing) return;
-            PlaneZoningerhalt();
+            if (!IsEditing) yield break;
+            foreach (int n in PlaneNetzerhaltSchritte()) yield return n;
+            yield return 0;
             /*
              * ZUERST ERFASSEN, DANN LOESCHEN.
              *
@@ -120,7 +126,10 @@ namespace ParkingLotTool.Tools
              * Ohne die Liste waere sie geraten.
              */
             ErfasseVersorgungsanschluesse(_editLot);
-            ErfasseEdithoehenVorAbriss();
+            yield return 0;
+            if (_bauarbeiter) foreach (int n in ErfasseHintergrundhoehenSchritte()) yield return n;
+            else ErfasseEdithoehenVorAbriss();
+            yield return 0;
             /*
              * UEBER DEN BESITZER, NICHT UEBER DIE TEILRELATION.
              *
@@ -136,22 +145,38 @@ namespace ParkingLotTool.Tools
              * Deshalb steht die Zahl jetzt in derselben Zeile neben der Zahl
              * der ueberhaupt betrachteten Teile.
              */
-            using var teile = _editOwnerParts.ToEntityArray(Allocator.Temp);
-            ParkingLotNetzRueckweg.Sichere(EntityManager, _editLot, teile, _erhalteneZoningteile);
+            Entity[] teile;
+            if (_bauarbeiter) teile = ParkingLotNetzRueckweg.Besitzteile(EntityManager,_editLot);
+            else using (var a = _editOwnerParts.ToEntityArray(Allocator.Temp)) teile = a.ToArray();
+            foreach (int n in ParkingLotNetzRueckweg.SichereSchritte(EntityManager, _editLot, teile, _erhalteneNetzteile)) yield return n;
             var entfernt = 0;
             var besessen = 0;
             var fremdeKnoten = new HashSet<Entity>();
             for (var i = 0; i < teile.Length; i++)
             {
+                yield return 0;
                 var teil = teile[i];
-                if (!ParkingLotBesitz.GehoertZu(EntityManager,EntityManager.GetComponentData<Owner>(teil).m_Owner,_editLot)) continue;
+                if (!EntityManager.Exists(teil) || !EntityManager.HasComponent<Owner>(teil)
+                    || !ParkingLotBesitz.GehoertZu(EntityManager,EntityManager.GetComponentData<Owner>(teil).m_Owner,_editLot)) continue;
                 besessen++;
                 if (!EntityManager.HasComponent<Game.Net.Edge>(teil)
                     && !EntityManager.HasComponent<Game.Net.Node>(teil))
                     continue;
                 if (EntityManager.HasComponent<Deleted>(teil)) continue;
 
-                if (_erhalteneZoningteile.Contains(teil)) continue;
+                if (_erhalteneNetzteile.Contains(teil))
+                {
+                    // Die Hoehenkopie leert den alten Hoehenspeicher. Erst
+                    // danach auch erhaltene Kursenden als Quelle aufnehmen:
+                    // 2026-09-26 lagen Gassenkurve und Wegknoten 0,23 m auseinander.
+                    if (EntityManager.HasComponent<Game.Net.Edge>(teil))
+                    {
+                        var k = EntityManager.GetComponentData<Game.Net.Edge>(teil);
+                        MerkeAltknotenhoehe(k.m_Start); MerkeAltknotenhoehe(k.m_End);
+                        MerkeAltkante(teil); MerkeAltgassenende(teil);
+                    }
+                    continue;
+                }
 
                 // Die Knoten der Kante MERKEN, bevor sie verschwindet -
                 // danach ist nicht mehr zu sehen, wo sie angesetzt hat.

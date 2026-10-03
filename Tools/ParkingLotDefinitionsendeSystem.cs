@@ -29,7 +29,7 @@ namespace ParkingLotTool.Tools
             if (owner != Entity.Null) _besitzer[owner] = auftrag;
         }
 
-        internal void MerkeTemp(CreationDefinition definition, NetCourse kurs)
+        internal void MerkeWerkzeugentwurf(CreationDefinition definition, NetCourse kurs)
             => _tempquellen.Add((definition,kurs));
 
         [Preserve]

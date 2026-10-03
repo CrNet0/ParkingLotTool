@@ -15,58 +15,60 @@ namespace ParkingLotTool.Tools
         private float _avStrombreite, _avWasserbreite;
         private Entity _avStromprefab, _avWasserprefab;
 
-        private List<Versorgungstrasse> WaehleVersorgungstrassen(Entity traeger)
+        private List<Versorgungstrasse> _avWahlTrassen;
+        private IEnumerable<int> WaehleVersorgungstrassenSchritte(Entity traeger)
         {
             _avLetzteIstEingabe = null;
-            var trassen = new List<Versorgungstrasse>();
+            var trassen = _avWahlTrassen = new List<Versorgungstrasse>();
             var eigene = SammleUnsereKanten(traeger);
             if (eigene.Count == 0)
             {
                 Mod.log.Warn("PLT-Autoversorgung: der Traeger hat keine eigene Strassenkanten - kein Startpunkt bestimmbar.");
-                return trassen;
+                yield break;
             }
             var zielstrassen = SammleZielstrassen(eigene);
             if (!zielstrassen.Exists(z => !EntityManager.HasComponent<Owner>(z.Kante)))
             {
                 _avNochOffeneNetze = 0;
                 Mod.log.Info("PLT-Autoversorgung: keine Stadtstrasse im Suchfeld; keine Leitungen angelegt.");
-                return trassen;
+                yield break;
             }
             var e = AvLeseIstEingabe(traeger, zielstrassen, _avAlleEigenen);
             AvMeldeBushaltAnschluesse(traeger);
-            Versorgungsauswahl aus;
             var vor = _avVorplanBeimBau;
-            var nummer = _avVorplanIndex + 1;
-            if (vor?.Gefunden == true && _avVorplanIndex < vor.Trassen.Count)
+            int index = _avVorplanIndex;
+            // Nur verwaltete Messdaten und Geometrie gehen in den Worker.
+            // Waehle baut den quadratischen Sichtgraphen; kein ECS dort.
+            (Versorgungsauswahl Auswahl, bool Verwendet, string Grund) Rechne()
             {
-                var uhr = Stopwatch.StartNew();
-                var trasse = vor.Trassen[_avVorplanIndex];
-                if (VersorgungstrassenPlan.PruefeVorplan(e, trasse, out aus, out var grund))
+                if (vor?.Gefunden == true && index < vor.Trassen.Count)
                 {
-                    Mod.log.Info($"PLT-Autoversorgung VORPLAN: verwendet (Trasse {nummer}/{vor.Trassen.Count}); Pruefung Hauptfaden "
-                        + $"{uhr.Elapsed.TotalMilliseconds:F2} ms.");
-                    _avVorplanIndex++;
+                    if (VersorgungstrassenPlan.PruefeVorplan(e,vor.Trassen[index],out var a,out var grund))
+                        return (a,true,null);
+                    return (VersorgungstrassenPlan.Waehle(e),false,grund);
                 }
-                else
-                {
-                    Mod.log.Info($"PLT-Autoversorgung VORPLAN: verworfen ({grund}, Trasse {nummer}/{vor.Trassen.Count}); "
-                        + $"Pruefung Hauptfaden {uhr.Elapsed.TotalMilliseconds:F2} ms.");
-                    VerwerfeRestvorplan(grund);
-                    aus = VersorgungstrassenPlan.Waehle(e);
-                }
+                return (VersorgungstrassenPlan.Waehle(e),false,null);
             }
-            else
+            (Versorgungsauswahl Auswahl, bool Verwendet, string Grund) ergebnis;
+            if (_bauarbeiter)
             {
-                // Nur ein echter Rueckfall heisst "verworfen". Ohne Trasse oder
-                // nach der letzten verwendeten Trasse bestaetigt die volle Wahl
-                // nur, dass nichts mehr zu tun ist.
-                Mod.log.Info(_avVorplanRueckfallGrund != null
-                    ? $"PLT-Autoversorgung VORPLAN: verworfen ({_avVorplanRueckfallGrund}); volle Wahl."
-                    : vor == null ? $"PLT-Autoversorgung VORPLAN: fehlte oder veraltet ({_avVorplanGrund}); volle Wahl."
-                    : vor.Gefunden ? "PLT-Autoversorgung VORPLAN: alle Trassen verwendet; volle Wahl zur Bestaetigung."
-                    : "PLT-Autoversorgung VORPLAN: ohne Trasse; volle Wahl zur Bestaetigung.");
-                aus = VersorgungstrassenPlan.Waehle(e);
+                var rechnung = System.Threading.Tasks.Task.Run(Rechne);
+                while (!rechnung.IsCompleted) yield return 0;
+                ergebnis = rechnung.GetAwaiter().GetResult();
             }
+            else ergebnis = Rechne();
+            var aus = ergebnis.Auswahl;
+            if (ergebnis.Verwendet)
+            {
+                _avVorplanIndex++;
+                Mod.log.Info($"PLT-Autoversorgung VORPLAN: verwendet (Trasse {index+1}/{vor.Trassen.Count}); Hintergrund={_bauarbeiter}.");
+            }
+            else if (ergebnis.Grund != null)
+            {
+                VerwerfeRestvorplan(ergebnis.Grund);
+                Mod.log.Info($"PLT-Autoversorgung VORPLAN: verworfen ({ergebnis.Grund}); volle Wahl, Hintergrund={_bauarbeiter}.");
+            }
+            else Mod.log.Info($"PLT-Autoversorgung VORPLAN: volle Wahl zur Bestaetigung; Hintergrund={_bauarbeiter}.");
             _avLetzteIstEingabe = aus;
             var gemesseneHuellen = aus.Beste?.Gruppe;
             if (gemesseneHuellen == null)
@@ -180,7 +182,7 @@ namespace ParkingLotTool.Tools
                     + $"{(t.Startknoten == Entity.Null ? 1 : 0)} Kantenstart; {_avNochOffeneNetze} weitere offene Netze.");
             }
             else AvMesseNetzabdeckung();
-            return trassen;
+            yield break;
         }
 
         private Versorgungsauswahl _avLetzteIstEingabe;

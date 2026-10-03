@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework>
+    <PortionQuelle Condition="'$(PortionQuelle)' == ''">../../Geometry/HintergrundPortion.cs</PortionQuelle>
+    <SpurQuelle Condition="'$(SpurQuelle)' == ''">../../Geometry/HintergrundSpurregel.cs</SpurQuelle>
+    <AbgleichQuelle Condition="'$(AbgleichQuelle)' == ''">../../Geometry/HintergrundAbgleich.cs</AbgleichQuelle>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="$(PortionQuelle);$(SpurQuelle);$(AbgleichQuelle)" />
+    <Reference Include="Unity.Mathematics"><HintPath>$(CSII_TOOLPATH)/UnityModsProject/Library/ScriptAssemblies/Unity.Mathematics.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

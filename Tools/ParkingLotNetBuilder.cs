@@ -136,9 +136,12 @@ namespace ParkingLotTool.Tools
             var kandidaten = new List<Gassenreichweite.Strasse>();
             var kanten = new List<Entity>();
             var boegen = new List<Colossal.Mathematics.Bezier4x3>();
-            using var alle = _gassenStrassen.ToEntityArray(Allocator.TempJob);
+            using var alle = _bauarbeiter ? LokaleHintergrundStrassen(rand) : _gassenStrassen.ToEntityArray(Allocator.TempJob);
             for (var i = 0; i < alle.Length; i++)
             {
+                if (!EntityManager.HasComponent<Game.Net.Edge>(alle[i]) || !EntityManager.HasComponent<PrefabRef>(alle[i])
+                    || EntityManager.HasComponent<Owner>(alle[i]) || EntityManager.HasComponent<Deleted>(alle[i])
+                    || EntityManager.HasComponent<Temp>(alle[i])) continue;
                 var prefab = EntityManager.GetComponentData<PrefabRef>(alle[i]).m_Prefab;
                 if (!EntityManager.HasComponent<RoadData>(prefab)) continue;
                 var bogen = EntityManager.GetComponentData<Curve>(alle[i]).m_Bezier;
@@ -254,153 +257,40 @@ namespace ParkingLotTool.Tools
          * dann wie eine gewoehnliche Zufahrt, nur eben ohne geoeffneten
          * Bordstein. Der Grund steht im Bauzettel.
          */
-        private int CreateGassenstueck(
-            NetSegment piece,
-            int index,
-            float vorflaechenbreite,
-            ref TerrainHeightData heightData,
-            Dictionary<(long, long), float> heights,
-            ref Unity.Mathematics.Random random,
-            List<string> bericht)
+        private int CreateGassenstueck(NetSegment piece, int index, float vorflaechenbreite,
+            ref TerrainHeightData heightData, Dictionary<(long,long),float> heights,
+            ref Unity.Mathematics.Random random, List<string> bericht)
         {
-            if (!TryResolveZufahrtsgasse(piece.Art, out var gasse))
+            Gassenkurs p;
+            if (_bauarbeiter) _hintergrundGassenkurse.TryGetValue(index,out p);
+            else if (!PlaneGassenkurs(piece,index,vorflaechenbreite,heights,bericht,out p)) return 0;
+            if (p == null) return 0;
+            MerkeGassenplan(index,p.Mitte,p.Ende,p.Strasse,p.T,piece.B-piece.A,
+                p.HalbeBreite,p.Prefab,vorflaechenbreite,Zufahrtsarten.FaehrtHinaus(piece.Art),piece.Art);
+            if (_bauarbeiter && _erhalteneKursketten.ContainsKey(("entrance-gasse",index)))
             {
-                bericht.Add($"Zufahrt {index}: Gassenklon noch nicht bereit");
+                bericht.Add($"Zufahrt {index}: unveraenderte Gasse erhalten, Stadtanschluss {p.Anschluss.Entity}; 0 Abriss/Neubau/Teilung.");
                 return 0;
             }
-            // piece.A liegt am Polygonrand, piece.B innen; nach aussen ist
-            // also A - B. Das ist die Fangachse der Zufahrt.
-            if (!SucheStadtstrasseFuerGasse(piece.A, piece.A - piece.B,
-                    out var mitte, out var halbeBreite, out var halbeImStrahl,
-                    out var strasse, out var t, out var strassenhoehe))
+            if (_bauarbeiter && EntityManager.HasComponent<Edge>(p.Anschluss.Entity))
             {
-                bericht.Add($"Zufahrt {index}: keine Stadtstrasse in "
-                    + "Fangrichtung, Bordstein hoechstens "
-                    + $"{Gassenreichweite.Reichweite:F0} m ab Polygonrand");
+                _nichtBaubareHintergrundGassen++;
+                ParkingLotNetzRueckweg.Melde($"Zufahrt {index}: neue Stadtteilung waere erforderlich: Kante {p.Anschluss.Entity}, t={p.Anschluss.Teilung:F6}, Lage {p.Mitte}; 0 Teilungen, Kurs nicht ausgegeben, Rueckweg erforderlich.");
                 return 0;
             }
-
-            var richtung = piece.A - mitte;
-            var abstand = math.length(richtung);
-            if (!(abstand > 0.5f))
+            MerkeHoehe(p.Mitte,p.Hoehe,heights);
+            if (!CreateCourseDefinition("entrance-gasse",index,p.Von,p.Nach,p.Prefab,
+                    ref heightData,heights,ref random,
+                    anschlussAnfang: Zufahrtsarten.FaehrtHinaus(piece.Art) ? default : p.Anschluss,
+                    anschlussEnde: Zufahrtsarten.FaehrtHinaus(piece.Art) ? p.Anschluss : default))
             {
-                bericht.Add($"Zufahrt {index}: liegt auf der Strassenmitte");
+                bericht.Add($"Zufahrt {index}: Gassenkurs abgelehnt ({p.Laenge:F2} m)");
                 return 0;
             }
-            richtung /= abstand;
-
-            /*
-             * DIE GASSE GEHT DURCH BIS ZUR FAHRGASSE.
-             *
-             * Bis zum 2026-09-18 endete sie 2 m hinter dem Bordstein, und
-             * der unsichtbare Weg begann am Polygonrand - die beiden lagen
-             * zwei Meter uebereinander. Autos fuhren herein, wendeten und
-             * fuhren wieder hinaus.
-             *
-             * `piece.B` IST der Punkt, an dem der Weg bisher an die
-             * Fahrgasse stiess, und er wird UNVERAENDERT uebernommen: innen
-             * verbindet CS2 nur ueber einen identischen Endpunkt, nicht ueber
-             * LocalConnect. Ein neu gerechneter Punkt laege um Float-Reste
-             * daneben und verbaende nichts.
-             */
-            var ende = piece.B;
-            var laenge = math.distance(mitte, ende);
-            // Schraeg gemessen ist die halbe Breite laenger als senkrecht.
-            if (!(laenge > halbeImStrahl))
-            {
-                bericht.Add($"Zufahrt {index}: zu kurz - {laenge:F2} m ab "
-                    + $"Strassenmitte, Fahrbahnrand bei {halbeBreite:F2} m");
-                return 0;
-            }
-
-            /*
-             * DER ENDPUNKT AN DER STRASSE BEKOMMT DIE HOEHE DER STRASSE.
-             *
-             * `SampleCourseHeight` tastet das GELAENDE ab, und unter einer
-             * Strasse ist das weggeschnitten und liegt tiefer als der
-             * Asphalt. Ohne diese Zeile setzt die Gasse dort unter der
-             * Fahrbahn an und graebt sich ein - im Bild des Nutzers vom
-             * 2026-09-18 ein Loch mitten in der Einmuendung.
-             *
-             * Der Hoehenspeicher wird VOR der Abtastung befragt; ihn zu
-             * fuellen genuegt.
-             */
-            MerkeHoehe(mitte, strassenhoehe, heights);
-
-            /*
-             * DIE RICHTUNG STECKT IN DER REIHENFOLGE DER ENDPUNKTE.
-             *
-             * `mitte` liegt auf der Strasse, `ende` im Parkplatz. Eine
-             * Gasse HINAUS faehrt also von `ende` nach `mitte` - dieselbe
-             * Regel wie bei `Ausfahrt`, wo `piece.B` vor `piece.A` kommt.
-             * Bei der zweispurigen Gasse ist die Reihenfolge gleichgueltig.
-             */
-            var hinaus = Zufahrtsarten.FaehrtHinaus(piece.Art);
-            var kursVon = hinaus ? ende : mitte;
-            var kursNach = hinaus ? mitte : ende;
-
-            /*
-             * EIN KURS, NICHT STUECKE.
-             *
-             * Vom 2026-09-23 bis 24 wurde die Gasse hier in Stuecke von
-             * hoechstens 16 m geteilt - ein Missverstaendnis: gemeint war die
-             * REICHWEITE bis zur Strasse (siehe `Gassenreichweite`). Die
-             * Stuecke kamen im Spiel als zwei Gassen an, die sich in der
-             * Mitte nicht verbanden; der Nutzer konnte beide einzeln mit dem
-             * Bulldozer anwaehlen.
-             */
-            /*
-             * DAS STRASSENENDE DOCKT AN WIE BEIM STRASSENWERKZEUG.
-             *
-             * Bis zum 2026-09-24 ging nur eine Koordinate an CS2, und das
-             * Spiel suchte sich die Strasse daneben selbst. Der Gassenbefund
-             * zeigte, was dabei herauskam: Einmuendungen 0,10 und 0,26 m
-             * neben dem geplanten Punkt, und nahe am Kantenende an einem
-             * anderen Knoten. Jetzt bekommt der Kurs die Kante und die
-             * Teilungsstelle - oder den Knoten, wenn er dort schon steht.
-             */
-            var strassenpunkt = new float3(mitte.x, strassenhoehe, mitte.y);
-            var anschluss = AnschlussAnStrasse(strasse, t, ref strassenpunkt);
-            if (anschluss.Entity != Entity.Null)
-            {
-                // Der berechnete Anschlusspunkt gilt IMMER - am Knoten dessen
-                // echte Lage samt Y (auch bei 0 m XZ-Abstand; Permanent nutzt
-                // den Knoten unveraendert, GenerateEdges 1236ff), an der Kante
-                // die Teilungsstelle (Fix 2026-09-24 gegen 0,1-0,26 m daneben).
-                mitte = strassenpunkt.xz;
-                strassenhoehe = strassenpunkt.y;
-                MerkeHoehe(mitte, strassenhoehe, heights);
-                kursVon = hinaus ? ende : mitte;
-                kursNach = hinaus ? mitte : ende;
-            }
-            if (!CreateCourseDefinition("entrance-gasse", index, kursVon,
-                    kursNach, gasse, ref heightData, heights, ref random,
-                    anschlussAnfang: hinaus ? default : anschluss,
-                    anschlussEnde: hinaus ? anschluss : default))
-            {
-                bericht.Add($"Zufahrt {index}: Gassenkurs abgelehnt "
-                    + $"({laenge:F2} m)");
-                return 0;
-            }
-            var erzeugt = 1;
-            /*
-             * Was wir wussten, fuer die Rueckschau nach dem Bau. Der Zettel
-             * hier haelt nur die Absicht fest; ob daraus eine ordentliche
-             * Kreuzung geworden ist, misst `PLT-Gassenbefund` am fertigen
-             * Netz.
-             */
-            MerkeGassenplan(index, mitte, ende, strasse, t,
-                piece.B - piece.A, halbeBreite, gasse, vorflaechenbreite,
-                hinaus);
-            bericht.Add($"Zufahrt {index}: Gasse {laenge:F2} m in "
-                + "einem Kurs ab Strassenmitte "
-                + "bis zur Fahrgasse, "
-                + $"Fahrbahnrand bei {halbeBreite:F2} m, Ueberstand "
-                + $"{laenge - halbeBreite:F2} m"
-                + (laenge > abstand + 1e-3f
-                    ? $", davon {laenge - abstand:F2} m im Parkplatz"
-                    : string.Empty));
-            return erzeugt;
+            bericht.Add($"Zufahrt {index}: Gasse {p.Laenge:F2} m in einem Kurs ab Strassenmitte "
+                + $"bis zur Fahrgasse, Fahrbahnrand bei {p.HalbeBreite:F2} m, Ueberstand {p.Laenge-p.HalbeBreite:F2} m"
+                + (p.Laenge > p.Abstand+1e-3f ? $", davon {p.Laenge-p.Abstand:F2} m im Parkplatz" : string.Empty));
+            return 1;
         }
 
         private bool TryResolvePedestrianPath(out Entity prefab, bool gesetzterZugang = false)
@@ -671,256 +561,6 @@ namespace ParkingLotTool.Tools
          * exakt denselben 3D-Punkt melden, sonst entstehen zwei Knoten
          * uebereinander statt einer Kreuzung.
          */
-        private int CreateNetDefinitions(ParkingLayout layout, LayoutSettings settings,
-                                         ref TerrainHeightData heightData)
-        {
-            if (layout == null || settings == null) return 0;
-            if (!TryChooseDrivablePath(settings.Ai, out var wide, out var wideCore))
-                return 0;
-            if (!TryChooseDrivablePath(settings.Cw, out var narrow, out var narrowCore))
-                return 0;
-
-            var heights = new Dictionary<(long, long), float>();
-            // Beim Edit: Hoehen der alten Knoten behalten, siehe
-            // `BelegeHoehenAusAltbestand` in ParkingLotEditHeight.cs.
-            BelegeHoehenAusAltbestand(heights, ref heightData);
-            var random = new Unity.Mathematics.Random(
-                (uint)Environment.TickCount | 1u);
-            var created = 0;
-            var zoningGebaut = 0;
-            var zoningGeplant = 0;
-            var zoningOhneKlon = 0;
-            var zoningAbgelehnt = new List<string>();
-            var gassenGeplant = 0;
-            var gassenGebaut = 0;
-            var gassenBericht = new List<string>();
-            // Der Befund gehoert zu DIESEM Bau; ein alter Plan wuerde sonst
-            // eine Kreuzung melden, die niemand gerade gebaut hat.
-            VergissGassenplan();
-            var zoningStuecke = new List<(float2 A, float2 B)>();
-            MerkeGassenenden(layout);
-            BelegeGassenendenAusAltgassen(heights, _gassenenden);
-            // Nur anfordern, wenn das Layout ueberhaupt eine Zoning-Strasse
-            // enthaelt - sonst bestellt jeder Parkplatz einen Prefabklon.
-            var zoningRoad = Entity.Null;
-            for (var i = 0; i < layout.NetLine.Length; i++)
-            {
-                if (!string.Equals(layout.NetLine[i].Kind, "zoning",
-                        StringComparison.Ordinal)) continue;
-                TryResolveZoningRoad(settings.Zoningstrasse, out zoningRoad);
-                break;
-            }
-            // AUS DER NETZFASSUNG, nicht aus den Belaglinien. Der Unterschied
-            // ist der Grund, warum im Spiel keine Abbiegepfeile erschienen:
-            // die Belaglinien enden an der KANTE der getroffenen Strasse, also
-            // Ai/2 = 3,50 m vor deren Achse. CS2 verschmilzt aber nur Segmente
-            // mit IDENTISCHEM Endpunkt zu einem Knoten - 3,50 m daneben heisst
-            // keine Kreuzung. `NetLine` ist an jeder Einmuendung geteilt und
-            // bis zur Mittellinie gefuehrt. Gemessen im Nutzerbau: vorher 20
-            // von 32 Enden voellig frei, danach nur noch das aeussere
-            // Zufahrtsende - und das MUSS frei bleiben, dort haengt sich der
-            // Road->Pathway-LocalConnect an die Stadtstrasse.
-            for (var i = 0; i < layout.NetLine.Length; i++)
-            {
-                var piece = layout.NetLine[i];
-                if (string.Equals(piece.Kind, "entrance", StringComparison.Ordinal))
-                {
-                    if (piece.Art == Zufahrtsart.Fussweg)
-                    {
-                        created += CreatePedestrianEntranceDefinition(
-                            piece, i, ref heightData, heights, ref random);
-                        continue;
-                    }
-                    // NUR die unsichtbaren Einbahn-Wege. Die gerichteten
-                    // GASSEN werden weiter unten als geteilte Strasse gebaut.
-                    if (piece.Art == Zufahrtsart.Einfahrt
-                        || piece.Art == Zufahrtsart.Ausfahrt)
-                    {
-                        created += CreateOnewayEntranceDefinitions(
-                            piece, i, ref heightData, heights, ref random);
-                        continue;
-                    }
-                    /*
-                     * DIE GASSE ERSETZT DIE ZUFAHRT, sie ergaenzt sie nicht
-                     * mehr.
-                     *
-                     * Beides zu bauen hiess: zwei Meter Ueberlappung
-                     * zwischen Gasse und unsichtbarem Weg, und Autos, die in
-                     * der Einfahrt wenden. Seit dem 2026-09-18 geht die
-                     * Gasse durch bis zur Fahrgasse, und der Weg entfaellt.
-                     */
-                    if (Zufahrtsarten.IstGasse(piece.Art))
-                    {
-                        gassenGeplant++;
-                        var breite = (float)new ParkingLotTool.Geometry.Entrance { Art = piece.Art }
-                            .Breite(settings.Ai, settings.Gassenbreite);
-                        var gebaut = CreateGassenstueck(piece, i, breite,
-                            ref heightData, heights, ref random, gassenBericht);
-                        created += gebaut;
-                        if (gebaut > 0) gassenGebaut++;
-                        continue;
-                    }
-                }
-                if (string.Equals(piece.Kind, "zoning", StringComparison.Ordinal))
-                {
-                    zoningGeplant++;
-                    zoningStuecke.Add((piece.A, piece.B));
-                    if (_zoningErhalten) continue;
-                    // Fehlt der Klon noch, entfaellt nur die Zoning-Strasse.
-                    // Der Parkplatz selbst wird trotzdem fertig gebaut.
-                    if (zoningRoad == Entity.Null)
-                    {
-                        zoningOhneKlon++;
-                        continue;
-                    }
-                    // Alle bereits geteilten T-Arme gehoeren in denselben
-                    // GenerateNodes-Durchlauf: 3 gleiche Kursenden -> 1 Knoten.
-                    // Eine Temp-Kante ist kein Original fuer einen Folgekurs.
-                    /*
-                     * DIE ZONINGSEITEN KOMMEN MIT DER DEFINITION, wie beim
-                     * Vanilla-Werkzeug. Frueher schrieb die Nacharbeit sie
-                     * nach dem Bau direkt in die fertige Kante - das hat CS2
-                     * beim Bearbeiten sechsmal nativ abstuerzen lassen.
-                     */
-                    MerkeZoningSeitenGrundlage();
-                    Game.Net.Upgraded? seiten = null;
-                    if (EntscheideZoningseiten(piece.A, piece.B, true,
-                            out var linksAus, out var rechtsAus, out _)
-                        && (linksAus || rechtsAus))
-                        seiten = new Game.Net.Upgraded
-                        {
-                            m_Flags = new Game.Prefabs.CompositionFlags(
-                                default,
-                                linksAus ? Game.Prefabs.CompositionFlags.Side.ZonesDisabled : default,
-                                rechtsAus ? Game.Prefabs.CompositionFlags.Side.ZonesDisabled : default),
-                        };
-                    if (CreateCourseDefinition(piece.Kind, i, piece.A, piece.B,
-                            zoningRoad, ref heightData, heights, ref random,
-                            upgraded: seiten))
-                    {
-                        created++;
-                        zoningGebaut++;
-                    }
-                    else
-                    {
-                        /*
-                         * WELCHES STUECK ABGELEHNT WURDE, UND WIE LANG.
-                         *
-                         * Befund des Nutzers am 2026-09-03: *"Es werden
-                         * weiterhin alle Zoning-Strassen in der Preview
-                         * angezeigt, auch wenn sie durch Ecke oder Rand gar
-                         * nicht gebaut werden."* Die Vorschau zeigt den PLAN;
-                         * wenn davon etwas nicht ankommt, faellt es hier
-                         * heraus - und bisher stumm.
-                         *
-                         * Statt zu raten, wo Plan und Bau auseinandergehen,
-                         * nennt der naechste Bau die Stuecke selbst. Erst
-                         * danach laesst sich entscheiden, ob die Vorschau
-                         * weniger zeigen muss oder der Bau mehr schafft.
-                         */
-                        zoningAbgelehnt.Add(
-                            $"({piece.A.x:F1}/{piece.A.y:F1})-"
-                            + $"({piece.B.x:F1}/{piece.B.y:F1}) "
-                            + $"{math.distance(piece.A, piece.B):F1} m");
-                    }
-                    continue;
-                }
-                var prefab = string.Equals(piece.Kind, "cross", StringComparison.Ordinal)
-                    ? narrow : wide;
-                if (CreateCourseDefinition(piece.Kind, i, piece.A, piece.B, prefab,
-                        ref heightData, heights, ref random))
-                    created++;
-            }
-
-            MeldeAblehnungen(layout);
-            var fussPrefab = World.GetOrCreateSystemManaged<ParkingLotFusswegPrefabSystem>().Bereit;
-            if (fussPrefab != Entity.Null)
-                Mod.log.Info("PLT-Bauzettel: Fussweg-LocalConnect-Suchmaske "
-                    + EntityManager.GetComponentData<LocalConnectData>(fussPrefab).m_Layers
-                    + "; Autoanschluss ueber unveraenderte Vanilla-Prefabs.");
-            if (zoningGeplant > 0)
-                Mod.log.Info($"PLT-Zoning: {zoningGebaut} von {zoningGeplant} "
-                    + $"geplanten Strassenkursen gemeinsam erzeugt, aus "
-                    + $"'{settings.Zoningstrasse}' (unsichtbarer Klon)."
-                    + (zoningOhneKlon > 0
-                        ? $" {zoningOhneKlon} ohne Prefabklon entfallen."
-                        : string.Empty));
-            // Was die Vorschau zeigt, der Bau aber nicht liefert - genau die
-            // Luecke, nach der der Nutzer gefragt hat.
-            if (zoningAbgelehnt.Count > 0)
-                Mod.log.Warn($"PLT-Zoning: {zoningAbgelehnt.Count} geplante(s) "
-                    + "Stueck(e) NICHT gebaut: "
-                    + string.Join("; ", zoningAbgelehnt));
-            if (gassenGeplant > 0)
-                Mod.log.Info($"PLT-Zufahrtsgasse: {gassenGebaut} von "
-                    + $"{gassenGeplant} Gassenstueck(en) erzeugt. "
-                    + string.Join("; ", gassenBericht));
-            MeldeZoningZusammenhang(zoningStuecke);
-            if (created > 0)
-                Mod.log.Info($"PLT-Wege: {created} Kurse, Fahrgasse {wideCore:F0} m "
-                    + $"(eingestellt {settings.Ai:F1} m), Querweg {narrowCore:F0} m "
-                    + $"(eingestellt {settings.Cw:F1} m).");
-            return created;
-        }
-
-        /** Fussgaengerzugang: genau ein mittiger Fussweg, kein Autokurs. */
-        private int CreatePedestrianEntranceDefinition(
-            NetSegment piece,
-            int index,
-            ref TerrainHeightData heightData,
-            Dictionary<(long, long), float> heights,
-            ref Unity.Mathematics.Random random)
-        {
-            if (!TryResolvePedestrianPath(out var pedestrian, gesetzterZugang: true))
-                return 0;
-            return CreateCourseDefinition(
-                "entrance-pedestrian", index, piece.A, piece.B, pedestrian,
-                ref heightData, heights, ref random) ? 1 : 0;
-        }
-
-        /**
-         * Einfahrt: Kursrichtung von der Strasse (A) in den Parkplatz (B).
-         * Ausfahrt: derselbe konstruierte Kurs mit vertauschten Enden.
-         *
-         * Die beiden 2-m-Fusswege liegen konstruktiv in den beiden Haelften
-         * der 4-m-Flaeche: Achsabstand `(4 - 2) / 2 = 1 m`. Damit passen Netz
-         * und Flaeche ohne nachtraegliches Zuschneiden exakt zusammen.
-         */
-        private int CreateOnewayEntranceDefinitions(
-            NetSegment piece,
-            int index,
-            ref TerrainHeightData heightData,
-            Dictionary<(long, long), float> heights,
-            ref Unity.Mathematics.Random random)
-        {
-            if (!TryResolvePathPrefab(OnewayPathName, out var oneway))
-                return 0;
-
-            var outgoing = Zufahrtsarten.FaehrtHinaus(piece.Art);
-            var from = outgoing ? piece.B : piece.A;
-            var to = outgoing ? piece.A : piece.B;
-            var created = CreateCourseDefinition(
-                outgoing ? "entrance-out" : "entrance-in",
-                index, from, to, oneway,
-                ref heightData, heights, ref random) ? 1 : 0;
-            if (!TryResolvePedestrianPath(out var pedestrian)) return created;
-            var vector = to - from;
-            var length = math.length(vector);
-            if (!(length >= 1f)) return created;
-            var normal = new float2(-vector.y, vector.x) / length;
-            var offset = (OnewayPathWidth - PedestrianPathWidth) / 2f;
-            for (var side = -1; side <= 1; side += 2)
-            {
-                var shift = normal * (offset * side);
-                if (CreateCourseDefinition(
-                        side < 0 ? "entrance-ped-right" : "entrance-ped-left",
-                        index, from + shift, to + shift, pedestrian,
-                        ref heightData, heights, ref random))
-                    created++;
-            }
-            return created;
-        }
-
         /**
          * WARUM HIER KEINE BUCHT STEHT - als Zahl, nicht als Vermutung.
          *
@@ -934,110 +574,6 @@ namespace ParkingLotTool.Tools
          * Zu jedem Grund steht die ERSTE Fundstelle dabei, damit man im Spiel
          * hinfliegen und nachsehen kann.
          */
-        /**
-         * ZERFAELLT DAS ZONING-NETZ IN MEHRERE ZUEGE?
-         *
-         * Der Nutzer hat die Luecke ueber die Wasser- und Abwasseransicht
-         * gefunden: Rohre laufen in den Strassen, und wo die Strasse
-         * unterbrochen ist, reisst das Rohr ab. Bis dahin fiel es niemandem
-         * auf, weil die Strassen unsichtbar sind.
-         *
-         * Diese Zeile misst es beim Bauen. Zwei Zuege sind nicht immer
-         * falsch - zwei weit auseinander liegende Flaechen haben zu Recht
-         * getrennte Ringe -, aber sie sind IMMER der Punkt, an dem man
-         * nachsehen muss. Deshalb steht auch dabei, wo die freien Enden
-         * liegen.
-         */
-        private static void MeldeZoningZusammenhang(
-            IReadOnlyList<(float2 A, float2 B)> stuecke)
-        {
-            if (stuecke == null || stuecke.Count == 0) return;
-
-            var eltern = new int[stuecke.Count];
-            for (var i = 0; i < eltern.Length; i++) eltern[i] = i;
-            int Wurzel(int i)
-            {
-                while (eltern[i] != i) i = eltern[i] = eltern[eltern[i]];
-                return i;
-            }
-            for (var i = 0; i < stuecke.Count; i++)
-            for (var k = i + 1; k < stuecke.Count; k++)
-            {
-                if (!ZoningStueckeBeruehren(stuecke[i], stuecke[k])) continue;
-                var a = Wurzel(i);
-                var b = Wurzel(k);
-                if (a != b) eltern[a] = b;
-            }
-
-            var zuege = new HashSet<int>();
-            for (var i = 0; i < stuecke.Count; i++) zuege.Add(Wurzel(i));
-            if (zuege.Count <= 1)
-            {
-                Mod.log.Info($"PLT-Zoning: {stuecke.Count} Stueck(e) bilden "
-                    + "EINEN zusammenhaengenden Strassenzug.");
-                return;
-            }
-
-            var enden = new List<string>();
-            for (var i = 0; i < stuecke.Count; i++)
-            {
-                foreach (var ende in new[] { stuecke[i].A, stuecke[i].B })
-                {
-                    var haengt = false;
-                    for (var k = 0; k < stuecke.Count && !haengt; k++)
-                        if (k != i)
-                            haengt = ZoningPunktAufStueck(
-                                stuecke[k].A, stuecke[k].B, ende);
-                    if (!haengt) enden.Add($"({ende.x:F1}/{ende.y:F1})");
-                }
-            }
-            Mod.log.Warn($"PLT-Zoning: {stuecke.Count} Stueck(e) zerfallen in "
-                + $"{zuege.Count} Strassenzuege - dort reissen Wasser, "
-                + "Abwasser und Strom ab. Freie Enden: "
-                + (enden.Count == 0 ? "keine" : string.Join(" ", enden)));
-        }
-
-        private static bool ZoningStueckeBeruehren(
-            (float2 A, float2 B) x, (float2 A, float2 B) y)
-            // 01:52 meldete die Naehepruefung 1 Zug, Temp und Apply aber 2.
-            // Der fertige Kursplan braucht exakt gemeinsame Endpunkte.
-            => x.A.Equals(y.A) || x.A.Equals(y.B)
-                || x.B.Equals(y.A) || x.B.Equals(y.B);
-
-        private static bool ZoningPunktAufStueck(float2 a, float2 b, float2 p)
-        {
-            const float toleranz = 0.01f;
-            var d = b - a;
-            var laenge = math.length(d);
-            if (laenge < toleranz) return false;
-            var r = d / laenge;
-            var w = p - a;
-            var laengs = math.dot(w, r);
-            if (laengs < -toleranz || laengs > laenge + toleranz) return false;
-            return math.abs(r.x * w.y - r.y * w.x) < toleranz;
-        }
-
-        private void MeldeAblehnungen(ParkingLayout layout)
-        {
-            if (layout == null || layout.RejectTotals.Length == 0) return;
-            var zeile = string.Empty;
-            foreach (var topf in layout.RejectTotals)
-            {
-                var gesetzt = (int)topf.First.x;
-                zeile += (zeile.Length > 0 ? " | " : "")
-                    + $"{topf.Reason} {gesetzt}/{topf.Count}";
-            }
-            Mod.log.Info("PLT-Ablehnungen (gesetzt/versucht): " + zeile);
-            if (layout.Rejects.Length == 0)
-            {
-                Mod.log.Info("  nichts verworfen.");
-                return;
-            }
-            foreach (var grund in layout.Rejects)
-                Mod.log.Info($"  {grund.Count,5}x  {grund.Reason}"
-                    + $"   (erste bei {grund.First.x:F1}/{grund.First.y:F1})");
-        }
-
         /*
          * DER INNERE GASSENKNOTEN WIRD NICHT AUFS GELAENDE GELEGT.
          *
@@ -1124,160 +660,5 @@ namespace ParkingLotTool.Tools
             return false;
         }
 
-        private bool CreateCourseDefinition(
-            string kind,
-            int index,
-            float2 from,
-            float2 to,
-            Entity prefab,
-            ref TerrainHeightData heightData,
-            Dictionary<(long, long), float> heights,
-            ref Unity.Mathematics.Random random,
-            Anschluss anschlussAnfang = default,
-            Anschluss anschlussEnde = default,
-            Game.Net.Upgraded? upgraded = null)
-        {
-            if (!math.all(math.isfinite(from)) || !math.all(math.isfinite(to)))
-                throw new InvalidOperationException(
-                    $"Der Fahrweg '{kind}' {index} enthält eine nicht-endliche Koordinate.");
-
-            var a = new float3(from.x, SampleCourseHeight(from, ref heightData, heights),
-                from.y);
-            var b = new float3(to.x, SampleCourseHeight(to, ref heightData, heights),
-                to.y);
-            if (_definitionsmodus == ParkingLotDefinitionsmodus.Permanent)
-            {
-                // Erhaltenes Zoning gehoert noch dem alten Anker. Ein Endpunkt
-                // auf dessen Knoten braucht die echte ID und volle Weltlage;
-                // blosses NodeMap-Matching nach Lage beweist diesen Anschluss nicht.
-                HintergrundKnotenanschluss(ref anschlussAnfang,ref a);
-                HintergrundKnotenanschluss(ref anschlussEnde,ref b);
-            }
-            var length = math.distance(a, b);
-            // Kuerzer als ein Meter ist kein Fahrweg, sondern ein Rundungsrest.
-            // CS2 legt daraus einen Knoten ohne Kante an.
-            if (!(length >= 1f)) return false;
-
-            // Ohne CoursePosFlags.FreeHeight - und das ist RICHTIG, aber die
-            // frueher hier stehende Begruendung war falsch. Sie behauptete, das
-            // Flag lese ausschliesslich `NetToolSystem`; geprueft worden waren
-            // nur GenerateNodes/GenerateEdges/Validation. Am Volldekompilat vom
-            // 2026-08-17 nachgesehen: `CourseSplitSystem.InitializeCoursePos`
-            // (Zeile 1437) liest es ebenfalls und wuerde `m_Position.y` aus
-            // Terrain- und Wasserhoehe NEU berechnen. Genau das wollen wir
-            // nicht - unsere Hoehen sind bereits exakte Terrainwerte aus
-            // `SampleCourseHeight`, je 2D-Punkt nur einmal abgetastet.
-            //
-            // Zusammen mit dem fehlenden Besitzer ist damit auch die alte
-            // Absackerei erklaert. `CourseSplitSystem` Zeile 1933:
-            //
-            //     bool flag2 = (m_CreationDefinition.m_Owner == Entity.Null
-            //                   && m_OwnerDefinition.m_Prefab == Entity.Null) || flag;
-            //
-            // Steht ein Besitzer in der CREATIONDEFINITION, ist flag2 falsch und
-            // CS2 nimmt einen anderen Hoehenweg - damals lag die erste Einfahrt
-            // dadurch 183 m zu tief (angefordert y=512,70, gebaut y=329,16).
-            // Deshalb bleibt die CreationDefinition hier besitzerlos; der Owner
-            // kommt erst an die fertigen Entities. Vanilla loest es voellig
-            // anders: `ObjectSubNets` deklariert die Fahrwege IM PREFAB in
-            // lokalen Koordinaten - eine Komponente, die es laut ComponentMenu
-            // nur fuer BuildingPrefab und BuildingExtensionPrefab gibt, fuer
-            // unser LotPrefab also nicht.
-            var curve = NetUtils.StraightCurve(a, b);
-            var definition = EntityManager.CreateEntity();
-            EntityManager.AddComponentData(definition, new CreationDefinition
-            {
-                m_Prefab = prefab,
-                m_RandomSeed = random.NextInt(),
-            });
-            EntityManager.AddComponent<Updated>(definition);
-            /*
-             * Die Gasse bringt ihren eigenen Knoten mit; Zebrastreifen
-             * gehoeren dort nicht hin. `Upgraded` an der Definition wandert
-             * mit auf die fertige Kante - so macht es CS2s eigenes
-             * Strassenwerkzeug auch.
-             */
-            if (string.Equals(kind, "entrance-gasse", StringComparison.Ordinal))
-                EntityManager.AddComponentData(definition, new Game.Net.Upgraded
-                {
-                    m_Flags = new Game.Prefabs.CompositionFlags(
-                        default,
-                        Game.Prefabs.CompositionFlags.Side.RemoveCrosswalk,
-                        Game.Prefabs.CompositionFlags.Side.RemoveCrosswalk),
-                });
-            else if (upgraded.HasValue)
-                EntityManager.AddComponentData(definition, upgraded.Value);
-            EntityManager.AddComponentData(definition, new NetCourse
-            {
-                m_Curve = curve,
-                m_Length = length,
-                m_FixedIndex = -1,
-                m_Elevation = float2.zero,
-                m_StartPosition = new CoursePos
-                {
-                    m_Entity = anschlussAnfang.Entity,
-                    m_SplitPosition = anschlussAnfang.Teilung,
-                    m_Position = a,
-                    m_Rotation = NetUtils.GetNodeRotation(MathUtils.StartTangent(curve)),
-                    m_CourseDelta = 0f,
-                    m_Elevation = float2.zero,
-                    m_Flags = CoursePosFlags.IsFirst,
-                    m_ParentMesh = -1,
-                },
-                m_EndPosition = new CoursePos
-                {
-                    m_Entity = anschlussEnde.Entity,
-                    m_SplitPosition = anschlussEnde.Teilung,
-                    m_Position = b,
-                    m_Rotation = NetUtils.GetNodeRotation(MathUtils.EndTangent(curve)),
-                    m_CourseDelta = 1f,
-                    m_Elevation = float2.zero,
-                    m_Flags = CoursePosFlags.IsLast,
-                    m_ParentMesh = -1,
-                },
-            });
-            RecordNetDefinition(kind, index, prefab, definition, a, b);
-            return true;
-        }
-
-        /**
-         * Setzt eine Hoehe fest, bevor das Gelaende befragt wird.
-         *
-         * Dieselbe Rasterung wie `SampleCourseHeight` - sonst traefe der
-         * Schluessel nicht, und der Eintrag bliebe wirkungslos.
-         */
-        private static void MerkeHoehe(float2 point, float hoehe,
-                                       Dictionary<(long, long), float> heights)
-        {
-            var key = ((long)math.round(point.x * 40f),
-                       (long)math.round(point.y * 40f));
-            heights[key] = hoehe;
-        }
-
-        private float SampleCourseHeight(float2 point, ref TerrainHeightData heightData,
-                                         Dictionary<(long, long), float> heights)
-        {
-            // Ein Vierteldezimeter-Raster: fein genug, dass getrennte Knoten
-            // getrennt bleiben, grob genug, dass zwei Segmente an derselben
-            // Ecke garantiert dieselbe Hoehe bekommen.
-            var key = ((long)math.round(point.x * 40f), (long)math.round(point.y * 40f));
-            if (heights.TryGetValue(key, out var cached)) return cached;
-
-            // Unter einem alten eigenen Weg gilt SEINE Hoehe (geprueft), nicht
-            // das Gelaende, das er selbst geformt hat.
-            if (HoeheUnterAltbestand(point, ref heightData, out var alt))
-            {
-                heights[key] = alt;
-                return alt;
-            }
-
-            var height = TerrainUtils.SampleHeight(
-                ref heightData, new float3(point.x, 0f, point.y));
-            if (!math.isfinite(height))
-                throw new InvalidOperationException(
-                    "Die Terrain-Abtastung eines Fahrwegknotens ist nicht endlich.");
-            heights[key] = height;
-            return height;
-        }
     }
 }

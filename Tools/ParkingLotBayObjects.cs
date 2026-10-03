@@ -1,4 +1,4 @@
-using static ParkingLotTool.Tools.ParkingLotTexte;
+﻿using static ParkingLotTool.Tools.ParkingLotTexte;
 using System;
 using System.Collections.Generic;
 using Game.Common;
@@ -600,12 +600,27 @@ namespace ParkingLotTool.Tools
                                               LayoutSettings settings,
                                               ref TerrainHeightData heightData)
         {
-            if (layout?.Bay == null || layout.Bay.Length == 0 || settings == null)
-                return 0;
-            if (!ResolveBayDecalPrefabs()) return 0;
+            int n = 0;
+            foreach (int teil in CreateBayDecalDefinitionsSchritte(layout, settings, heightData)) n += teil;
+            return n;
+        }
 
-            var plan = ParkingBayDecals.Plan(layout, settings);
-            if (plan.Placements.Length == 0) return 0;
+        private System.Collections.Generic.IEnumerable<int> CreateBayDecalDefinitionsSchritte(ParkingLayout layout, LayoutSettings settings, TerrainHeightData heightData)
+        {
+            if (layout?.Bay == null || layout.Bay.Length == 0 || settings == null)
+                yield break;
+            if (!ResolveBayDecalPrefabs()) yield break;
+
+            ParkingBayDecals.DecalPlan plan;
+            if (_bauarbeiter)
+            {
+                var rechnung = System.Threading.Tasks.Task.Run(() => ParkingBayDecals.Plan(layout, settings));
+                while (!rechnung.IsCompleted) yield return 0;
+                plan = rechnung.GetAwaiter().GetResult();
+            }
+            else plan = ParkingBayDecals.Plan(layout, settings);
+            if (_bauarbeiter) _hintergrundParkSoll = plan.Placements.Length;
+            if (plan.Placements.Length == 0) yield break;
 
             /**
              * DIE EINE ENTSCHEIDUNG - UND SIE STEHT AB JETZT IM LOG.
@@ -627,6 +642,7 @@ namespace ParkingLotTool.Tools
             var fehlgeschlagen = 0;
             for (var i = 0; i < plan.Placements.Length; i++)
             {
+                yield return 0;
                 var placement = plan.Placements[i];
                 var prefab = PrefabFor(placement.Kind, unsichtbar);
                 if (prefab == Entity.Null) { skipped++; continue; }
@@ -650,6 +666,7 @@ namespace ParkingLotTool.Tools
                 }
                 created++;
                 if (unsichtbar) unsichtbarGesetzt++;
+                yield return 1;
             }
 
             /**
@@ -661,9 +678,10 @@ namespace ParkingLotTool.Tools
              * Elektroplaetze zeigten, die man nicht mehr sehen konnte. Ohne
              * den E-Aufkleber gibt es nichts mehr, wozu die Saeule gehoert.
              */
-            var chargers = unsichtbar
-                ? 0
-                : CreateChargerDefinitions(layout, settings, plan, ref heightData);
+            var chargers = 0;
+            if (!unsichtbar)
+                foreach (var n in CreateChargerDefinitionsSchritte(layout, settings, plan, heightData))
+                { chargers += n; yield return n; }
 
             Mod.log.Info($"PLT-Stellplätze: {created} von "
                 + $"{plan.Placements.Length} geplanten Decals gesetzt "
@@ -683,7 +701,7 @@ namespace ParkingLotTool.Tools
                 + " | ladesaeulen " + chargers + "/" + plan.Chargers.Length);
             MeldeMarkierungszustand(markierungAus, grund, created,
                 unsichtbarGesetzt, chargers, plan.Chargers.Length);
-            return created + chargers;
+            yield break;
         }
 
         /**

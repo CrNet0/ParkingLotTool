@@ -1,4 +1,4 @@
-﻿using Game.Common;
+using Game.Common;
 using Game.Tools;
 using Unity.Entities;
 
@@ -30,7 +30,7 @@ namespace ParkingLotTool.Tools
                         & CreationFlags.Permanent) != 0)
                     NurDiesesBild(EntityManager, definition);
                 else if (EntityManager.HasComponent<NetCourse>(definition))
-                    World.GetOrCreateSystemManaged<ParkingLotDefinitionsendeSystem>().MerkeTemp(
+                    World.GetOrCreateSystemManaged<ParkingLotDefinitionsendeSystem>().MerkeWerkzeugentwurf(
                         EntityManager.GetComponentData<CreationDefinition>(definition),
                         EntityManager.GetComponentData<NetCourse>(definition));
                 return;

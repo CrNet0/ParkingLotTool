@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using Game.Common;
 using Game.Net;
@@ -19,13 +19,25 @@ namespace ParkingLotTool.Tools
                 lage = HintergrundAbgleich.Anschlusslage(lage,EntityManager.GetComponentData<Game.Net.Node>(anschluss.Entity).m_Position,true);
                 return;
             }
-            if (anschluss.Entity != Entity.Null) return; // Explizite Stadtkantenteilung bleibt bestehen.
+            if (anschluss.Entity != Entity.Null) return; // Expliziter Anschluss wird nicht durch einen Nahknoten ersetzt.
+            var key = ((long)math.round(lage.x*40),(long)math.round(lage.z*40));
+            var neue = new List<(Entity Id,float3 Lage)>();
+            // 5 cm ueberdecken zwei 2,5-cm-Nachbarzellen in jeder Richtung.
+            // Ein vorhandener gueltiger Knoten darf nicht am Indexrand fehlen.
+            for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++)
+                if (_hintergrundKnoten.TryGetValue((key.Item1+x,key.Item2+z),out var liste))
+                    foreach (var n in liste)
+                        if (ParkingLotNetzRueckweg.Lebt(EntityManager,n) && EntityManager.HasComponent<Game.Net.Node>(n))
+                            neue.Add((n,EntityManager.GetComponentData<Game.Net.Node>(n).m_Position));
+            var knoten = HintergrundAbgleich.Knoten(lage,neue,Entity.Null);
+            if (knoten != Entity.Null)
+            { anschluss = new Anschluss {Entity = knoten}; lage = EntityManager.GetComponentData<Game.Net.Node>(knoten).m_Position; return; }
             var kandidaten = new List<(int Id,float3 Lage)>();
-            foreach (var e in _erhalteneZoningteile)
+            foreach (var e in _erhalteneNetzteile)
                 if (ParkingLotNetzRueckweg.Lebt(EntityManager,e) && EntityManager.HasComponent<Game.Net.Node>(e))
                     kandidaten.Add((e.Index,EntityManager.GetComponentData<Game.Net.Node>(e).m_Position));
             int index = HintergrundAbgleich.ErhaltenerKnoten(lage.xz,kandidaten);
-            foreach (var e in _erhalteneZoningteile)
+            foreach (var e in _erhalteneNetzteile)
                 if (e.Index == index)
                 {
                     anschluss = new Anschluss { Entity = e };
@@ -35,14 +47,29 @@ namespace ParkingLotTool.Tools
             if (index == -2) ParkingLotNetzRueckweg.Melde($"Mehrdeutiger erhaltener Anschluss bei {lage}; keine Original-ID geraten.");
         }
 
-        internal void HintergrundMeldeAnschluesse()
+        private HintergrundPortion _anschlussportion;
+        internal bool HintergrundMeldeAnschluesse()
+        {
+            _anschlussportion ??= new HintergrundPortion(HintergrundAnschlussmeldeschritte());
+            var uhr = System.Diagnostics.Stopwatch.StartNew();
+            _anschlussportion.Weiter(() => uhr.Elapsed.TotalMilliseconds);
+            return _anschlussportion.Fertig;
+        }
+
+        private IEnumerable<int> HintergrundAnschlussmeldeschritte()
         {
             StelleVersorgungsanschluesseWiederHer(_lotCarrier);
+            yield return 0;
             // Erhaltene Strassen behalten Kante/Owner/Geometrie. Vanilla
             // erneuert ihre alten Fahrspuren aus den bereits fertigen Klonen;
             // diese echten Werte gehoeren zur 30-Bilder-Nachpruefung.
-            var n = MeldeErhalteneZoningteileAn();
-            ParkingLotNetzRueckweg.Melde($"Erhaltene Zoningteile bei Vanilla angemeldet: {n}; 0 Owner-/Kurven-/Upgrade-Aenderungen.");
+            int n = 0;
+            foreach (var e in _erhalteneNetzteile)
+            {
+                if (ParkingLotNetzRueckweg.Lebt(EntityManager,e)) { EntityManager.AddComponent<Updated>(e); n++; }
+                yield return 0;
+            }
+            ParkingLotNetzRueckweg.Melde($"Erhaltene Netzteile bei Vanilla angemeldet: {n}; 0 Owner-/Kurven-/Upgrade-Aenderungen.");
         }
 
         internal bool HintergrundAnschluesseDa(out int ist, out int soll)

@@ -106,7 +106,8 @@ namespace ParkingLotTool.Tools
                 .Select(a => new TeilflaechenAusrichtung { Anker = a.Anker, Winkel = a.Winkel }).ToArray();
             settings.Ausrichtwinkel = double.IsNaN(k.Zettel.Ausrichtwinkel) ? (double?)null : k.Zettel.Ausrichtwinkel;
             _areaPreviewSettings = settings;
-            _alteZoningkurse = null; _erhalteneZoningteile.Clear(); _zoningErhalten = false;
+            _alteZoningkurse = null; _erhalteneNetzteile.Clear(); _zoningErhalten = false;
+            _erhalteneKursketten.Clear(); _hintergrundGassenkurse.Clear();
             var polygon = k.Punkte.Select(p => p.xz).ToArray();
             _hintergrundSpielthread = System.Threading.Thread.CurrentThread.ManagedThreadId;
             return Task.Run(() =>
@@ -125,18 +126,10 @@ namespace ParkingLotTool.Tools
             _altesZoningprefab = _baukontext.Zoningstrasse;
             if (!_hintergrundPlanVorbereitet)
             {
-                ParkingLotNetzRueckweg.Melde($"Geometrie Auftrag {_definitionsauftrag}: {_hintergrundRechenMs:F3} ms im Thread {_hintergrundRechenthread}; Spielthread {_hintergrundSpielthread}; 1 Layoutrechnung.");
-                var altkurse = new List<float2[]>();
-                using (var teile = _editOwnerParts.ToEntityArray(Allocator.Temp))
-                    foreach (var e in teile)
-                        if (ParkingLotBesitz.GehoertZu(EntityManager,EntityManager.GetComponentData<Owner>(e).m_Owner,_editLot)
-                            && EntityManager.HasComponent<Edge>(e) && EntityManager.HasComponent<Curve>(e)
-                            && _prefabSystem.GetPrefabName(EntityManager.GetComponentData<PrefabRef>(e).m_Prefab) == "PLT Zoningstrasse (" + _altesZoningprefab + ")")
-                        { var c = EntityManager.GetComponentData<Curve>(e).m_Bezier; altkurse.Add(new[] { c.a.xz,c.d.xz }); }
-                _alteZoningkurse = altkurse.ToArray();
-                ErgaenzeVorflaechen(layout, _areaPreviewSettings, _points.ToArray());
-                _hintergrundPlanVorbereitet = true;
-                ParkingLotNetzRueckweg.Melde("Planvorbereitung: 1 Vorflaechenlauf je Auftrag; weitere Prefabpruefungen verwenden diesen Plan.");
+                _vorbereitungportion ??= new HintergrundPortion(HintergrundVorbereitungsschritte(layout));
+                var uhr = Stopwatch.StartNew();
+                _vorbereitungportion.Weiter(() => uhr.Elapsed.TotalMilliseconds);
+                if (!_vorbereitungportion.Fertig) return false;
             }
             SyncAreaPreview(prefabsOnly: true);
             bool netze = ResolvePathPrefabs();
@@ -148,7 +141,14 @@ namespace ParkingLotTool.Tools
             return _areaPreviewPrefabsReady && netze && TryResolveLotOwnerPrefab(out _);
         }
 
-        internal void HintergrundAbriss() => EntferneAlteNetzeVorDemNeubau();
+        private HintergrundPortion _abrissportion;
+        internal bool HintergrundAbrissFertig => _abrissportion?.Fertig == true;
+        internal int HintergrundAbriss()
+        {
+            if (_abrissportion == null) _abrissportion = new HintergrundPortion(EntferneAlteNetzeSchritte());
+            var uhr = Stopwatch.StartNew();
+            return _abrissportion.Weiter(() => uhr.Elapsed.TotalMilliseconds);
+        }
         internal bool HintergrundTerrainFertig() => GelaendeNachAbrissFertig();
         internal Entity HintergrundLot => _lotOwner;
         internal Entity HintergrundTraeger => _lotCarrier;
@@ -194,25 +194,38 @@ namespace ParkingLotTool.Tools
             return true;
         }
 
-        internal int HintergrundStufeB()
-        {
-            if (_lotOwner == Entity.Null || _lotCarrier == Entity.Null) throw new InvalidOperationException("Stufe A fehlt.");
-            if (Mod.Aus("hintergrund-nach-a")) throw new InvalidOperationException("Fehlerprobe nach Stufe A.");
-            HideVisibleParts(_editLot);
-            _hintergrundStufeBBild = UnityEngine.Time.frameCount;
-            return CreateAreaPreviewDefinitions(_areaPreviewLayout);
-        }
-
+        private HintergrundPortion _kinderportion;
+        private bool _kinderRichtig;
+        private string _kindermessung;
+        private readonly Dictionary<PartTransferRecord,Entity> _hintergrundObjekttreffer = new Dictionary<PartTransferRecord,Entity>();
+        internal bool HintergrundKinderpruefungFertig => _kinderportion?.Fertig == true;
         internal bool HintergrundKinderDa(out string messung)
         {
-            SammleHintergrundteile();
-            BerechneHintergrundObjektboden();
-            _fehlendeHintergrundobjekte.Clear(); _fehlendeHintergrundkurse.Clear();
+            if (_kinderportion == null || _kinderportion.Fertig)
+            { _kinderportion?.Dispose(); _kinderportion = new HintergrundPortion(HintergrundKinderschritte()); }
+            var uhr = Stopwatch.StartNew();
+            _kinderportion.Weiter(() => uhr.Elapsed.TotalMilliseconds);
+            messung = _kindermessung;
+            return _kinderportion.Fertig && _kinderRichtig;
+        }
+        private IEnumerable<int> HintergrundKinderschritte()
+        {
+            foreach (int n in SammleHintergrundteileSchritte()) yield return n;
+            foreach (int n in BerechneHintergrundObjektbodenSchritte()) yield return n;
+            _hintergrundObjekttreffer.Clear();
+            _fehlendeHintergrundobjekte.Clear(); _fehlendeHintergrundkurse.Clear(); _fehlendeErhalteneKurse.Clear();
             var areas = _eigeneDauerteile.Where(e => EntityManager.HasComponent<Game.Areas.Area>(e)).ToList();
+            var flaechenindex = new HintergrundLageindex<Entity>();
+            foreach (var a in areas)
+            {
+                foreach (var n in EntityManager.GetBuffer<Game.Areas.Node>(a,true)) flaechenindex.Fuege(n.m_Position.xz,a);
+                yield return 0;
+            }
             var netze = _eigeneDauerteile.Where(e => EntityManager.HasComponent<Edge>(e)).ToArray();
             var objektindex = new Dictionary<Entity,HintergrundLageindex<Entity>>();
             foreach (var e in _eigeneDauerteile)
             {
+                yield return 0;
                 if (!EntityManager.HasComponent<Game.Objects.Transform>(e) || !EntityManager.HasComponent<PrefabRef>(e)) continue;
                 var prefab = EntityManager.GetComponentData<PrefabRef>(e).m_Prefab;
                 if (!objektindex.TryGetValue(prefab,out var index)) objektindex.Add(prefab,index = new HintergrundLageindex<Entity>());
@@ -221,7 +234,9 @@ namespace ParkingLotTool.Tools
             int flaechen = 0, objekte = 0, kurse = 0;
             var benutzt = new HashSet<Entity>();
             foreach (var r in _areaTransferRecords)
-                foreach (var a in areas)
+                foreach (var a in flaechenindex.Nahe(r.SentNodes[0].xz))
+                {
+                    yield return 0;
                     if (!benutzt.Contains(a) && EntityManager.GetComponentData<PrefabRef>(a).m_Prefab == r.Prefab
                         && AreaNodesMatch(r.SentNodes, EntityManager.GetBuffer<Game.Areas.Node>(a, true)))
                     {
@@ -229,8 +244,10 @@ namespace ParkingLotTool.Tools
                         if (r.GeometryAccepted != true) continue;
                         benutzt.Add(a); flaechen++; break;
                     }
+                }
             foreach (var r in _objectRecords)
             {
+                yield return 0;
                 bool gefunden = false;
                 foreach (var e in objektindex.TryGetValue(r.Prefab,out var index) ? index.Nahe(r.From.xz) : Array.Empty<Entity>())
                     if (!benutzt.Contains(e) && EntityManager.HasComponent<Game.Objects.Transform>(e)
@@ -241,7 +258,7 @@ namespace ParkingLotTool.Tools
                         && HintergrundAbgleich.Objektlage(EntityManager.GetComponentData<Game.Objects.Transform>(e).m_Position,
                             r.From,_hintergrundObjektboden[r].Position,_hintergrundObjektboden[r].Erlaubt))
                     {
-                        benutzt.Add(e); objekte++; gefunden = true;
+                        benutzt.Add(e); objekte++; gefunden = true; _hintergrundObjekttreffer[r] = e;
                         if (!EntityManager.HasComponent<ParkingLotPartRelation>(e))
                             EntityManager.AddComponentData(e, new ParkingLotPartRelation { Lot = _lotOwner, Carrier = _lotCarrier });
                         ApplyVegetationAge(e, r.Prefab); break;
@@ -250,6 +267,7 @@ namespace ParkingLotTool.Tools
             }
             foreach (var r in _netRecords)
             {
+                yield return 0;
                 bool innenhoeheVanilla = r.Kurs.HasValue
                     && ParkingLotKursabgleich.InnenhoeheVanilla(EntityManager,r.Prefab,r.Kurs.Value,_lotOwner);
                 var teile = r.Kurs.HasValue ? ParkingLotKursabgleich.Sammle(EntityManager,netze,
@@ -272,28 +290,51 @@ namespace ParkingLotTool.Tools
                 { kurse++; foreach (var teil in teile) benutzt.Add(teil.Kante); }
                 else _fehlendeHintergrundkurse.Add(r);
             }
-            messung = $"Besitzerpruefung: Kurse mit 17 Lageproben (5 cm; Enden 3D, innen XZ nur bei Vanilla-Y) {kurse}/{_netRecords.Count}, Flaechen {flaechen}/{_areaTransferRecords.Count}, Objekte {objekte}/{_objectRecords.Count}.";
-            return _netRecords.Count > 0 && kurse == _netRecords.Count && flaechen == _areaTransferRecords.Count && objekte == _objectRecords.Count;
+            int erhalten = 0;
+            foreach (var kette in _erhalteneKursketten)
+            {
+                bool da = ErhalteneKursketteDa(kette.Value);
+                if (da) erhalten++;
+                else ParkingLotNetzRueckweg.Melde($"Erhaltener Soll-Kurs {kette.Key}: Originalkante/Prefab/Owner/3D-Kurve/Knoten/ConnectedEdge veraendert oder fehlend; Abnahme offen.");
+                yield return 0;
+            }
+            int soll = _netRecords.Count + _erhalteneKursketten.Count + _nichtBaubareHintergrundGassen;
+            _kindermessung = $"Besitzerpruefung: Kurse mit 17 Lageproben (5 cm; Enden 3D, innen XZ nur bei Vanilla-Y) {kurse+erhalten}/{soll} (neu {kurse}/{_netRecords.Count}, erhalten {erhalten}/{_erhalteneKursketten.Count}, nicht baubar {_nichtBaubareHintergrundGassen}), Flaechen {flaechen}/{_areaTransferRecords.Count}, Objekte {objekte}/{_objectRecords.Count}.";
+            _kinderRichtig = Netzerhalt.Vollstaendig(soll,erhalten,kurse,_netRecords.Count) && flaechen == _areaTransferRecords.Count && objekte == _objectRecords.Count;
         }
 
-        private void SammleHintergrundteile()
+        private IEnumerable<int> SammleHintergrundteileSchritte()
         {
-            using var teile = _editOwnerParts.ToEntityArray(Allocator.Temp);
+            // Die nativen Puffer der zwei eigenen Besitzer ersetzen einen
+            // Welt-Owner-Scan bei jeder Abnahme (1757: 2098 Buchten).
+            var teile = new HashSet<Entity>();
+            foreach (var owner in new[] {_lotOwner,_lotCarrier})
+            {
+                if (!EntityManager.Exists(owner)) continue;
+                if (EntityManager.HasBuffer<Game.Areas.SubArea>(owner))
+                    foreach (var a in EntityManager.GetBuffer<Game.Areas.SubArea>(owner,true)) teile.Add(a.m_Area);
+                if (EntityManager.HasBuffer<Game.Objects.SubObject>(owner))
+                    foreach (var a in EntityManager.GetBuffer<Game.Objects.SubObject>(owner,true)) teile.Add(a.m_SubObject);
+                if (EntityManager.HasBuffer<SubNet>(owner))
+                    foreach (var a in EntityManager.GetBuffer<SubNet>(owner,true))
+                    {
+                        teile.Add(a.m_SubNet);
+                        if (!EntityManager.HasComponent<Edge>(a.m_SubNet)) continue;
+                        var e = EntityManager.GetComponentData<Edge>(a.m_SubNet);
+                        teile.Add(e.m_Start); teile.Add(e.m_End);
+                    }
+            }
             foreach (var e in teile)
             {
-                var owner = EntityManager.GetComponentData<Owner>(e).m_Owner;
-                if (owner == _lotOwner || owner == _lotCarrier) _eigeneDauerteile.Add(e);
+                if (ParkingLotNetzRueckweg.Lebt(EntityManager,e) && !EntityManager.HasComponent<Temp>(e)
+                    && EntityManager.HasComponent<Owner>(e))
+                {
+                    var o = EntityManager.GetComponentData<Owner>(e).m_Owner;
+                    if (o == _lotOwner || o == _lotCarrier) _eigeneDauerteile.Add(e);
+                }
+                yield return 0;
             }
             _eigeneDauerteile.RemoveWhere(e => !ParkingLotNetzRueckweg.Lebt(EntityManager,e) || EntityManager.HasComponent<Temp>(e));
-            // Nur Besitzerpuffer, nie fertige Kanten/Nodes umschreiben. Das
-            // ist derselbe Statistik-/Parking-Anschluss wie beim Temp-Bau.
-            if (!EntityManager.Exists(_lotCarrier) || !EntityManager.HasBuffer<SubNet>(_lotCarrier)) return;
-            var nets = _eigeneDauerteile.Where(e => EntityManager.HasComponent<Edge>(e)).ToArray();
-            foreach (var e in nets)
-            {
-                var buffer = EntityManager.GetBuffer<SubNet>(_lotCarrier);
-                if (!ParkingLotPuffer.Hat(buffer, e)) buffer.Add(new SubNet(e));
-            }
         }
 
         internal bool HintergrundWirtschaftBereit()
@@ -304,20 +345,6 @@ namespace ParkingLotTool.Tools
                 _replacementEconomyTransferred = true;
             }
             return !_editBuildingEconomyEnabled || HasEnabledCompanion(_lotOwner);
-        }
-
-        internal bool HintergrundFahrwegeRichtig()
-        {
-            MesseSpurkosten(_lotCarrier);
-            if (EntityManager.HasComponent<ParkingLotCarrierReference>(_editLot))
-                MesseSpurkosten(EntityManager.GetComponentData<ParkingLotCarrierReference>(_editLot).Carrier);
-            foreach (var e in _eigeneDauerteile.Concat(_erhalteneZoningteile).Distinct())
-                if (EntityManager.HasComponent<Edge>(e) && EntityManager.HasBuffer<SubLane>(e))
-                    foreach (var l in EntityManager.GetBuffer<SubLane>(e,true))
-                        if (EntityManager.HasComponent<CarLane>(l.m_SubLane)
-                            && (!HintergrundKurspruefung.FahrtempoStimmt(EntityManager.GetComponentData<CarLane>(l.m_SubLane).m_SpeedLimit)
-                                || FahrspurkostenFalsch(l.m_SubLane))) return false;
-            return HatGebauteFahrspuren(_lotCarrier) && !BrauchtFahrwegeNeubau(_lotCarrier);
         }
 
         internal void HintergrundUebernahme()
@@ -347,17 +374,29 @@ namespace ParkingLotTool.Tools
             if (!PollReplacementCommit()) throw new InvalidOperationException("Ersatzuebernahme nicht abgeschlossen.");
         }
 
-        internal void HintergrundRuecknahme()
+        private HintergrundPortion _ruecknahmeportion;
+        internal bool HintergrundRuecknahmeFertig => _ruecknahmeportion?.Fertig == true;
+        internal int HintergrundRuecknahme()
+        {
+            if (_ruecknahmeportion == null) _ruecknahmeportion = new HintergrundPortion(HintergrundRuecknahmeschritte());
+            var uhr = Stopwatch.StartNew();
+            return _ruecknahmeportion.Weiter(() => uhr.Elapsed.TotalMilliseconds);
+        }
+        private IEnumerable<int> HintergrundRuecknahmeschritte()
         {
             // Abriss wird am Gate ausgefuehrt, vor Modification1/2. Die ganze
-            // neue Besitzerkette faellt; ALTES Lot und erhaltenes Zoning leben.
+            // neue Besitzerkette faellt; ALTES Lot und erhaltene Netzstrassen leben.
             if (_lotOwner == Entity.Null && _areaTransferRecords.Count == 1) HintergrundBesitzerDa();
-            if (_lotOwner != Entity.Null) SammleHintergrundteile();
+            ParkingLotNetzerhalt.EntferneGelieheneVerweise(EntityManager,_editLot,_lotOwner,_lotCarrier);
+            if (_lotOwner != Entity.Null) foreach (int n in SammleHintergrundteileSchritte()) yield return n;
             foreach (var e in _eigeneDauerteile)
+            {
                 if (ParkingLotNetzRueckweg.Lebt(EntityManager,e)) EntityManager.AddComponent<Deleted>(e);
+                yield return 0;
+            }
             if (ParkingLotNetzRueckweg.Lebt(EntityManager,_lotOwner)) EntityManager.AddComponent<Deleted>(_lotOwner);
             if (ParkingLotNetzRueckweg.Lebt(EntityManager,_lotCarrier)) EntityManager.AddComponent<Deleted>(_lotCarrier);
-            RestoreHiddenParts();
+            foreach (int n in RestoreHiddenPartsSchritte()) yield return n;
             VerwerfeEdithoehen();
         }
     }

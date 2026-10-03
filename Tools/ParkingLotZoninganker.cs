@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Colossal.Serialization.Entities;
@@ -28,19 +28,19 @@ namespace ParkingLotTool.Tools
 
     public sealed partial class ParkingLotToolSystem
     {
-        /** Retention braucht dieselben Zoning-Entities UND deren Owner-ID.
+        /** Netzerhalt braucht dieselben Strassen-Entities UND deren Owner-ID.
          *  Deshalb bleibt die alte Besitzer-ID als nackter Anker erhalten;
          *  entfernt werden ihre Area und ihr Bauzettel. Nur der Anker wird
          *  umgehaengt, nie eine fertige Kante oder ein fertiger Knoten. */
         private Entity HintergrundBesitzanker(Entity alt, Entity neu, Entity alterTraeger)
         {
             var anker = new HashSet<Entity>();
-            foreach (var e in _erhalteneZoningteile)
+            foreach (var e in _erhalteneNetzteile)
                 if (EntityManager.HasComponent<Owner>(e)) anker.Add(EntityManager.GetComponentData<Owner>(e).m_Owner);
             foreach (var a in anker)
             {
                 if (a == alt) continue;
-                if (!EntityManager.HasComponent<ParkingLotZoninganker>(a)) throw new InvalidOperationException("Unbekannter Zoningbesitzer.");
+                if (!EntityManager.HasComponent<ParkingLotZoninganker>(a)) throw new InvalidOperationException("Unbekannter Netzbesitzer.");
                 EntityManager.SetComponentData(a,new Owner(neu));
                 EntityManager.SetComponentData(a,new ParkingLotPartRelation { Lot = neu, Carrier = _lotCarrier });
             }
@@ -61,7 +61,7 @@ namespace ParkingLotTool.Tools
             EntityManager.GetBuffer<Game.Objects.SubObject>(alt).Clear();
             var nets = EntityManager.GetBuffer<SubNet>(alt);
             for (int i = nets.Length-1; i >= 0; i--)
-                if (!_erhalteneZoningteile.Contains(nets[i].m_SubNet)) nets.RemoveAt(i);
+                if (!_erhalteneNetzteile.Contains(nets[i].m_SubNet)) nets.RemoveAt(i);
             using (var teile = _editRelatedParts.ToEntityArray(Allocator.Temp))
                 foreach (var e in teile)
                 {
@@ -100,7 +100,7 @@ namespace ParkingLotTool.Tools
             EntityManager.AddComponent<ParkingLotZoninganker>(alt);
             EntityManager.AddComponentData(alt,new Owner(neu));
             EntityManager.AddComponentData(alt,new ParkingLotPartRelation { Lot = neu, Carrier = _lotCarrier });
-            ParkingLotNetzRueckweg.Melde($"Zoningerhalt: {anker.Count} nackte Besitzeranker, {_erhalteneZoningteile.Count} Kanten/Knoten behalten Entity und Owner; alte Lot-Area entfernt, 0 Netze umgeschrieben.");
+            ParkingLotNetzRueckweg.Melde($"Netzerhalt: {anker.Count} nackte Besitzeranker, {_erhalteneNetzteile.Count} Kanten/Knoten behalten Entity und Owner; alte Lot-Area entfernt, 0 Netze umgeschrieben.");
             return abriss;
         }
     }

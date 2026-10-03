@@ -27,16 +27,20 @@ namespace ParkingLotTool.Tools
     [DisableAutoCreation]
     internal sealed partial class ParkingLotHintergrundSystem : GameSystemBase
     {
-        private enum Phase { Planung, Terrain, Besitzer, Kinder, Anschluesse, Nachpruefung, Nebenarbeit, Ruecknahme, Rueckweg, Ruhe }
+        private enum Phase { Planung, Terrain, Besitzer, Ausgabe, Kinder, Fehlstellen, Anmeldung, Anschluesse, Nachpruefung, Nebenarbeit, Ruecknahme, Rueckweg, Rueckabschluss, Ruhe }
         private sealed class Auftrag
         {
             internal Entity Lot, Neu, Traeger;
             internal int Id, Seit, Versuch, Rueckwegpruefungen, PrefabSeit = -1;
-            internal int Fruehestens, NaechstePruefung;
+            internal int Fruehestens, NaechstePruefung, Kinderpruefungen;
             internal bool NurRueckweg, GateOffen, AnschlussAngestossen, RueckwegAusgegeben;
             internal Phase Phase;
             internal Task<ParkingLayout> Rechnung;
             internal ParkingLotToolSystem Bauer;
+            internal int RueckwegIndex;
+            internal int RueckIst, RueckSoll;
+            internal ParkingLotNetzRueckweg.Prueflauf Rueckpruefung;
+            internal string Kindermessung;
         }
         private readonly List<Auftrag> _queue = new List<Auftrag>();
         private readonly HashSet<Entity> _angehalten = new HashSet<Entity>();
@@ -182,7 +186,10 @@ namespace ParkingLotTool.Tools
             var a = _aktiv;
             if (a == null || a.GateOffen) return;
             if (!HintergrundTakt.Faellig(bild,a.NaechstePruefung)) return;
-            a.NaechstePruefung = bild + HintergrundTakt.Pruefabstand;
+            a.NaechstePruefung = bild + (a.Phase == Phase.Planung || a.Phase == Phase.Ausgabe
+                || a.Phase == Phase.Kinder || a.Phase == Phase.Fehlstellen || a.Phase == Phase.Anmeldung || a.Phase == Phase.Nachpruefung || a.Phase == Phase.Nebenarbeit
+                || a.Phase == Phase.Ruecknahme || a.Phase == Phase.Rueckweg || a.Phase == Phase.Rueckabschluss
+                ? 1 : HintergrundTakt.Pruefabstand);
             try { Messe(a,"Pruefung",() => Pflege(a)); }
             catch (Exception e) { Fehler(a,e); }
         }
@@ -205,13 +212,19 @@ namespace ParkingLotTool.Tools
             {
                 case Phase.Planung:
                     if (!a.Rechnung.IsCompleted) return;
-                    if (a.PrefabSeit < 0) a.PrefabSeit = bild;
                     if (!a.Bauer.HintergrundPrefabs(a.Rechnung.GetAwaiter().GetResult()))
                     {
+                        if (!a.Bauer.HintergrundVorbereitungFertig) return;
+                        if (a.PrefabSeit < 0) a.PrefabSeit = bild;
                         if (bild-a.PrefabSeit > 120) throw new InvalidOperationException("Bauprefabs nach 120 Bildern nicht bereit; kein eigener Abriss.");
                         return;
                     }
-                    Exklusiv(a, () => { a.Bauer.HintergrundAbriss(); a.Phase = Phase.Terrain; a.Seit = UnityEngine.Time.frameCount; return 0; });
+                    Exklusiv(a, () =>
+                    {
+                        int n = a.Bauer.HintergrundAbriss();
+                        if (a.Bauer.HintergrundAbrissFertig) { a.Phase = Phase.Terrain; a.Seit = UnityEngine.Time.frameCount; }
+                        return n;
+                    });
                     break;
                 case Phase.Terrain:
                     if (!a.Bauer.HintergrundTerrainFertig()) return;
@@ -226,18 +239,38 @@ namespace ParkingLotTool.Tools
                     if (!a.Bauer.HintergrundBesitzerDa())
                     { if (bild-a.Seit > 90) throw new InvalidOperationException("Stufe A nach 90 Bildern nicht materialisiert."); return; }
                     a.Neu = a.Bauer.HintergrundLot; a.Traeger = a.Bauer.HintergrundTraeger;
-                    Exklusiv(a, () => { int n = a.Bauer.HintergrundStufeB(); a.Phase = Phase.Kinder; a.Seit = UnityEngine.Time.frameCount; return n; });
+                    a.Phase = Phase.Ausgabe;
+                    a.Seit = bild;
+                    break;
+                case Phase.Ausgabe:
+                    Exklusiv(a, () =>
+                    {
+                        int n = a.Bauer.HintergrundBauportion();
+                        if (a.Bauer.HintergrundAusgabeFertig) { a.Phase = Phase.Kinder; a.Seit = UnityEngine.Time.frameCount; }
+                        return n;
+                    });
                     break;
                 case Phase.Kinder:
                     if (!a.Bauer.HintergrundKinderDa(out var messung))
                     {
-                        if (bild-a.Seit > 90)
-                        { a.Bauer.HintergrundFehlstellen(); throw new InvalidOperationException(messung); }
+                        if (!a.Bauer.HintergrundKinderpruefungFertig) return;
+                        if (++a.Kinderpruefungen >= 3)
+                        { a.Kindermessung = messung; a.Phase = Phase.Fehlstellen; }
                         return;
                     }
                     ParkingLotNetzRueckweg.Melde(messung);
-                    Exklusiv(a, () => { a.Bauer.HintergrundMeldeAnschluesse(); a.Phase = Phase.Anschluesse; a.Seit = UnityEngine.Time.frameCount; return 0; });
+                    a.Phase = Phase.Anmeldung;
                     break;
+                case Phase.Anmeldung:
+                    Exklusiv(a, () =>
+                    {
+                        if (a.Bauer.HintergrundMeldeAnschluesse()) { a.Phase = Phase.Anschluesse; a.Seit = UnityEngine.Time.frameCount; }
+                        return 0;
+                    });
+                    break;
+                case Phase.Fehlstellen:
+                    if (!a.Bauer.HintergrundFehlstellen()) return;
+                    throw new InvalidOperationException(a.Kindermessung);
                 case Phase.Anschluesse:
                     if (!a.Bauer.HintergrundAnschluesseDa(out int angeschlossen,out int erfasst))
                     { if (bild-a.Seit > 90) throw new InvalidOperationException($"Versorgungsanschluesse {angeschlossen}/{erfasst} nach 90 Bildern."); return; }
@@ -248,7 +281,9 @@ namespace ParkingLotTool.Tools
                     if (bild-a.Seit < 30) return;
                     if (!a.Bauer.HintergrundWirtschaftBereit())
                     { if (bild-a.Seit > 120) throw new InvalidOperationException("Gebuehr/Begleiter nach 120 Bildern nicht uebernommen."); return; }
-                    if (Mod.Aus("hintergrund-spurpruefung") || !a.Bauer.HintergrundFahrwegeRichtig())
+                    bool spuren = a.Bauer.HintergrundFahrwegePortion();
+                    if (!a.Bauer.HintergrundSpurpruefungFertig) return;
+                    if (Mod.Aus("hintergrund-spurpruefung") || !spuren)
                         throw new InvalidOperationException("Fahrwege-Nachpruefung fehlgeschlagen.");
                     ParkingLotNetzRueckweg.Melde("Fahrwege-Nachpruefung: echte Fahrspuren vorhanden, Fahrwert-/Kostenabweichungen 0.");
                     // Letzter exklusiver Abschluss: keine fremden Definitionen
@@ -281,10 +316,12 @@ namespace ParkingLotTool.Tools
                     Exklusiv(a, () =>
                     {
                         a.Bauer?.HintergrundRuecknahme();
+                        if (a.Bauer != null && !a.Bauer.HintergrundRuecknahmeFertig) return 0;
                         RaumeGespeichertesA(a.Lot);
                         if (EntityManager.HasComponent<ParkingLotOffenerErsatz>(a.Lot))
                         {
                             var ersatz = EntityManager.GetComponentData<ParkingLotOffenerErsatz>(a.Lot);
+                            ParkingLotNetzerhalt.EntferneGelieheneVerweise(EntityManager,a.Lot,ersatz.Lot,ersatz.Traeger);
                             foreach (var e in new[] { ersatz.Lot, ersatz.Traeger })
                                 if (ParkingLotNetzRueckweg.Lebt(EntityManager,e)) EntityManager.AddComponent<Deleted>(e);
                         }
@@ -297,34 +334,39 @@ namespace ParkingLotTool.Tools
                     break;
                 case Phase.Rueckweg:
                     if (!EntityManager.HasBuffer<ParkingLotRueckwegkurs>(a.Lot)) { RueckwegFertig(a,0,0); return; }
-                    if (ParkingLotNetzRueckweg.Pruefe(EntityManager,a.Lot,out var ist,out var soll))
-                    { RueckwegFertig(a,ist,soll); return; }
-                    if (a.RueckwegAusgegeben)
+                    if (!a.RueckwegAusgegeben)
                     {
-                        if (!a.AnschlussAngestossen && ParkingLotNetzRueckweg.Pruefe(EntityManager,a.Lot,out _,out _,false))
+                        Exklusiv(a, () =>
                         {
-                            Exklusiv(a, () => { ParkingLotNetzRueckweg.MeldeAnschluesse(EntityManager,a.Lot); a.AnschlussAngestossen = true; return 0; });
-                            return;
-                        }
-                        if (bild-a.Seit >= HintergrundRueckwegfrist.Fenster)
-                        {
-                            a.Rueckwegpruefungen++;
-                            ParkingLotNetzRueckweg.Pruefe(EntityManager,a.Lot,out _,out _,diagnose:true);
-                            ParkingLotNetzRueckweg.Melde($"Rueckweg OFFEN: Kanten {ist}/{soll}; Pruefung {a.Rueckwegpruefungen}/{HintergrundRueckwegfrist.MaxPruefungen}; "
-                                + $"Lot {a.Lot.Index} bleibt gesperrt; 0 neue Definitionen.");
-                            if (!HintergrundRueckwegfrist.Weiter(a.Rueckwegpruefungen))
-                            { HalteRueckwegAn(a); return; }
-                            a.Seit = bild;
-                        }
+                            int n = ParkingLotNetzRueckweg.Erzeuge(EntityManager,a.Lot,a.Id,a.RueckwegIndex,4);
+                            a.RueckwegIndex += 4;
+                            a.RueckwegAusgegeben = a.RueckwegIndex >= EntityManager.GetBuffer<ParkingLotRueckwegkurs>(a.Lot,true).Length;
+                            ParkingLotNetzRueckweg.Melde($"Rueckwegportion Lot {a.Lot.Index}: {n} Definitionen, Planindex {a.RueckwegIndex}; Ausgabe fertig={a.RueckwegAusgegeben}.");
+                            a.Seit = UnityEngine.Time.frameCount;
+                            return n;
+                        });
                         return;
                     }
-                    Exklusiv(a, () =>
+                    if (!a.AnschlussAngestossen)
                     {
-                        var n = ParkingLotNetzRueckweg.Erzeuge(EntityManager,a.Lot,a.Id);
-                        ParkingLotNetzRueckweg.Melde($"Rueckweg gestartet: alte Kanten {n}; Lot {a.Lot.Index}.");
-                        a.RueckwegAusgegeben = true;
-                        a.Seit = UnityEngine.Time.frameCount; return n;
-                    });
+                        Exklusiv(a, () => { ParkingLotNetzRueckweg.MeldeAnschluesse(EntityManager,a.Lot); a.AnschlussAngestossen = true; return 0; });
+                        return;
+                    }
+                    if (a.Rueckpruefung == null)
+                        a.Rueckpruefung = new ParkingLotNetzRueckweg.Prueflauf(EntityManager,a.Lot,diagnose:true);
+                    a.Rueckpruefung.Weiter();
+                    if (!a.Rueckpruefung.Fertig) return;
+                    int ist = a.Rueckpruefung.Ist, soll = a.Rueckpruefung.Soll;
+                    bool richtig = a.Rueckpruefung.Richtig;
+                    a.Rueckpruefung.Dispose(); a.Rueckpruefung = null;
+                    if (richtig) { RueckwegFertig(a,ist,soll); return; }
+                    a.Rueckwegpruefungen++;
+                    ParkingLotNetzRueckweg.Melde($"Rueckweg OFFEN: Kanten {ist}/{soll}; Pruefung {a.Rueckwegpruefungen}/{HintergrundRueckwegfrist.MaxPruefungen}; Lot bleibt gesperrt, 0 weitere Definitionen.");
+                    if (!HintergrundRueckwegfrist.Weiter(a.Rueckwegpruefungen)) { HalteRueckwegAn(a); return; }
+                    a.NaechstePruefung = bild + HintergrundRueckwegfrist.Fenster;
+                    break;
+                case Phase.Rueckabschluss:
+                    RueckwegFertig(a,a.RueckIst,a.RueckSoll);
                     break;
             }
         }
@@ -339,6 +381,8 @@ namespace ParkingLotTool.Tools
             ParkingLotNetzRueckweg.Melde($"Fehler Auftrag {a.Id}, Phase {a.Phase}: {e.Message}; "
                 + (uebernommen ? "dauerhafter Neubau bleibt auf Stand 7 erhalten." : "Rueckweg erforderlich."));
             a.GateOffen = false;
+            a.Bauer?.HintergrundPortionenBeenden();
+            ParkingLotNetzRueckweg.VerwerfeOffeneSicherung(EntityManager,a.Lot);
             if (uebernommen)
             {
                 // Auch bei einer Ausnahme NACH der irreversiblen Uebernahme
@@ -347,6 +391,7 @@ namespace ParkingLotTool.Tools
                 EntityManager.AddComponent<ParkingLotNebenarbeitOffen>(a.Neu);
                 if (EntityManager.Exists(a.Lot))
                 {
+                    EntityManager.RemoveComponent<ParkingLotErhaltenerKurs>(a.Lot);
                     EntityManager.RemoveComponent<ParkingLotRueckwegkurs>(a.Lot);
                     EntityManager.RemoveComponent<ParkingLotRueckweganschluss>(a.Lot);
                     EntityManager.RemoveComponent<ParkingLotOffenerErsatz>(a.Lot);
@@ -356,7 +401,7 @@ namespace ParkingLotTool.Tools
                 World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().MeldeHintergrundEnde(a.Lot,a.Neu,false);
                 Ende(a); return;
             }
-            if (a.Phase == Phase.Rueckweg)
+            if (a.Phase == Phase.Rueckweg || a.Phase == Phase.Rueckabschluss)
             {
                 HalteRueckwegAn(a); return;
             }
@@ -381,12 +426,13 @@ namespace ParkingLotTool.Tools
             if (gesichert)
             {
                 a.Bauer ??= ParkingLotToolSystem.Bauarbeiter(World);
-                a.Bauer.HintergrundRueckwegFluss(a.Lot);
+                if (!a.Bauer.HintergrundRueckwegFlussPortion(a.Lot))
+                { a.RueckIst = ist; a.RueckSoll = soll; a.Phase = Phase.Rueckabschluss; return; }
             }
-            ParkingLotNetzRueckweg.FuellTraeger(EntityManager,a.Lot);
             ParkingLotNetzRueckweg.Melde(gesichert
                 ? $"Rueckweg geprueft: Kanten {ist}/{soll}, Lage-/Anschlussabweichungen 0 (Enden 3D, innen gemaess Vanilla-Regel); Versuch {a.Versuch}/3."
                 : $"Auftrag vor eigenem Abriss beendet; kein Rueckweg erforderlich; Versuch {a.Versuch}/3.");
+            if (EntityManager.HasBuffer<ParkingLotErhaltenerKurs>(a.Lot)) EntityManager.RemoveComponent<ParkingLotErhaltenerKurs>(a.Lot);
             if (EntityManager.HasBuffer<ParkingLotRueckwegkurs>(a.Lot)) EntityManager.RemoveComponent<ParkingLotRueckwegkurs>(a.Lot);
             if (EntityManager.HasComponent<ParkingLotOffenerErsatz>(a.Lot)) EntityManager.RemoveComponent<ParkingLotOffenerErsatz>(a.Lot);
             if (EntityManager.HasBuffer<ParkingLotRueckweganschluss>(a.Lot)) EntityManager.RemoveComponent<ParkingLotRueckweganschluss>(a.Lot);
@@ -407,6 +453,8 @@ namespace ParkingLotTool.Tools
         private void Ende(Auftrag a)
         {
             _regel.Ende(a.Lot);
+            a.Rueckpruefung?.Dispose(); a.Rueckpruefung = null;
+            a.Bauer?.HintergrundPortionenBeenden();
             if (a.Bauer != null)
             {
                 if (a.Phase == Phase.Nebenarbeit && a.Bauer.HintergrundBeobachtetFluss) _flussbeobachter.Add(a.Bauer);
@@ -432,8 +480,7 @@ namespace ParkingLotTool.Tools
             finally
             {
                 double ms = uhr.Elapsed.TotalMilliseconds;
-                if (arbeit != "Pruefung" || phase != a.Phase || ms >= 5 || UnityEngine.Time.frameCount % 30 == 0)
-                    ParkingLotHintergrundDiagnose.Sicher(() => ParkingLotNetzRueckweg.Melde(FormattableString.Invariant(
+                ParkingLotHintergrundDiagnose.Sicher(() => ParkingLotNetzRueckweg.Melde(FormattableString.Invariant(
                         $"Bildzeit Auftrag {a.Id}, Versuch {a.Versuch}, Phase {phase}, {arbeit}, Bild {UnityEngine.Time.frameCount}: Spielthread {ms:F3} ms, voriges Bild {UnityEngine.Time.unscaledDeltaTime*1000f:F3} ms; Folgephase {a.Phase}.")));
             }
         }
@@ -442,11 +489,15 @@ namespace ParkingLotTool.Tools
         {
             base.OnGameLoaded(context);
             _gate.Verwerfe(_aktiv?.Lot ?? Entity.Null);
+            _aktiv?.Rueckpruefung?.Dispose();
             if (_aktiv?.Bauer != null) World.DestroySystemManaged(_aktiv.Bauer);
             foreach (var b in _flussbeobachter) World.DestroySystemManaged(b);
             _flussbeobachter.Clear();
             _aktiv = null; _queue.Clear(); _angehalten.Clear(); _regel = new HintergrundAuftragsregel<Entity>();
             _naechsterStart = 0; _letztesArbeitsbild = -1;
+            using (var offenQuery = EntityManager.CreateEntityQuery(ComponentType.ReadOnly<ParkingLotRueckwegsicherungOffen>()))
+            using (var offen = offenQuery.ToEntityArray(Allocator.Temp))
+                foreach (var lot in offen) ParkingLotNetzRueckweg.VerwerfeOffeneSicherung(EntityManager,lot);
             using var query = EntityManager.CreateEntityQuery(ComponentType.ReadOnly<ParkingLotRueckwegkurs>());
             using var lots = query.ToEntityArray(Allocator.Temp);
             foreach (var lot in lots)

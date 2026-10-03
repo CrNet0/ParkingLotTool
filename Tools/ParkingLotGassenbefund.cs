@@ -70,6 +70,7 @@ namespace ParkingLotTool.Tools
             internal float Vorflaechenbreite;
             /** Geplante Fahrtrichtung des NetCourse. */
             internal bool FaehrtHinaus;
+            internal ParkingLotTool.Geometry.Zufahrtsart Art;
             /** Letzter diskreter Richtungszustand fuer Aenderungen im Bau. */
             internal string LetzterRichtungszustand;
         }
@@ -100,7 +101,7 @@ namespace ParkingLotTool.Tools
                                       float halbeBreiteGeplant,
                                       Entity gassenprefab,
                                       float vorflaechenbreite,
-                                      bool faehrtHinaus)
+                                      bool faehrtHinaus, ParkingLotTool.Geometry.Zufahrtsart art)
         {
             _gassenplan.Add(new Gassenplan
             {
@@ -114,6 +115,7 @@ namespace ParkingLotTool.Tools
                 Gassenprefab = gassenprefab,
                 Vorflaechenbreite = vorflaechenbreite,
                 FaehrtHinaus = faehrtHinaus,
+                Art = art,
             });
         }
 

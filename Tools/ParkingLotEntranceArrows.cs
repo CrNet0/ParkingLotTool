@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Game.Common;
 using Game.Prefabs;
 using Game.City;
@@ -108,14 +108,22 @@ namespace ParkingLotTool.Tools
         private int CreateEntranceArrowDefinitions(ParkingLayout layout,
                                                    ref TerrainHeightData heightData)
         {
-            if (layout?.NetLine == null || layout.NetLine.Length == 0) return 0;
-            if (!ResolveArrowPrefab()) return 0;
+            int n = 0;
+            foreach (int teil in CreateEntranceArrowDefinitionsSchritte(layout, heightData)) n += teil;
+            return n;
+        }
+
+        private System.Collections.Generic.IEnumerable<int> CreateEntranceArrowDefinitionsSchritte(ParkingLayout layout, TerrainHeightData heightData)
+        {
+            if (layout?.NetLine == null || layout.NetLine.Length == 0) yield break;
+            if (!ResolveArrowPrefab()) yield break;
 
             var random = new Unity.Mathematics.Random(
                 (uint)Environment.TickCount | 1u);
             var gesetzt = 0;
             for (var i = 0; i < layout.NetLine.Length; i++)
             {
+                yield return 0;
                 var piece = layout.NetLine[i];
                 /*
                  * JEDE EINSPURIGE ZUFAHRT BEKOMMT IHREN PFEIL.
@@ -158,7 +166,7 @@ namespace ParkingLotTool.Tools
                 var punkt = FlaechenmitteFuer(layout, piece.Art, von, nach);
                 if (CreateArrowDefinition(punkt, math.normalize(richtung),
                         i, ref heightData, ref random))
-                    gesetzt++;
+                { gesetzt++; yield return 1; }
             }
 
             if (gesetzt > 0)
@@ -169,7 +177,7 @@ namespace ParkingLotTool.Tools
             if (gesetzt > 0)
                 Mod.log.Info("PLT-Richtungspfeil: " + gesetzt + " gesetzt, "
                     + "Prefab '" + _arrowPrefabUsed + "'.");
-            return gesetzt;
+            yield break;
         }
 
         /**

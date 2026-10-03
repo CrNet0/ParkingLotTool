@@ -358,7 +358,7 @@ namespace ParkingLotTool.Tools
                 ? EntityManager.GetComponentData<ParkingLotCarrierReference>(old).Carrier
                 : Entity.Null;
             TransferVegetation(old, next, carrier);
-            var abrissLot = _bauarbeiter && _zoningErhalten ? HintergrundBesitzanker(old,next,alterTraeger) : old;
+            var abrissLot = _bauarbeiter && _erhalteneNetzteile.Count > 0 ? HintergrundBesitzanker(old,next,alterTraeger) : old;
             EntityManager.AddComponent<Deleted>(abrissLot);
             /*
              * `Hidden` DARF NICHT EINFACH VERGESSEN WERDEN.
@@ -386,15 +386,16 @@ namespace ParkingLotTool.Tools
             _hiddenNachUebernahme.Clear();
             foreach (var teil in _hiddenByEdit) _hiddenNachUebernahme.Add(teil);
             _hiddenByEdit.Clear();
+            if (EntityManager.HasBuffer<ParkingLotErhaltenerKurs>(old)) EntityManager.RemoveComponent<ParkingLotErhaltenerKurs>(old);
             if (EntityManager.HasBuffer<ParkingLotRueckwegkurs>(old)) EntityManager.RemoveComponent<ParkingLotRueckwegkurs>(old);
             if (EntityManager.HasComponent<ParkingLotOffenerErsatz>(old)) EntityManager.RemoveComponent<ParkingLotOffenerErsatz>(old);
             if (EntityManager.HasBuffer<ParkingLotRueckweganschluss>(old)) EntityManager.RemoveComponent<ParkingLotRueckweganschluss>(old);
             if (EntityManager.HasBuffer<ParkingLotStufeAKnoten>(old)) EntityManager.RemoveComponent<ParkingLotStufeAKnoten>(old);
             if (EntityManager.HasComponent<ParkingLotStufeAPrefab>(old)) EntityManager.RemoveComponent<ParkingLotStufeAPrefab>(old);
             // Der Hintergrund meldet sie selbst im exklusiven Bild an.
-            if (!_bauarbeiter && _zoningErhalten)
-                Mod.log.Info("PLT-Bearbeiten: " + MeldeErhalteneZoningteileAn()
-                    + " erhaltene Zoningteile zum Auffrischen der Fahrspuren angemeldet.");
+            if (!_bauarbeiter && _erhalteneNetzteile.Count > 0)
+                Mod.log.Info("PLT-Bearbeiten: " + MeldeErhalteneNetzteileAn()
+                    + " erhaltene Netzteile zum Auffrischen der Fahrspuren angemeldet.");
             ClearEditState();
             if (!_bauarbeiter) MerkeAutoVersorgung(carrier, old, alterTraeger);
             Mod.log.Info("PLT-Bearbeiten: Ausstieg durch Übernehmen; neues Lot "
@@ -620,7 +621,8 @@ namespace ParkingLotTool.Tools
         {
             VerwerfeEdithoehen();
             _alteZoningkurse = null;
-            _erhalteneZoningteile.Clear();
+            _erhalteneNetzteile.Clear();
+            _erhalteneKursketten.Clear(); _hintergrundGassenkurse.Clear();
             _zoningErhalten = false;
             _uiSystem?.ClearBuildReceiptTemplate();
             _editLot = Entity.Null;
@@ -668,6 +670,7 @@ namespace ParkingLotTool.Tools
             if (GameManager.instance != null)
                 GameManager.instance.onGameSaveLoad -= OnEditGameSaveLoad;
             if (!_bauarbeiter) CancelEditingForShutdown();
+            if (_bauarbeiter) HintergrundPortionenBeenden();
             // Die Hoehenkarten-Kopie ist Allocator.Persistent und so gross
             // wie die ganze Karte. Endet das Spiel mitten in einem Edit-Bau,
             // gibt sie sonst niemand frei. Der Aufruf ist wiederholbar.

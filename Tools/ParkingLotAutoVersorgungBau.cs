@@ -108,6 +108,10 @@ namespace ParkingLotTool.Tools
         // Kurse. Bereits gebaute und noch ausstehende Netze bleiben erhalten.
         private void StarteAutoVersorgung(Entity traeger)
         {
+            foreach (int n in StarteAutoVersorgungSchritte(traeger)) { }
+        }
+        private IEnumerable<int> StarteAutoVersorgungSchritte(Entity traeger)
+        {
             var planzeit = System.Diagnostics.Stopwatch.StartNew();
             var strom = FindeVersorgungsprefab(true);
             var wasser = FindeVersorgungsprefab(false);
@@ -115,7 +119,7 @@ namespace ParkingLotTool.Tools
             {
                 MeldeVorplanung(default);
                 AvFehler("mindestens 1 der 2 benoetigten Leitungsprefabs fehlt");
-                return;
+                yield break;
             }
             _avStrombreite = EntityManager.GetComponentData<NetGeometryData>(strom).m_DefaultWidth;
             _avStromprefab = strom;
@@ -125,13 +129,14 @@ namespace ParkingLotTool.Tools
             // Erst wissen, was im Weg liegt - dann die Huellen bauen.
             SammleFremdleitungen(_avAlleEigenen);
             _avAusstehend.Clear();
-            _avAusstehend.AddRange(WaehleVersorgungstrassen(traeger));
+            foreach (int n in WaehleVersorgungstrassenSchritte(traeger)) yield return n;
+            _avAusstehend.AddRange(_avWahlTrassen);
             MeldeVorplanung(_avAusstehend.Count > 0 ? _avAusstehend[0] : default);
             Mod.log.Info($"PLT-Autoversorgung ZEIT: Planung {planzeit.Elapsed.TotalMilliseconds:F1} ms; "
                 + $"seit Bauauftrag {_avGesamtzeit?.Elapsed.TotalMilliseconds:F1} ms.");
             _avHatPlan = _avAusstehend.Count > 0;
             _avTrassen.Clear();
-            if (_avAusstehend.Count == 0) { AvNaechsteTrasse(); return; }
+            if (_avAusstehend.Count == 0) { AvNaechsteTrasse(); yield break; }
             _avTrassen.Add(_avAusstehend[0]);
             _avAusstehend.RemoveAt(0);
             foreach (var prefab in new[] { strom, wasser })
@@ -177,7 +182,8 @@ namespace ParkingLotTool.Tools
                 AvMeldeZielstrasse(trasse);
             }
             foreach (var kurs in _avKurse)
-                for (var i = 1; i < kurs.Punkte.Count; i++) LegeVersorgungskurs(kurs, i);
+                for (var i = 1; i < kurs.Punkte.Count; i++)
+                { LegeVersorgungskurs(kurs, i); yield return 1; }
             _avPhase = AvPhase.TempWarten;
             _avFrame = UnityEngine.Time.frameCount;
             _avTempStabil = -1;

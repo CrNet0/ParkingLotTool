@@ -63,20 +63,27 @@ namespace ParkingLotTool.Tools
             LayoutSettings settings, ParkingBayDecals.DecalPlan plan,
             ref TerrainHeightData heightData)
         {
-            if (_chargerPrefab == Entity.Null || plan.Chargers.Length == 0) return 0;
+            int n = 0;
+            foreach (int teil in CreateChargerDefinitionsSchritte(layout, settings, plan, heightData)) n += teil;
+            return n;
+        }
+
+        private System.Collections.Generic.IEnumerable<int> CreateChargerDefinitionsSchritte(ParkingLayout layout, LayoutSettings settings, ParkingBayDecals.DecalPlan plan, TerrainHeightData heightData)
+        {
+            if (_chargerPrefab == Entity.Null || plan.Chargers.Length == 0) yield break;
             if (!TryGetPrefabCollision(_chargerPrefab, out var chargerGeometry,
                     out var chargerMask))
             {
                 Mod.log.Warn("PLT-Ladesäulen ausgelassen: die Kollisionsbox des "
                     + $"Prefabs '{ChargerName}' ist nicht lesbar.");
-                return 0;
+                yield break;
             }
             if (settings.Md <= ChargerPlacementEpsilon)
             {
                 Mod.log.Info($"PLT-Ladesäulen: 0 von {plan.Chargers.Length} gesetzt. "
                     + $"Der Grünstreifen ist abgeschaltet (md={settings.Md:F2} m); "
                     + "die Elektro-Aufkleber bleiben ohne Säule sichtbar.");
-                return 0;
+                yield break;
             }
             if (GrassOverridesCharger(chargerMask, out var grassFlags))
             {
@@ -87,15 +94,17 @@ namespace ParkingLotTool.Tools
                     + "gesetzt. Die geladene Grasfläche kann diese "
                     + $"Kollisionsmaske überschreiben (Flags {grassFlags}); "
                     + "die Elektro-Aufkleber bleiben ohne Säule sichtbar.");
-                return 0;
+                yield break;
             }
 
             var clock=System.Diagnostics.Stopwatch.StartNew();
             _chargerCandidateVisits=0; _chargerExactTests=0; _chargerSearchCandidates=0;
-            var decalBoxes = BuildPlannedDecalBoxes(plan, ref heightData);
+            var decalBoxes = new List<PlannedDecalBox>(plan.Placements.Length);
+            foreach (int n in BuildPlannedDecalBoxesSchritte(plan,heightData,decalBoxes)) yield return n;
             var created = 0;
             for (var i = 0; i < plan.Chargers.Length; i++)
             {
+                yield return 0;
                 var charger = plan.Chargers[i];
                 if (!TryFindChargerPosition(layout, settings, charger,
                         chargerGeometry, chargerMask, decalBoxes, ref heightData,
@@ -127,19 +136,19 @@ namespace ParkingLotTool.Tools
                 var fixedSeed = new Unity.Mathematics.Random(ChargerVariantSeed);
                 if (CreateBayDecalDefinition("Charger", i, _chargerPrefab,
                         found.Center, facing, ref heightData, ref fixedSeed))
-                    created++;
+                { created++; yield return 1; }
             }
             Mod.log.Info($"PLT-Ladesaeulensuche: {clock.Elapsed.TotalMilliseconds:F1} ms; {plan.Chargers.Length} Saeulen, {decalBoxes.Count} Decals; {_chargerSearchCandidates} lokale Kandidaten insgesamt, {_chargerCandidateVisits} Kandidatenbesuche, {_chargerExactTests} exakte Boxpruefungen.");
-            return created;
+            yield break;
         }
 
         private static int _chargerCandidateVisits, _chargerExactTests, _chargerSearchCandidates;
-        private List<PlannedDecalBox> BuildPlannedDecalBoxes(
-            ParkingBayDecals.DecalPlan plan, ref TerrainHeightData heightData)
+        private IEnumerable<int> BuildPlannedDecalBoxesSchritte(
+            ParkingBayDecals.DecalPlan plan, TerrainHeightData heightData,List<PlannedDecalBox> result)
         {
-            var result = new List<PlannedDecalBox>(plan.Placements.Length);
             for (var i = 0; i < plan.Placements.Length; i++)
             {
+                yield return 0;
                 var placement = plan.Placements[i];
                 // Immer die SICHTBAREN Aufkleber vermessen: dieser Weg laeuft
                 // nur, wenn ueberhaupt Saeulen gesetzt werden, und das tut er
@@ -160,7 +169,6 @@ namespace ParkingLotTool.Tools
                     SearchRadius = ChargerCandidates.Radius(CollisionBounds(geometry).min, CollisionBounds(geometry).max),
                 });
             }
-            return result;
         }
 
         private bool TryFindChargerPosition(ParkingLayout layout,

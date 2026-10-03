@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Colossal.Mathematics;
 using Game.Common;
 using Game.Net;
@@ -36,10 +37,16 @@ namespace ParkingLotTool.Tools
             using var kandidaten = q.ToEntityArray(Allocator.Temp);
             Entity naechster = Entity.Null; float abstand = float.PositiveInfinity;
             bool gleicherPrefab = false;
+            var sollMin = math.min(math.min(soll.a.xz,soll.b.xz),math.min(soll.c.xz,soll.d.xz))-200;
+            var sollMax = math.max(math.max(soll.a.xz,soll.b.xz),math.max(soll.c.xz,soll.d.xz))+200;
             foreach (var e in kandidaten)
             {
+                var curve = em.GetComponentData<Curve>(e).m_Bezier;
+                var min = math.min(math.min(curve.a.xz,curve.b.xz),math.min(curve.c.xz,curve.d.xz));
+                var max = math.max(math.max(curve.a.xz,curve.b.xz),math.max(curve.c.xz,curve.d.xz));
+                if (math.any(max < sollMin) || math.any(min > sollMax)) continue;
                 bool gleich = em.GetComponentData<PrefabRef>(e).m_Prefab == prefab;
-                float d = ParkingLotKursabgleich.Abstand(soll,em.GetComponentData<Curve>(e).m_Bezier,out _,innenhoeheVanilla);
+                float d = ParkingLotKursabgleich.Abstand(soll,curve,out _,innenhoeheVanilla);
                 if (!math.isfinite(d) || gleicherPrefab && !gleich || gleich == gleicherPrefab && d >= abstand) continue;
                 naechster = e; abstand = d; gleicherPrefab = gleich;
             }
@@ -75,7 +82,7 @@ namespace ParkingLotTool.Tools
             }
             ParkingLotNetzRueckweg.Melde($"{phase} Soll-Kurs {index} ({art}), Prefab {Name(prefabs,prefab)}, "
                 + $"Besitzer {E(besitzer)}, {P(soll.a)} -> {P(soll.d)}, Kontrollen {P(soll.b)}/{P(soll.c)}, "
-                + $"Originalknoten {E(start)}/{E(ende)}; FEHLT: {grund}; naechster {ist}.");
+                + $"Originalknoten {E(start)}/{E(ende)}; FEHLT: {grund}; naechster im 200-m-Suchfeld {ist}.");
         }
     }
 
@@ -83,18 +90,21 @@ namespace ParkingLotTool.Tools
     {
         private readonly List<PartTransferRecord> _fehlendeHintergrundobjekte = new List<PartTransferRecord>();
         private readonly List<PartTransferRecord> _fehlendeHintergrundkurse = new List<PartTransferRecord>();
+        private readonly List<ParkingLotRueckwegkurs> _fehlendeErhalteneKurse = new List<ParkingLotRueckwegkurs>();
         private readonly Dictionary<PartTransferRecord,(float3 Position,bool Erlaubt)> _hintergrundObjektboden
             = new Dictionary<PartTransferRecord,(float3,bool)>();
 
-        private void BerechneHintergrundObjektboden()
+        private IEnumerable<int> BerechneHintergrundObjektbodenSchritte()
         {
             _hintergrundObjektboden.Clear();
-            var height = _terrainSystem.GetHeightData(true);
-            var wasser = World.GetOrCreateSystemManaged<WaterSystem>().GetSurfaceData(out var deps); deps.Complete();
-            var platz = GetComponentLookup<PlaceableObjectData>(true);
-            var geometrie = GetComponentLookup<ObjectGeometryData>(true);
             foreach (var r in _objectRecords)
             {
+                // Lookups nie ueber ein yield halten: zwischen Portionen
+                // verschieben Vanilla-Generatoren die Prefab-/Objektchunks.
+                var height = _terrainSystem.GetHeightData(waitForPending: !_bauarbeiter);
+                var wasser = World.GetOrCreateSystemManaged<WaterSystem>().GetSurfaceData(out var deps); deps.Complete();
+                var platz = GetComponentLookup<PlaceableObjectData>(true);
+                var geometrie = GetComponentLookup<ObjectGeometryData>(true);
                 var p = r.From; bool erlaubt = false;
                 if (r.Objekt.HasValue && geometrie.TryGetComponent(r.Prefab,out var g))
                 {
@@ -112,6 +122,7 @@ namespace ParkingLotTool.Tools
                     }
                 }
                 _hintergrundObjektboden.Add(r,(p,erlaubt));
+                yield return 0;
             }
         }
 
@@ -123,11 +134,27 @@ namespace ParkingLotTool.Tools
                 && (!EntityManager.HasComponent<Game.Net.Node>(c.m_EndPosition.m_Entity) || c.m_EndPosition.m_Entity == ende);
         }
 
-        internal void HintergrundFehlstellen()
-            => ParkingLotHintergrundDiagnose.Sicher(() =>
-            {
-                foreach (var r in _fehlendeHintergrundkurse)
+        private HintergrundPortion _fehlstellenportion;
+        internal bool HintergrundFehlstellen()
+        {
+            _fehlstellenportion ??= new HintergrundPortion(HintergrundFehlstellenschritte());
+            var uhr = System.Diagnostics.Stopwatch.StartNew();
+            try { _fehlstellenportion.Weiter(() => uhr.Elapsed.TotalMilliseconds); }
+            catch (Exception e) { ParkingLotNetzRueckweg.Melde("Diagnose unvollstaendig: " + e.Message); return true; }
+            return _fehlstellenportion.Fertig;
+        }
+        private IEnumerable<int> HintergrundFehlstellenschritte()
+        {
+                foreach (var r in _fehlendeErhalteneKurse.Take(4))
                 {
+                    yield return 0;
+                    ParkingLotHintergrundDiagnose.Kurs(EntityManager,_prefabSystem,"Erhalt",r.Kante.Index,
+                        "Originalkante",r.Prefab,r.Besitzer,r.Kurs.m_Curve,
+                        "Originalkante/3D-Kurve/Prefab/Owner/Knoten/ConnectedEdge nicht unveraendert",r.Start,r.Ende);
+                }
+                foreach (var r in _fehlendeHintergrundkurse.Take(4))
+                {
+                    yield return 0;
                     var c = r.Kurs.GetValueOrDefault();
                     bool innen = ParkingLotKursabgleich.InnenhoeheVanilla(EntityManager,r.Prefab,c,_lotOwner);
                     var teile = ParkingLotKursabgleich.Sammle(EntityManager,_eigeneDauerteile,c.m_Curve,r.Prefab,_lotOwner,innenhoeheVanilla:innen);
@@ -140,15 +167,18 @@ namespace ParkingLotTool.Tools
                         EntityManager.HasComponent<Game.Net.Node>(c.m_EndPosition.m_Entity) ? c.m_EndPosition.m_Entity : Entity.Null,
                         innenhoeheVanilla:innen);
                 }
-                using var q = EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Game.Objects.Transform>(),
-                    ComponentType.ReadOnly<PrefabRef>(),ComponentType.Exclude<Temp>(),ComponentType.Exclude<Deleted>());
-                using var objekte = q.ToEntityArray(Allocator.Temp);
-                foreach (var r in _fehlendeHintergrundobjekte)
+                Entity[] objekte;
+                using (var q = EntityManager.CreateEntityQuery(ComponentType.ReadOnly<Game.Objects.Transform>(),
+                    ComponentType.ReadOnly<PrefabRef>(),ComponentType.Exclude<Temp>(),ComponentType.Exclude<Deleted>()))
+                using (var a = q.ToEntityArray(Allocator.Temp)) objekte = a.ToArray();
+                foreach (var r in _fehlendeHintergrundobjekte.Take(4))
                 {
+                    yield return 0;
                     Entity best = Entity.Null; float abstand = float.PositiveInfinity; bool gleichPrefab = false;
                     var boden = _hintergrundObjektboden[r];
                     foreach (var e in objekte)
                     {
+                        if (!ParkingLotNetzRueckweg.Lebt(EntityManager,e)) continue;
                         bool gleich = EntityManager.GetComponentData<PrefabRef>(e).m_Prefab == r.Prefab;
                         var p = EntityManager.GetComponentData<Game.Objects.Transform>(e).m_Position;
                         float d = math.distance(p,r.From);
@@ -176,6 +206,7 @@ namespace ParkingLotTool.Tools
                         + $"Vanilla-Bodensoll {ParkingLotHintergrundDiagnose.P(boden.Position)} (zugelassen={boden.Erlaubt}); "
                         + $"FEHLT; naechster {ist}.");
                 }
-            });
+            ParkingLotNetzRueckweg.Melde($"Fehlstellen gesamt: neue Kurse {_fehlendeHintergrundkurse.Count}, erhaltene Kanten {_fehlendeErhalteneKurse.Count}, Objekte {_fehlendeHintergrundobjekte.Count}; Detailgrenze jeweils 4, eine Suche je Einheit.");
+        }
     }
 }

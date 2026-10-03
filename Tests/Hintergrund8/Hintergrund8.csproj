@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework>
+    <ErhaltQuelle Condition="'$(ErhaltQuelle)' == ''">../../Geometry/Netzerhalt.cs</ErhaltQuelle>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs;Fm45.cs" />
+    <Compile Include="$(ErhaltQuelle)" />
+    <Compile Include="../../Geometry/**/*.cs" Exclude="../../Geometry/Netzerhalt.cs" />
+    <Reference Include="Unity.Mathematics"><HintPath>$(CSII_TOOLPATH)/UnityModsProject/Library/ScriptAssemblies/Unity.Mathematics.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

@@ -6,6 +6,20 @@ namespace ParkingLotTool.Geometry
 {
     public static class HintergrundAbgleich
     {
+        // Folgende Portionen verwenden fertige Knoten innerhalb von 5 cm
+        // in 3D. Dieselbe XZ-Lage mit 5,1 cm Hoehenfehler bleibt getrennt.
+        public static T Knoten<T>(float3 lage, IEnumerable<(T Id,float3 Lage)> kandidaten, T leer)
+        {
+            T ergebnis = leer; float beste = .05f;
+            foreach (var k in kandidaten)
+            {
+                float d = math.distance(k.Lage,lage);
+                if (!math.isfinite(d) || d > beste) continue;
+                beste = d; ergebnis = k.Id;
+            }
+            return ergebnis;
+        }
+
         // GenerateEdges uebernimmt bei Permanent vorhandene Knoten und deren Y.
         // Der bisherige XZ-Test verlor eine reine Hoehenkorrektur (0 m in XZ).
         public static float3 Anschlusslage(float3 geplant, float3 knoten, bool vorhanden)

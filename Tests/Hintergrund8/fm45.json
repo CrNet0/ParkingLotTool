@@ -1,0 +1,724 @@
+{
+  "Quelle": "..\\_codex-hintergrund\\report-FM45\\ParkingLotTool-debug-20261003-184246-044.json",
+  "Lot": 447078,
+  "Polygon": [
+    {
+      "X": -1005.6251220703125,
+      "Z": -200.9734344482422
+    },
+    {
+      "X": -1039.691650390625,
+      "Z": -290.7261657714844
+    },
+    {
+      "X": -908.485595703125,
+      "Z": -340.52410888671875
+    },
+    {
+      "X": -899.2227172851562,
+      "Z": -241.35780334472656
+    }
+  ],
+  "Settings": {
+    "Es": 1,
+    "Ai": 7,
+    "Cw": 3,
+    "Sl": 5.9,
+    "Sw": 3,
+    "Md": 2.5,
+    "Gassenbreite": 5.5,
+    "Cr": 33,
+    "Qk": true,
+    "Randstrassen": true,
+    "Auto": false,
+    "Angle": 0,
+    "AngleMode": "edge",
+    "Ausrichtwinkel": null,
+    "TeilflaechenAusrichtungen": null,
+    "Zoningflaechen": [
+      {
+        "Ecke": [
+          -945.21044921875,
+          -224.97203063964844
+        ],
+        "Spalten": 8,
+        "Reihen": 6,
+        "Winkel": 159.21624406410547,
+        "Rand": 8,
+        "Aussentiefen": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "Parzellen": 48,
+        "Flaeche": 3072
+      }
+    ],
+    "Randzoning": [],
+    "Zoningstrasse": "Alley",
+    "BusStops": [
+      {
+        "A": [
+          -1019.7578125,
+          -252.2976837158203
+        ],
+        "B": [
+          -959.9225463867188,
+          -275.007568359375
+        ],
+        "Along": 0.40835750102996826,
+        "Left": true,
+        "Position": [
+          -995.3236083984375,
+          -261.5714416503906
+        ]
+      },
+      {
+        "A": [
+          -1019.7578125,
+          -252.2976837158203
+        ],
+        "B": [
+          -959.9225463867188,
+          -275.007568359375
+        ],
+        "Along": 0.842063844203949,
+        "Left": false,
+        "Position": [
+          -969.3726806640625,
+          -271.4208679199219
+        ]
+      }
+    ],
+    "Teilflaechenschnitte": null,
+    "Entrances": [
+      {
+        "Edge": 1,
+        "Along": 10.399999618530273,
+        "Corner": "start",
+        "Art": "Gasse",
+        "AxisDirection": null,
+        "AxisLength": null
+      },
+      {
+        "Edge": 1,
+        "Along": 129.54861450195312,
+        "Corner": "end",
+        "Art": "Gasse",
+        "AxisDirection": null,
+        "AxisLength": null
+      }
+    ],
+    "AutomaticEntrances": false,
+    "KantenVersatz": 0,
+    "Zellen": true,
+    "EineFlaeche": false,
+    "NoNotch": false,
+    "Single": false,
+    "NoHalf": false
+  },
+  "Gassen": [
+    {
+      "Entity": {
+        "Index": 381326,
+        "Version": 15
+      },
+      "Prefab": {
+        "Entity": {
+          "Index": 22764,
+          "Version": 1
+        },
+        "Name": "PLT Zufahrtsgasse (Alley)",
+        "Type": "Game.Prefabs.RoadPrefab",
+        "Resolved": true,
+        "Note": null
+      },
+      "Kind": "Road",
+      "IntersectionEvidence": "Kurvenpunkt liegt im Polygon",
+      "Owner": {
+        "Index": 447078,
+        "Version": 1
+      },
+      "StartNode": {
+        "Index": 396552,
+        "Version": 1
+      },
+      "StartNodePosition": {
+        "X": -1032.8077392578125,
+        "Y": 122.92020416259766,
+        "Z": -301.89569091796875
+      },
+      "EndNode": {
+        "Index": 381304,
+        "Version": 27
+      },
+      "EndNodePosition": {
+        "X": -1026.2781982421875,
+        "Y": 123.08151245117188,
+        "Z": -284.6932067871094
+      },
+      "Curve": {
+        "A": {
+          "X": -1032.8077392578125,
+          "Y": 122.92020416259766,
+          "Z": -301.89569091796875
+        },
+        "B": {
+          "X": -1030.6312255859375,
+          "Y": 123.17782592773438,
+          "Z": -296.1615295410156
+        },
+        "C": {
+          "X": -1028.4547119140625,
+          "Y": 122.37808227539062,
+          "Z": -290.4273681640625
+        },
+        "D": {
+          "X": -1026.2781982421875,
+          "Y": 123.08151245117188,
+          "Z": -284.6932067871094
+        }
+      },
+      "CurveLength": 18.413467407226562,
+      "CompositionWidth": 8,
+      "PrefabDefaultWidth": 8,
+      "GeometryBounds": {
+        "Minimum": {
+          "X": -1033.501220703125,
+          "Y": 121.06417083740234,
+          "Z": -295.28973388671875
+        },
+        "Maximum": {
+          "X": -1022.5385131835938,
+          "Y": 128.08151245117188,
+          "Z": -283.27374267578125
+        }
+      }
+    },
+    {
+      "Entity": {
+        "Index": 381327,
+        "Version": 15
+      },
+      "Prefab": {
+        "Entity": {
+          "Index": 22764,
+          "Version": 1
+        },
+        "Name": "PLT Zufahrtsgasse (Alley)",
+        "Type": "Game.Prefabs.RoadPrefab",
+        "Resolved": true,
+        "Note": null
+      },
+      "Kind": "Road",
+      "IntersectionEvidence": "Kurvenpunkt liegt im Polygon",
+      "Owner": {
+        "Index": 447078,
+        "Version": 1
+      },
+      "StartNode": {
+        "Index": 396547,
+        "Version": 1
+      },
+      "StartNodePosition": {
+        "X": -919.3455810546875,
+        "Y": 121.34916687011719,
+        "Z": -344.95928955078125
+      },
+      "EndNode": {
+        "Index": 381305,
+        "Version": 27
+      },
+      "EndNodePosition": {
+        "X": -917.5701293945312,
+        "Y": 121.3065414428711,
+        "Z": -325.95233154296875
+      },
+      "Curve": {
+        "A": {
+          "X": -919.3455810546875,
+          "Y": 121.34916687011719,
+          "Z": -344.95928955078125
+        },
+        "B": {
+          "X": -918.7537841796875,
+          "Y": 121.62039184570312,
+          "Z": -338.6236267089844
+        },
+        "C": {
+          "X": -918.1619262695312,
+          "Y": 120.85140991210938,
+          "Z": -332.2879943847656
+        },
+        "D": {
+          "X": -917.5701293945312,
+          "Y": 121.3065414428711,
+          "Z": -325.95233154296875
+        }
+      },
+      "CurveLength": 19.09699058532715,
+      "CompositionWidth": 8,
+      "PrefabDefaultWidth": 8,
+      "GeometryBounds": {
+        "Minimum": {
+          "X": -922.3970336914062,
+          "Y": 119.4185791015625,
+          "Z": -337.5634765625
+        },
+        "Maximum": {
+          "X": -913.5874633789062,
+          "Y": 126.31504821777344,
+          "Z": -325.580322265625
+        }
+      }
+    }
+  ],
+  "Stadt": [
+    {
+      "Entity": {
+        "Index": 467212,
+        "Version": 1
+      },
+      "Prefab": {
+        "Entity": {
+          "Index": 15912,
+          "Version": 1
+        },
+        "Name": "Small Road",
+        "Type": "Game.Prefabs.RoadPrefab",
+        "Resolved": true,
+        "Note": null
+      },
+      "Kind": "Road",
+      "IntersectionEvidence": "Polygonpunkt liegt innerhalb der gemeldeten Netzbreite",
+      "Owner": null,
+      "StartNode": {
+        "Index": 396552,
+        "Version": 1
+      },
+      "StartNodePosition": {
+        "X": -1032.8077392578125,
+        "Y": 122.92020416259766,
+        "Z": -301.89569091796875
+      },
+      "EndNode": {
+        "Index": 396553,
+        "Version": 1
+      },
+      "EndNodePosition": {
+        "X": -1132.8880615234375,
+        "Y": 124.75271606445312,
+        "Z": -263.91107177734375
+      },
+      "Curve": {
+        "A": {
+          "X": -1032.8077392578125,
+          "Y": 122.92020416259766,
+          "Z": -301.89569091796875
+        },
+        "B": {
+          "X": -1063.6744384765625,
+          "Y": 123.74860382080078,
+          "Z": -290.18048095703125
+        },
+        "C": {
+          "X": -1094.5416259765625,
+          "Y": 124.6556167602539,
+          "Z": -278.4651184082031
+        },
+        "D": {
+          "X": -1125.408447265625,
+          "Y": 124.75271606445312,
+          "Z": -266.7498779296875
+        }
+      },
+      "CurveLength": 99.0652084350586,
+      "CompositionWidth": 16,
+      "PrefabDefaultWidth": 16,
+      "GeometryBounds": {
+        "Minimum": {
+          "X": -1127.7783203125,
+          "Y": 121.28617858886719,
+          "Z": -307.74273681640625
+        },
+        "Maximum": {
+          "X": -1034.2696533203125,
+          "Y": 129.7528076171875,
+          "Z": -259.44842529296875
+        }
+      }
+    },
+    {
+      "Entity": {
+        "Index": 467204,
+        "Version": 1
+      },
+      "Prefab": {
+        "Entity": {
+          "Index": 15912,
+          "Version": 1
+        },
+        "Name": "Small Road",
+        "Type": "Game.Prefabs.RoadPrefab",
+        "Resolved": true,
+        "Note": null
+      },
+      "Kind": "Road",
+      "IntersectionEvidence": "nur EdgeGeometry-Bounds schneiden das Polygon (konservativ)",
+      "Owner": null,
+      "StartNode": {
+        "Index": 396543,
+        "Version": 1
+      },
+      "StartNodePosition": {
+        "X": -1093.1458740234375,
+        "Y": 124.42768859863281,
+        "Z": -159.19931030273438
+      },
+      "EndNode": {
+        "Index": 396546,
+        "Version": 1
+      },
+      "EndNodePosition": {
+        "X": -965.9957885742188,
+        "Y": 122.46200561523438,
+        "Z": -207.45755004882812
+      },
+      "Curve": {
+        "A": {
+          "X": -1093.145751953125,
+          "Y": 124.42768859863281,
+          "Z": -159.19935607910156
+        },
+        "B": {
+          "X": -1050.76171875,
+          "Y": 124.40419006347656,
+          "Z": -175.28591918945312
+        },
+        "C": {
+          "X": -1008.3759765625,
+          "Y": 122.52584838867188,
+          "Z": -191.37225341796875
+        },
+        "D": {
+          "X": -965.9957885742188,
+          "Y": 122.46200561523438,
+          "Z": -207.45755004882812
+        }
+      },
+      "CurveLength": 136.01651000976562,
+      "CompositionWidth": 16,
+      "PrefabDefaultWidth": 16,
+      "GeometryBounds": {
+        "Minimum": {
+          "X": -1088.03759765625,
+          "Y": 120.71200561523438,
+          "Z": -214.93695068359375
+        },
+        "Maximum": {
+          "X": -963.156982421875,
+          "Y": 129.40518188476562,
+          "Z": -154.919921875
+        }
+      }
+    },
+    {
+      "Entity": {
+        "Index": 467211,
+        "Version": 1
+      },
+      "Prefab": {
+        "Entity": {
+          "Index": 15912,
+          "Version": 1
+        },
+        "Name": "Small Road",
+        "Type": "Game.Prefabs.RoadPrefab",
+        "Resolved": true,
+        "Note": null
+      },
+      "Kind": "Road",
+      "IntersectionEvidence": "nur EdgeGeometry-Bounds schneiden das Polygon (konservativ)",
+      "Owner": null,
+      "StartNode": {
+        "Index": 396554,
+        "Version": 1
+      },
+      "StartNodePosition": {
+        "X": -953.3641357421875,
+        "Y": 121.52212524414062,
+        "Z": -332.0478210449219
+      },
+      "EndNode": {
+        "Index": 396552,
+        "Version": 1
+      },
+      "EndNodePosition": {
+        "X": -1032.8077392578125,
+        "Y": 122.92020416259766,
+        "Z": -301.89569091796875
+      },
+      "Curve": {
+        "A": {
+          "X": -949.6423950195312,
+          "Y": 121.52212524414062,
+          "Z": -333.46038818359375
+        },
+        "B": {
+          "X": -977.3634643554688,
+          "Y": 121.49560546875,
+          "Z": -322.9390869140625
+        },
+        "C": {
+          "X": -1005.08544921875,
+          "Y": 122.17620086669922,
+          "Z": -312.4174499511719
+        },
+        "D": {
+          "X": -1032.8077392578125,
+          "Y": 122.92020416259766,
+          "Z": -301.89569091796875
+        }
+      },
+      "CurveLength": 88.96754455566406,
+      "CompositionWidth": 16,
+      "PrefabDefaultWidth": 16,
+      "GeometryBounds": {
+        "Minimum": {
+          "X": -1031.3460693359375,
+          "Y": 119.79046630859375,
+          "Z": -337.9186706542969
+        },
+        "Maximum": {
+          "X": -954.7634887695312,
+          "Y": 127.80548095703125,
+          "Z": -296.048828125
+        }
+      }
+    },
+    {
+      "Entity": {
+        "Index": 467214,
+        "Version": 1
+      },
+      "Prefab": {
+        "Entity": {
+          "Index": 15912,
+          "Version": 1
+        },
+        "Name": "Small Road",
+        "Type": "Game.Prefabs.RoadPrefab",
+        "Resolved": true,
+        "Note": null
+      },
+      "Kind": "Road",
+      "IntersectionEvidence": "nur EdgeGeometry-Bounds schneiden das Polygon (konservativ)",
+      "Owner": null,
+      "StartNode": {
+        "Index": 396547,
+        "Version": 1
+      },
+      "StartNodePosition": {
+        "X": -919.3455810546875,
+        "Y": 121.34916687011719,
+        "Z": -344.95928955078125
+      },
+      "EndNode": {
+        "Index": 396554,
+        "Version": 1
+      },
+      "EndNodePosition": {
+        "X": -953.3641357421875,
+        "Y": 121.52212524414062,
+        "Z": -332.0478210449219
+      },
+      "Curve": {
+        "A": {
+          "X": -919.3455810546875,
+          "Y": 121.34916687011719,
+          "Z": -344.95928955078125
+        },
+        "B": {
+          "X": -929.4445190429688,
+          "Y": 121.3912582397461,
+          "Z": -341.1263427734375
+        },
+        "C": {
+          "X": -939.54345703125,
+          "Y": 121.44632720947266,
+          "Z": -337.2933654785156
+        },
+        "D": {
+          "X": -949.6423950195312,
+          "Y": 121.52212524414062,
+          "Z": -333.46038818359375
+        }
+      },
+      "CurveLength": 32.40605926513672,
+      "CompositionWidth": 16,
+      "PrefabDefaultWidth": 16,
+      "GeometryBounds": {
+        "Minimum": {
+          "X": -952.0095825195312,
+          "Y": 119.60919952392578,
+          "Z": -351.5605773925781
+        },
+        "Maximum": {
+          "X": -922.9536743164062,
+          "Y": 126.52131652832031,
+          "Z": -326.15997314453125
+        }
+      }
+    },
+    {
+      "Entity": {
+        "Index": 467213,
+        "Version": 1
+      },
+      "Prefab": {
+        "Entity": {
+          "Index": 15912,
+          "Version": 1
+        },
+        "Name": "Small Road",
+        "Type": "Game.Prefabs.RoadPrefab",
+        "Resolved": true,
+        "Note": null
+      },
+      "Kind": "Road",
+      "IntersectionEvidence": "nur EdgeGeometry-Bounds schneiden das Polygon (konservativ)",
+      "Owner": null,
+      "StartNode": {
+        "Index": 396540,
+        "Version": 1
+      },
+      "StartNodePosition": {
+        "X": -841.1920776367188,
+        "Y": 121.14918518066406,
+        "Z": -374.62548828125
+      },
+      "EndNode": {
+        "Index": 396547,
+        "Version": 1
+      },
+      "EndNodePosition": {
+        "X": -919.3455810546875,
+        "Y": 121.34916687011719,
+        "Z": -344.95928955078125
+      },
+      "Curve": {
+        "A": {
+          "X": -841.1909790039062,
+          "Y": 121.14918518066406,
+          "Z": -374.6221923828125
+        },
+        "B": {
+          "X": -867.2424926757812,
+          "Y": 121.21831512451172,
+          "Z": -364.73455810546875
+        },
+        "C": {
+          "X": -893.2940673828125,
+          "Y": 121.24057006835938,
+          "Z": -354.846923828125
+        },
+        "D": {
+          "X": -919.3455810546875,
+          "Y": 121.34916687011719,
+          "Z": -344.95928955078125
+        }
+      },
+      "CurveLength": 83.59468078613281,
+      "CompositionWidth": 16,
+      "PrefabDefaultWidth": 16,
+      "GeometryBounds": {
+        "Minimum": {
+          "X": -917.2656860351562,
+          "Y": 119.4241943359375,
+          "Z": -379.08038330078125
+        },
+        "Maximum": {
+          "X": -846.3121337890625,
+          "Y": 126.33702850341797,
+          "Z": -338.6211853027344
+        }
+      }
+    },
+    {
+      "Entity": {
+        "Index": 467210,
+        "Version": 1
+      },
+      "Prefab": {
+        "Entity": {
+          "Index": 15912,
+          "Version": 1
+        },
+        "Name": "Small Road",
+        "Type": "Game.Prefabs.RoadPrefab",
+        "Resolved": true,
+        "Note": null
+      },
+      "Kind": "Road",
+      "IntersectionEvidence": "nur EdgeGeometry-Bounds schneiden das Polygon (konservativ)",
+      "Owner": null,
+      "StartNode": {
+        "Index": 396546,
+        "Version": 1
+      },
+      "StartNodePosition": {
+        "X": -965.9957885742188,
+        "Y": 122.46200561523438,
+        "Z": -207.45755004882812
+      },
+      "EndNode": {
+        "Index": 396545,
+        "Version": 1
+      },
+      "EndNodePosition": {
+        "X": -868.763427734375,
+        "Y": 121.75186157226562,
+        "Z": -244.36148071289062
+      },
+      "Curve": {
+        "A": {
+          "X": -965.9957885742188,
+          "Y": 122.46200561523438,
+          "Z": -207.45755004882812
+        },
+        "B": {
+          "X": -933.5848999023438,
+          "Y": 122.34169006347656,
+          "Z": -219.75888061523438
+        },
+        "C": {
+          "X": -901.174560546875,
+          "Y": 121.75257873535156,
+          "Z": -232.060302734375
+        },
+        "D": {
+          "X": -868.763427734375,
+          "Y": 121.75186157226562,
+          "Z": -244.36148071289062
+        }
+      },
+      "CurveLength": 104.00289154052734,
+      "CompositionWidth": 16,
+      "PrefabDefaultWidth": 16,
+      "GeometryBounds": {
+        "Minimum": {
+          "X": -968.8345947265625,
+          "Y": 120.00186157226562,
+          "Z": -251.8408966064453
+        },
+        "Maximum": {
+          "X": -865.9247436523438,
+          "Y": 127.46200561523438,
+          "Z": -199.9781494140625
+        }
+      }
+    }
+  ],
+  "Hinweis": "Originalwerte aus Nutzerabzug FM45. ConnectedEdge- und Spurpuffer fehlen; ihre Zulassung bleibt eine Ingame-Abnahme."
+}

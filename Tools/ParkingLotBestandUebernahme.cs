@@ -44,7 +44,7 @@ namespace ParkingLotTool.Tools
                 var relation = EntityManager.GetComponentData<ParkingLotPartRelation>(e);
                 if (relation.Lot != alt) continue;
                 if (!EntityManager.HasComponent<Game.Objects.Attached>(e)
-                    || !_erhalteneZoningteile.Contains(EntityManager.GetComponentData<Game.Objects.Attached>(e).m_Parent)) continue;
+                    || !_erhalteneNetzteile.Contains(EntityManager.GetComponentData<Game.Objects.Attached>(e).m_Parent)) continue;
                 relation.Lot = neu; relation.Carrier = traeger;
                 EntityManager.SetComponentData(e,relation);
                 if (EntityManager.HasComponent<Hidden>(e)) EntityManager.RemoveComponent<Hidden>(e);

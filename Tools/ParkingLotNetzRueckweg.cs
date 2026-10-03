@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Colossal.Mathematics;
 using Colossal.Serialization.Entities;
@@ -14,6 +14,13 @@ using SubNet = Game.Net.SubNet;
 
 namespace ParkingLotTool.Tools
 {
+    /** Vor dem ersten Abriss vollstaendig sichern. Ein Save mitten in der
+     *  Kopie darf keinen halben Rueckweg als fertigen Plan behandeln. */
+    public struct ParkingLotRueckwegsicherungOffen : IComponentData, ISerializable
+    {
+        public void Serialize<TWriter>(TWriter w) where TWriter : IWriter { w.Write(1); }
+        public void Deserialize<TReader>(TReader r) where TReader : IReader { r.Read(out int version); }
+    }
     /** Liegt bis zum Erfolg am ALTEN Lot, auch im Save. Keine Temp-ID wird
      *  gespeichert. Eigene entfernte Knoten bekommen im Rueckweg neue IDs. */
     [InternalBufferCapacity(0)]
@@ -67,18 +74,27 @@ namespace ParkingLotTool.Tools
         internal static void Sichere(EntityManager em, Entity lot, IEnumerable<Entity> teile,
             HashSet<Entity> erhalten)
         {
-            if (em.HasBuffer<ParkingLotRueckwegkurs>(lot)) return;
+            foreach (int n in SichereSchritte(em,lot,teile,erhalten)) { }
+        }
+        internal static IEnumerable<int> SichereSchritte(EntityManager em, Entity lot, IEnumerable<Entity> teile,
+            HashSet<Entity> erhalten)
+        {
+            VerwerfeOffeneSicherung(em,lot);
+            if (em.HasBuffer<ParkingLotRueckwegkurs>(lot)) yield break;
             var kandidaten = new HashSet<Entity>(teile);
             var kurse = new List<ParkingLotRueckwegkurs>();
+            var bleibt = new List<ParkingLotErhaltenerKurs>();
             var anschluesse = new List<ParkingLotRueckweganschluss>();
             int eigene = 0, fremde = 0;
             var knoten = new HashSet<Entity>();
             foreach (var e in kandidaten)
             {
+                yield return 0;
                 bool eigenerBesitzer = em.HasComponent<Owner>(e) && ParkingLotBesitz.GehoertZu(em,em.GetComponentData<Owner>(e).m_Owner,lot);
+                bool behalten = erhalten.Contains(e);
                 if (!RueckwegKnotenregel.KursSichern(eigenerBesitzer,em.HasComponent<Edge>(e),
-                    em.HasComponent<Deleted>(e),em.HasComponent<Temp>(e),erhalten.Contains(e))) continue;
-                if (em.HasBuffer<ConnectedNode>(e))
+                    em.HasComponent<Deleted>(e),em.HasComponent<Temp>(e),false)) continue;
+                if (!behalten && em.HasBuffer<ConnectedNode>(e))
                     foreach (var a in em.GetBuffer<ConnectedNode>(e,true))
                     {
                         bool eigen = em.HasComponent<Owner>(a.m_Node) && ParkingLotBesitz.GehoertZu(em,em.GetComponentData<Owner>(a.m_Node).m_Owner,lot);
@@ -107,23 +123,66 @@ namespace ParkingLotTool.Tools
                         m_ParentMesh = -1, m_CourseDelta = erste ? 0 : 1,
                         m_Flags = erste ? CoursePosFlags.IsFirst : CoursePosFlags.IsLast };
                 }
-                kurse.Add(new ParkingLotRueckwegkurs { Kante = e,
+                var bestand = new ParkingLotRueckwegkurs { Kante = e,
                     Prefab = em.GetComponentData<PrefabRef>(e).m_Prefab, Besitzer = em.GetComponentData<Owner>(e).m_Owner,
                     Start = start, Ende = ende, HatUpgrade = em.HasComponent<Upgraded>(e),
                     Upgrade = em.HasComponent<Upgraded>(e) ? em.GetComponentData<Upgraded>(e) : default,
                     Kurs = new NetCourse { m_Curve = curve.m_Bezier, m_Length = curve.m_Length,
                         m_FixedIndex = -1, m_Elevation = elevation,
                         m_StartPosition = Pos(edge.m_Start, start, curve.m_Bezier.a, true),
-                        m_EndPosition = Pos(edge.m_End, ende, curve.m_Bezier.d, false) } });
+                        m_EndPosition = Pos(edge.m_End, ende, curve.m_Bezier.d, false) } };
+                if (behalten)
+                {
+                    bestand.Start = edge.m_Start; bestand.Ende = edge.m_End;
+                    bestand.Kurs.m_StartPosition = Pos(edge.m_Start,edge.m_Start,em.GetComponentData<Game.Net.Node>(edge.m_Start).m_Position,true);
+                    bestand.Kurs.m_EndPosition = Pos(edge.m_End,edge.m_End,em.GetComponentData<Game.Net.Node>(edge.m_End).m_Position,false);
+                    bleibt.Add(new ParkingLotErhaltenerKurs { Bestand=bestand });
+                }
+                else kurse.Add(bestand);
             }
-            var buffer = em.AddBuffer<ParkingLotRueckwegkurs>(lot);
-            foreach (var kurs in kurse) buffer.Add(kurs);
-            var seiten = em.AddBuffer<ParkingLotRueckweganschluss>(lot);
-            foreach (var a in anschluesse) seiten.Add(a);
-            Melde($"Schnappschuss Lot {lot.Index}: Kanten {kurse.Count}, eigene Knoten {eigene}, erhaltene/fremde Anschlussknoten {fremde}, seitliche Anschluesse {anschluesse.Count}.");
+            em.AddComponent<ParkingLotRueckwegsicherungOffen>(lot);
+            em.AddBuffer<ParkingLotRueckwegkurs>(lot);
+            foreach (var kurs in kurse) { em.GetBuffer<ParkingLotRueckwegkurs>(lot).Add(kurs); yield return 0; }
+            em.AddBuffer<ParkingLotRueckweganschluss>(lot);
+            foreach (var a in anschluesse) { em.GetBuffer<ParkingLotRueckweganschluss>(lot).Add(a); yield return 0; }
+            em.AddBuffer<ParkingLotErhaltenerKurs>(lot);
+            foreach (var kurs in bleibt) { em.GetBuffer<ParkingLotErhaltenerKurs>(lot).Add(kurs); yield return 0; }
+            em.RemoveComponent<ParkingLotRueckwegsicherungOffen>(lot);
+            Melde($"Schnappschuss Lot {lot.Index}: neu aufzubauende Kanten {kurse.Count}, erhaltene Kanten {bleibt.Count}, eigene Knoten {eigene}, erhaltene/fremde Anschlussknoten {fremde}, seitliche Anschluesse {anschluesse.Count}.");
         }
 
-        internal static int Erzeuge(EntityManager em, Entity lot, int auftrag)
+        internal static void VerwerfeOffeneSicherung(EntityManager em,Entity lot)
+        {
+            if (!em.Exists(lot) || !em.HasComponent<ParkingLotRueckwegsicherungOffen>(lot)) return;
+            em.RemoveComponent<ParkingLotRueckwegkurs>(lot);
+            em.RemoveComponent<ParkingLotRueckweganschluss>(lot);
+            em.RemoveComponent<ParkingLotErhaltenerKurs>(lot);
+            em.RemoveComponent<ParkingLotRueckwegsicherungOffen>(lot);
+            Melde($"Unvollstaendige Sicherung Lot {lot.Index} verworfen; Abriss hatte noch nicht begonnen.");
+        }
+
+        internal static Entity[] Besitzteile(EntityManager em,Entity lot)
+        {
+            var teile = new HashSet<Entity>();
+            var owner = new[] {lot,em.HasComponent<ParkingLotCarrierReference>(lot)
+                ? em.GetComponentData<ParkingLotCarrierReference>(lot).Carrier : Entity.Null};
+            foreach (var o in owner)
+                if (em.HasBuffer<SubNet>(o))
+                    foreach (var s in em.GetBuffer<SubNet>(o,true))
+                    {
+                        var e = s.m_SubNet;
+                        if (!Lebt(em,e)) continue;
+                        teile.Add(e);
+                        if (!em.HasComponent<Edge>(e)) continue;
+                        var k = em.GetComponentData<Edge>(e);
+                        teile.Add(k.m_Start); teile.Add(k.m_End);
+                        if (em.HasBuffer<ConnectedNode>(e))
+                            foreach (var n in em.GetBuffer<ConnectedNode>(e,true)) teile.Add(n.m_Node);
+                    }
+            var kopie = new Entity[teile.Count]; teile.CopyTo(kopie); return kopie;
+        }
+
+        internal static int Erzeuge(EntityManager em, Entity lot, int auftrag, int anfang = 0, int anzahl = int.MaxValue)
         {
             if (!em.HasBuffer<ParkingLotRueckwegkurs>(lot)) return 0;
             // Strukturveraenderungen invalidieren DynamicBuffer: ZUERST kopieren.
@@ -144,15 +203,12 @@ namespace ParkingLotTool.Tools
                     foreach (var a in em.GetBuffer<ParkingLotRueckweganschluss>(lot,true))
                         if (a.Knoten != Entity.Null && !Lebt(em,a.Knoten))
                             throw new InvalidOperationException("Gesicherter seitlicher Anschluss fehlt: " + a.Knoten);
-                using var q = em.CreateEntityQuery(ComponentType.ReadOnly<Edge>(), ComponentType.ReadOnly<Curve>(),
-                    ComponentType.ReadOnly<Owner>(), ComponentType.ReadOnly<PrefabRef>(),
-                    ComponentType.Exclude<Deleted>(), ComponentType.Exclude<Temp>());
-                using var kanten = q.ToEntityArray(Allocator.Temp);
-                var eigeneKanten = EigeneKanten(em,kanten,kopie.ToArray());
+                var eigeneKanten = EigeneKanten(em,kopie.ToArray());
                 var benutzt = new HashSet<Entity>();
                 int erzeugt = 0;
-                foreach (var alt in kopie)
+                for (int i = anfang; i < kopie.Length && i - anfang < anzahl; i++)
                 {
+                    var alt = kopie[i];
                     // Auch nach einem unterbrochenen Rueckweg: vorhandene
                     // exakte Ergebnisse nicht ein zweites Mal erzeugen.
                     if (FindeKurs(em,eigeneKanten,alt,benutzt,out _) != null) continue;
@@ -166,6 +222,8 @@ namespace ParkingLotTool.Tools
                         m_Owner = alt.Besitzer, m_Flags = CreationFlags.Permanent,
                         m_RandomSeed = math.max(1, d.Index) });
                     em.AddComponentData(d, Eingabekurs(alt));
+                    if (anzahl != int.MaxValue)
+                        em.SetComponentData(d, BindeRueckwegknoten(em,Eingabekurs(alt),eigeneKanten,alt.Besitzer));
                     if (alt.HatUpgrade) em.AddComponentData(d, alt.Upgrade);
                     em.AddComponent<Updated>(d);
                     em.World.GetOrCreateSystemManaged<ParkingLotDefinitionsendeSystem>().Merke(alt.Besitzer,auftrag);
@@ -176,28 +234,45 @@ namespace ParkingLotTool.Tools
             finally { kopie.Dispose(); }
         }
 
+        internal sealed class Prueflauf : IDisposable
+        {
+            private readonly HintergrundPortion _portion;
+            internal int Ist, Soll;
+            internal bool Richtig;
+            internal bool Fertig => _portion.Fertig;
+            internal Prueflauf(EntityManager em,Entity lot,bool anschluesse=true,bool diagnose=false)
+            { _portion = new HintergrundPortion(Pruefschritte(em,lot,this,anschluesse,diagnose)); }
+            internal void Weiter()
+            { var uhr = System.Diagnostics.Stopwatch.StartNew(); _portion.Weiter(() => uhr.Elapsed.TotalMilliseconds); }
+            public void Dispose() { _portion.Dispose(); }
+        }
         internal static bool Pruefe(EntityManager em, Entity lot, out int ist, out int soll, bool anschluesse = true, bool diagnose = false)
         {
-            ist = soll = 0;
-            if (!em.Exists(lot) || !em.HasBuffer<ParkingLotRueckwegkurs>(lot)) return false;
-            using var query = em.CreateEntityQuery(ComponentType.ReadOnly<Edge>(), ComponentType.ReadOnly<Curve>(),
-                ComponentType.ReadOnly<Owner>(), ComponentType.ReadOnly<PrefabRef>(),
-                ComponentType.Exclude<Deleted>(), ComponentType.Exclude<Temp>());
-            using var kanten = query.ToEntityArray(Allocator.Temp);
-            using var kurse = em.GetBuffer<ParkingLotRueckwegkurs>(lot,true).ToNativeArray(Allocator.Temp);
-            var eigeneKanten = EigeneKanten(em,kanten,kurse.ToArray());
+            using var lauf = new Prueflauf(em,lot,anschluesse,diagnose);
+            while (!lauf.Fertig) lauf.Weiter();
+            ist = lauf.Ist; soll = lauf.Soll;
+            return lauf.Richtig;
+        }
+        private static IEnumerable<int> Pruefschritte(EntityManager em,Entity lot,Prueflauf lauf,bool anschluesse,bool diagnose)
+{
+            lauf.Ist = lauf.Soll = 0;
+            if (!em.Exists(lot) || !em.HasBuffer<ParkingLotRueckwegkurs>(lot)) yield break;
+            ParkingLotRueckwegkurs[] kurse;
+            using (var a = em.GetBuffer<ParkingLotRueckwegkurs>(lot,true).ToNativeArray(Allocator.Temp)) kurse = a.ToArray();
+            var eigeneKanten = EigeneKanten(em,kurse);
             var benutzt = new HashSet<Entity>();
-            int index = -1;
+            int index = -1, fehlmeldungen = 0;
             foreach (var alt in kurse)
             {
                 index++;
-                soll++;
+                yield return 0;
+                lauf.Soll++;
                 var teile = FindeKurs(em,eigeneKanten,alt,benutzt,out string grund);
                 if (teile != null && anschluesse && !SeitenanschluesseDa(em,lot,index,teile))
                 { grund = "seitlicher Anschluss/Parameter nicht beidseitig vorhanden"; teile = null; }
                 if (teile == null)
                 {
-                    if (diagnose)
+                    if (diagnose && fehlmeldungen++ < 4)
                     {
                         int nr = index;
                         ParkingLotHintergrundDiagnose.Sicher(() => ParkingLotHintergrundDiagnose.Kurs(em,
@@ -214,10 +289,25 @@ namespace ParkingLotTool.Tools
                     }
                     continue;
                 }
-                ist++;
+                lauf.Ist++;
             }
-            return ist == soll;
+            if (em.HasBuffer<ParkingLotErhaltenerKurs>(lot))
+            {
+                ParkingLotErhaltenerKurs[] bleibt;
+                using (var a = em.GetBuffer<ParkingLotErhaltenerKurs>(lot,true).ToNativeArray(Allocator.Temp)) bleibt = a.ToArray();
+                int erhalten = 0;
+                foreach (var r in bleibt)
+                {
+                    lauf.Soll++;
+                    if (ParkingLotNetzerhalt.Pruefe(em,r.Bestand)) { lauf.Ist++; erhalten++; }
+                    else if (diagnose) Melde($"Rueckweg ERHALTEN FEHLT: Originalkante {r.Bestand.Kante}, Prefab {r.Bestand.Prefab}, Knoten {r.Bestand.Start}/{r.Bestand.Ende}; 0 Neubau dieser Kante.");
+                    yield return 0;
+                }
+                Melde($"Rueckweg: erhaltene Originalkanten {erhalten}/{bleibt.Length}, 0 Definitionen dafuer.");
+            }
+            lauf.Richtig = lauf.Ist == lauf.Soll;
         }
+
         private static List<ParkingLotKursabgleich.Teil> FindeKurs(EntityManager em, IEnumerable<Entity> kanten,
             ParkingLotRueckwegkurs alt, HashSet<Entity> benutzt, out string grund)
         {
@@ -241,16 +331,43 @@ namespace ParkingLotTool.Tools
             grund = "vollstaendig"; return teile;
         }
 
-        private static List<Entity> EigeneKanten(EntityManager em, NativeArray<Entity> kandidaten, ParkingLotRueckwegkurs[] kurse)
+        private static List<Entity> EigeneKanten(EntityManager em, ParkingLotRueckwegkurs[] kurse)
         {
             var besitzer = new HashSet<Entity>();
             foreach (var k in kurse) besitzer.Add(k.Besitzer);
             var eigene = new List<Entity>();
-            foreach (var e in kandidaten)
-                if (besitzer.Contains(em.GetComponentData<Owner>(e).m_Owner)) eigene.Add(e);
-            // Eine Stadtkantenkopie je Messung statt je Sollkurs. Prefab,
-            // Owner, Lage, Upgrade und Knoten werden danach unveraendert geprueft.
+            var gesehen = new HashSet<Entity>();
+            foreach (var o in besitzer)
+                if (em.HasBuffer<SubNet>(o))
+                    foreach (var n in em.GetBuffer<SubNet>(o,true))
+                    {
+                        var e = n.m_SubNet;
+                        if (gesehen.Add(e) && Lebt(em,e) && !em.HasComponent<Temp>(e) && em.HasComponent<Edge>(e)
+                            && em.HasComponent<Curve>(e) && em.HasComponent<PrefabRef>(e)
+                            && em.HasComponent<Owner>(e) && besitzer.Contains(em.GetComponentData<Owner>(e).m_Owner)) eigene.Add(e);
+                    }
             return eigene;
+        }
+
+        private static NetCourse BindeRueckwegknoten(EntityManager em,NetCourse kurs,List<Entity> kanten,Entity owner)
+        {
+            kurs.m_StartPosition = Binde(kurs.m_StartPosition);
+            kurs.m_EndPosition = Binde(kurs.m_EndPosition);
+            return kurs;
+            CoursePos Binde(CoursePos pos)
+            {
+                if (pos.m_Entity != Entity.Null) return pos;
+                foreach (var e in kanten)
+                {
+                    var k = em.GetComponentData<Edge>(e);
+                    foreach (var n in new[] {k.m_Start,k.m_End})
+                        if (Lebt(em,n) && em.HasComponent<Game.Net.Node>(n) && em.HasComponent<Owner>(n)
+                            && em.GetComponentData<Owner>(n).m_Owner == owner
+                            && math.distance(em.GetComponentData<Game.Net.Node>(n).m_Position,pos.m_Position) <= .05f)
+                        { pos.m_Entity = n; return pos; }
+                }
+                return pos;
+            }
         }
 
         private static NetCourse Eingabekurs(ParkingLotRueckwegkurs alt)
@@ -277,19 +394,20 @@ namespace ParkingLotTool.Tools
         }
 
         internal static void StelleFlussWiederHer(EntityManager em, Entity lot, Action<Entity,Entity,Entity> verbinde)
+        { foreach (int n in StelleFlussWiederHerSchritte(em,lot,verbinde)) { } }
+        internal static IEnumerable<int> StelleFlussWiederHerSchritte(EntityManager em, Entity lot, Action<Entity,Entity,Entity> verbinde)
         {
-            if (!em.HasBuffer<ParkingLotRueckweganschluss>(lot)) return;
-            using var kurse = em.GetBuffer<ParkingLotRueckwegkurs>(lot,true).ToNativeArray(Allocator.Temp);
-            using var seiten = em.GetBuffer<ParkingLotRueckweganschluss>(lot,true).ToNativeArray(Allocator.Temp);
-            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<Edge>(),ComponentType.ReadOnly<Curve>(),
-                ComponentType.ReadOnly<Owner>(),ComponentType.ReadOnly<PrefabRef>(),
-                ComponentType.Exclude<Deleted>(),ComponentType.Exclude<Temp>());
-            using var kanten = q.ToEntityArray(Allocator.Temp);
-            var eigeneKanten = EigeneKanten(em,kanten,kurse.ToArray());
+            if (!em.HasBuffer<ParkingLotRueckweganschluss>(lot)) yield break;
+            ParkingLotRueckwegkurs[] kurse;
+            ParkingLotRueckweganschluss[] seiten;
+            using (var a = em.GetBuffer<ParkingLotRueckwegkurs>(lot,true).ToNativeArray(Allocator.Temp)) kurse = a.ToArray();
+            using (var a = em.GetBuffer<ParkingLotRueckweganschluss>(lot,true).ToNativeArray(Allocator.Temp)) seiten = a.ToArray();
+            var eigeneKanten = EigeneKanten(em,kurse);
             var benutzt = new HashSet<Entity>();
             var paare = new List<(Entity Kante,Entity Knoten,Entity Prefab)>();
             for (int i = 0; i < kurse.Length; i++)
             {
+                yield return 0;
                 var teile = FindeKurs(em,eigeneKanten,kurse[i],benutzt,out _);
                 if (teile == null) continue;
                 foreach (var a in seiten)
@@ -299,7 +417,7 @@ namespace ParkingLotTool.Tools
             }
             // Der gemeinsame Graphhelfer kann Strukturveraenderungen ausloesen;
             // die physische Netzpruefung ist davor vollstaendig abgeschlossen.
-            foreach (var p in paare) verbinde(p.Kante,p.Knoten,p.Prefab);
+            foreach (var p in paare) { verbinde(p.Kante,p.Knoten,p.Prefab); yield return 0; }
         }
 
         private static bool Enthaelt(ParkingLotKursabgleich.Teil p, float lage)
@@ -335,22 +453,23 @@ namespace ParkingLotTool.Tools
             using var anschluesse = em.GetBuffer<ParkingLotRueckweganschluss>(lot,true).ToNativeArray(Allocator.Temp);
             foreach (var a in anschluesse) knoten.Add(Anschlussknoten(em,a));
             foreach (var n in knoten) if (Lebt(em,n)) em.AddComponent<Updated>(n);
-            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<Edge>(),ComponentType.ReadOnly<Owner>(),
-                ComponentType.Exclude<Temp>(),ComponentType.Exclude<Deleted>());
-            using var kanten = q.ToEntityArray(Allocator.Temp);
+            var kanten = Besitzteile(em,lot);
             foreach (var e in kanten)
-                if (ParkingLotBesitz.GehoertZu(em,em.GetComponentData<Owner>(e).m_Owner,lot)) em.AddComponent<Updated>(e);
+                if (Lebt(em,e) && em.HasComponent<Edge>(e) && em.HasComponent<Owner>(e)
+                    && ParkingLotBesitz.GehoertZu(em,em.GetComponentData<Owner>(e).m_Owner,lot)) em.AddComponent<Updated>(e);
             Melde($"Rueckweg: {knoten.Count} seitliche Knoten mit eigenen Kanten bei Vanilla angemeldet; 0 direkte Netzeintraege.");
         }
         private static Entity Anschlussknoten(EntityManager em, ParkingLotRueckweganschluss a)
         {
             if (a.Knoten != Entity.Null) return a.Knoten;
-            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<Game.Net.Node>(),ComponentType.ReadOnly<Owner>(),
-                ComponentType.ReadOnly<PrefabRef>(),ComponentType.Exclude<Temp>(),ComponentType.Exclude<Deleted>());
-            using var nodes = q.ToEntityArray(Allocator.Temp);
+            var lot = em.HasComponent<Owner>(a.Besitzer)
+                ? em.GetComponentData<Owner>(a.Besitzer).m_Owner : a.Besitzer;
+            var nodes = Besitzteile(em,lot);
             Entity gefunden = Entity.Null;
             foreach (var e in nodes)
-                if (em.GetComponentData<PrefabRef>(e).m_Prefab == a.Prefab
+                if (Lebt(em,e) && !em.HasComponent<Temp>(e) && em.HasComponent<Game.Net.Node>(e)
+                    && em.HasComponent<PrefabRef>(e) && em.HasComponent<Owner>(e)
+                    && em.GetComponentData<PrefabRef>(e).m_Prefab == a.Prefab
                     && em.GetComponentData<Owner>(e).m_Owner == a.Besitzer
                     && math.distance(em.GetComponentData<Game.Net.Node>(e).m_Position,a.Position) <= .05f)
                 {
@@ -360,20 +479,24 @@ namespace ParkingLotTool.Tools
             return gefunden;
         }
         internal static void FuellTraeger(EntityManager em, Entity lot)
+        { foreach (int n in FuellTraegerSchritte(em,lot)) { } }
+        internal static IEnumerable<int> FuellTraegerSchritte(EntityManager em, Entity lot)
         {
-            if (!em.HasComponent<ParkingLotCarrierReference>(lot)) return;
+            if (!em.HasComponent<ParkingLotCarrierReference>(lot)) yield break;
             var traeger = em.GetComponentData<ParkingLotCarrierReference>(lot).Carrier;
-            if (!em.Exists(traeger) || !em.HasBuffer<SubNet>(traeger)) return;
-            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<Edge>(),ComponentType.ReadOnly<Owner>(),
-                ComponentType.Exclude<Temp>(),ComponentType.Exclude<Deleted>());
-            using var kanten = q.ToEntityArray(Allocator.Temp);
+            if (!em.Exists(traeger) || !em.HasBuffer<SubNet>(traeger)) yield break;
+            var kanten = Besitzteile(em,lot);
             foreach (var e in kanten)
-                if (ParkingLotBesitz.GehoertZu(em,em.GetComponentData<Owner>(e).m_Owner,lot))
+            {
+                yield return 0;
+                if (Lebt(em,e) && em.HasComponent<Edge>(e) && em.HasComponent<Owner>(e)
+                    && !em.HasComponent<Temp>(e) && ParkingLotBesitz.GehoertZu(em,em.GetComponentData<Owner>(e).m_Owner,lot))
                 {
                     var b = em.GetBuffer<SubNet>(traeger);
                     bool da = false; foreach (var n in b) if (n.m_SubNet == e) da = true;
                     if (!da) b.Add(new SubNet(e));
                 }
+            }
         }
         private static bool Verbunden(EntityManager em, Entity node, Entity edge)
         {
