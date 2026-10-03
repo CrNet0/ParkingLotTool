@@ -165,7 +165,8 @@ namespace ParkingLotTool.Tools
                     { kurs.m_StartPosition.m_ParentMesh = 0; kurs.m_EndPosition.m_ParentMesh = 0; }
                     em.AddComponentData(d, kurs);
                     if (alt.HatUpgrade) em.AddComponentData(d, alt.Upgrade);
-                    em.AddComponent<Updated>(d); erzeugt++;
+                    em.AddComponent<Updated>(d);
+                    ParkingLotToolSystem.NurDiesesBild(em, d); erzeugt++;
                 }
                 return erzeugt;
             }

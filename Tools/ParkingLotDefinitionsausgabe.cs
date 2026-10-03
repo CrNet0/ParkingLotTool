@@ -22,7 +22,14 @@ namespace ParkingLotTool.Tools
         {
             EntityManager.AddComponentData(definition,
                 new ParkingLotAuftragsdefinition { Auftrag = _definitionsauftrag });
-            if (_definitionsmodus != ParkingLotDefinitionsmodus.Permanent) return;
+            if (_definitionsmodus != ParkingLotDefinitionsmodus.Permanent)
+            {
+                // Feste Definitionen gibt es auch im Werkzeugpfad (Haltestellen).
+                if ((EntityManager.GetComponentData<CreationDefinition>(definition).m_Flags
+                        & CreationFlags.Permanent) != 0)
+                    NurDiesesBild(EntityManager, definition);
+                return;
+            }
             var data = EntityManager.GetComponentData<CreationDefinition>(definition);
             data.m_Flags |= CreationFlags.Permanent;
             data.m_Owner = owner;
@@ -49,6 +56,20 @@ namespace ParkingLotTool.Tools
                 data.m_Flags |= CreationFlags.Attach;
             }
             EntityManager.SetComponentData(definition, data);
+            NurDiesesBild(EntityManager, definition);
+        }
+
+        /**
+         * FESTE DEFINITIONEN LEBEN NUR EIN BILD - wie bei Vanilla
+         * (ZoneSpawnSystem: Archetyp CreationDefinition + Updated + Deleted).
+         * Die Generatoren lesen sie im selben Bild trotz `Deleted`, CleanUp
+         * zerstoert sie am Bildende. Ohne `Deleted` blieb sie fuer immer
+         * liegen; das Freigabe-Tor des Hintergrund-Neubaus sah danach ewig
+         * "1 fremde Definition" und wartete endlos (Ingame 2026-10-03).
+         */
+        internal static void NurDiesesBild(EntityManager em, Entity definition)
+        {
+            if (!em.HasComponent<Deleted>(definition)) em.AddComponent<Deleted>(definition);
         }
     }
 }

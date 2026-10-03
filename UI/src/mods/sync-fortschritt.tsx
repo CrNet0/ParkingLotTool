@@ -1,6 +1,6 @@
 import { useValue } from "cs2/api";
 import {
-  syncAuto$, syncErgebnis$, syncErgebnisSchliessen, syncLaeuft$, oeffneListe,
+  syncErgebnis$, syncErgebnisSchliessen, syncLaeuft$, oeffneListe,
 } from "./bindings";
 import { TooltipKnopf } from "./controls";
 import { useTexte } from "./texte";
@@ -21,12 +21,13 @@ const MODNAME = "Parking Lot Tool";
  * Komponente eingehaengt wurde.
  */
 export const SyncFortschritt = () => {
-  const auto = useValue(syncAuto$);
   const lauf = useValue(syncLaeuft$);
   const ergebnis = useValue(syncErgebnis$);
   const t = useTexte();
 
-  if (auto && lauf) {
+  // Auch beim Sync von Hand: der Neubau laeuft im Hintergrund und dauert
+  // (Nutzer 2026-10-03: "Sync all" ohne jede Rueckmeldung).
+  if (lauf) {
     const felder = lauf.split("\t");
     const erledigt = Number(felder[0]);
     const gesamt = Number(felder[1]);
