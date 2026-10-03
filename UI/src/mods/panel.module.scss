@@ -3025,6 +3025,9 @@ $eck-reiter: 9rem;
  */
 .syncFortschritt {
   position: absolute;
+  /* Ueber dem Panel (.fenster hat 40): der Sync-Stand soll auch bei offenem
+     Panel sichtbar sein (Nutzer 2026-10-03). */
+  z-index: 50;
   left: 50%;
   bottom: 120rem;
   /* Breite nach dem Inhalt, mittig ueber translateX (steht so auch in der
