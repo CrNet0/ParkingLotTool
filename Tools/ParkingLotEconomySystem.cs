@@ -229,7 +229,8 @@ namespace ParkingLotTool.Tools
             if (e == Entity.Null || !EntityManager.Exists(e)) return "fehlt";
             var prefab = EntityManager.GetComponentData<PrefabRef>(e).m_Prefab;
             var t = "Upkeep " + (EntityManager.HasComponent<CityServiceUpkeep>(e) ? "ja" : "NEIN")
-                + ", Dienst " + (EntityManager.HasComponent<ServiceObjectData>(prefab) ? "ja" : "NEIN")
+                + ", Dienst " + (!EntityManager.HasComponent<ServiceObjectData>(prefab) ? "NEIN"
+                    : EntityManager.GetComponentData<ServiceObjectData>(prefab).m_Service == Entity.Null ? "LEER" : "ja")
                 + ", Usage " + (EntityManager.HasComponent<ServiceUsage>(e)
                     ? EntityManager.GetComponentData<ServiceUsage>(e).m_Usage.ToString("0.#####") : "fehlt")
                 + ", Eintraege";
@@ -245,6 +246,7 @@ namespace ParkingLotTool.Tools
             if (e == Entity.Null || !EntityManager.Exists(e) || !EntityManager.HasComponent<CityServiceUpkeep>(e)) return 0;
             var prefab = EntityManager.GetComponentData<PrefabRef>(e).m_Prefab;
             if (!EntityManager.HasComponent<ServiceObjectData>(prefab) || !EntityManager.HasBuffer<ServiceUpkeepData>(prefab)) return 0;
+            if (EntityManager.GetComponentData<ServiceObjectData>(prefab).m_Service == Entity.Null) return 0;
             var summe = 0;
             foreach (var eintrag in EntityManager.GetBuffer<ServiceUpkeepData>(prefab, true))
             {
@@ -653,6 +655,39 @@ namespace ParkingLotTool.Tools
                     new ServiceObjectData { m_Service = _roadsService });
                 Mod.log.Info("PLT-Wirtschaft: Begleiter-Prefab dem "
                     + "Roads-Dienst zugeordnet.");
+            }
+            /*
+             * DIE PREFAB-INITIALISIERUNG DES BEGLEITERS NACHHOLEN (2026-10-04).
+             *
+             * Wir melden ihn selbst mit `AddPrefab` an; die `Initialize`-Aufrufe
+             * seiner Bausteine laufen dabei nicht (nur PrefabInitializeSystem ruft
+             * sie). Den Archetyp holt ParkingLotBuildingEconomySystem nach - die
+             * Unterhaltsliste aus `CityServiceBuilding.Initialize` blieb aber
+             * leer, und `ServiceObjectData` stand ohne Dienst da. Gemessen in der
+             * Kontrollzeile: Usage richtig, "Eintraege" leer. Der Begleiter hat
+             * also nie gezahlt; gekostet hat nur die falsche Basis der Flaeche.
+             */
+            if (EntityManager.HasComponent<ServiceObjectData>(prefab) && _roadsService != Entity.Null
+                && EntityManager.GetComponentData<ServiceObjectData>(prefab).m_Service == Entity.Null)
+            {
+                EntityManager.SetComponentData(prefab, new ServiceObjectData { m_Service = _roadsService });
+                Mod.log.Info("PLT-Wirtschaft: Dienst des Begleiter-Prefabs war leer, Roads eingetragen.");
+            }
+            var eintraege = EntityManager.HasBuffer<ServiceUpkeepData>(prefab)
+                ? EntityManager.GetBuffer<ServiceUpkeepData>(prefab)
+                : EntityManager.AddBuffer<ServiceUpkeepData>(prefab);
+            var hatGeld = false;
+            foreach (var e in eintraege)
+                if (e.m_Upkeep.m_Resource == Game.Economy.Resource.Money && e.m_ScaleWithUsage) hatGeld = true;
+            if (!hatGeld)
+            {
+                eintraege.Add(new ServiceUpkeepData
+                {
+                    m_Upkeep = new Game.Prefabs.ResourceStack { m_Resource = Game.Economy.Resource.Money, m_Amount = UpkeepBasis },
+                    m_ScaleWithUsage = true,
+                });
+                Mod.log.Info("PLT-Wirtschaft: Unterhaltseintrag des Begleiter-Prefabs nachgetragen (Geld "
+                    + UpkeepBasis + ", skaliert).");
             }
             return true;
         }
