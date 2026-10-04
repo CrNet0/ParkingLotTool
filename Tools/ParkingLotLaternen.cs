@@ -43,10 +43,9 @@ namespace ParkingLotTool.Tools
                 : new LaternenPlan();
 
         /**
-         * Die Kollisionsform jeder Laterne aus den Daten ihres Prefabs, so wie
-         * CS2 sie gegen Pflanzen prueft (Geometry/Laternenkollision). Ohne
-         * gefundenes Prefab wird die Laterne nicht gebaut - dann haelt auch
-         * niemand Platz fuer sie frei.
+         * Lage, Drehung und Mast jeder Laterne aus den Daten ihres Prefabs fuer
+         * die Pflanzenplanung. Ohne gefundenes Prefab wird die Laterne nicht
+         * gebaut - dann haelt auch niemand Platz fuer sie frei.
          */
         internal List<LaternenKoerper> LaternenKoerperFuer(LaternenPlan plan, LaternenOptionen optionen)
         {
@@ -63,16 +62,8 @@ namespace ParkingLotTool.Tools
                 {
                     Position = platz.Position,
                     Vorwaerts = math.normalizesafe(LaternenKatalog.Vorwaerts(platz, bauart)),
-                    Stehend = (g.m_Flags & GeometryFlags.Standing) != 0,
-                    RundesBein = (g.m_Flags & GeometryFlags.CircularLeg) != 0,
-                    BeinOhneKollision = (g.m_Flags & GeometryFlags.IgnoreLegCollision) != 0,
-                    Rund = (g.m_Flags & GeometryFlags.Circular) != 0,
-                    Bein = g.m_LegSize,
-                    BeinVersatz = g.m_LegOffset,
-                    Min = (g.m_Flags & GeometryFlags.IgnoreBottomCollision) != 0
-                        ? new float3(g.m_Bounds.min.x, math.max(g.m_Bounds.min.y, 0f), g.m_Bounds.min.z) : g.m_Bounds.min,
+                    Bein = (g.m_Flags & GeometryFlags.Standing) != 0 ? g.m_LegSize : float3.zero,
                     Max = g.m_Bounds.max,
-                    Groesse = g.m_Size.x,
                 });
             }
             return liste;

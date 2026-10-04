@@ -9,11 +9,21 @@ namespace ParkingLotTool.Geometry
         public string Id;
         public bool Tree;
         public float Spacing;
+        /** Hoehe der groessten Altersstufe (m_Bounds.max.y); 0 = unbekannt. */
+        public float Hoehe;
+
+        /** Ab hier pflanzt der Planer wie einen Baum. */
+        public const float BaumHoehe = 4f;
+
         /**
-         * Wie CS2 die Pflanze gegen andere Objekte prueft: Radius m_Size.x/2,
-         * Hoehe m_Bounds.max.y (siehe Laternenkollision). 0 = Spacing/2.
+         * Pflanzt sich wie ein Baum: hoch genug. NICHT `Tree` - das heisst
+         * TreeData, und die haben auch Buesche mit Altersstufen. Wildblumenbusch
+         * 01 bekam dadurch Baumabstand zur Laterne, Baumgruppen, 30 % Einsatz am
+         * Streifenrand und den Baumkreis in der Vorschau (Nutzerbefund
+         * 2026-10-04). `Tree` bleibt fuer das, was wirklich an TreeData haengt:
+         * die Altersstufen.
          */
-        public float Radius, Hoehe;
+        public bool Baumartig => Hoehe > 0f ? Hoehe >= BaumHoehe : Tree;
     }
     public sealed class VegetationOptions
     {
@@ -187,7 +197,7 @@ namespace ParkingLotTool.Geometry
                 {
                     var pool = new List<int>();
                     for (int i = 0; i < species.Length; i++)
-                        if (species[i].Tree == (pass == 0)) pool.Add(i);
+                        if (species[i].Baumartig == (pass == 0)) pool.Add(i);
                     if (pool.Count == 0) continue;
                     float step = 2f / (float)Math.Sqrt(3);
                     if (options.Line)
@@ -239,34 +249,37 @@ namespace ParkingLotTool.Geometry
                             Unit(Hash(seed + 11)) - .5f) * (hi - lo) / new float2(nx, ny);
                         if (!Inside(p, local)) { result.AussenVerworfen++; continue; }
                         float edge = EdgeDistance(p, local);
-                        float margin = Randabstand(kind.Tree);
+                        float margin = Randabstand(kind.Baumartig);
                         if (edge < margin) { result.RandVerworfen++; continue; }
                         if (!options.Line)
                         {
                             // Buesche: 1,0 an der Kante, 0,7 ab 4 m. Vorher
                             // 0,25 - das war in der Flaechenmitte die
                             // eigentliche Dichtebremse, noch vor dem Regler.
-                            float chance = kind.Tree ? math.lerp(.3f, 1f, math.saturate(edge / 4f))
+                            float chance = kind.Baumartig ? math.lerp(.3f, 1f, math.saturate(edge / 4f))
                                 : math.lerp(1f, .7f, math.saturate(edge / 4f));
                             // Weiche, unterschiedlich grosse Gruppen statt
                             // identischer Einzelwuerfe auf jedem Gruenstreifen.
                             float group = GroupDensity((origin + axis * p.x + across * p.y - anchor)
-                                / (kind.Tree ? 18f : 7f), options.Seed + (uint)pass * 313u);
+                                / (kind.Baumartig ? 18f : 7f), options.Seed + (uint)pass * 313u);
                             chance *= math.lerp(.35f, 1f, group);
                             if (Unit(Hash(seed + 23)) > chance)
                             { result.WuerfelVerworfen++; continue; }
                         }
                         var world = origin + axis * p.x + across * p.y;
-                        // Laternen freihalten: Baeume 3 m, Buesche nur den Mast, 0,5 m (Nutzer
-                        // 2026-10-04). CS2 verdeckt Pflanzen am Mast nicht, weil beide denselben
-                        // Besitzer haben - sofern es nach dem Besitzerwechsel neu prueft
-                        // (PruefeVerdeckungNeu). Bestaetigt das der Bau nicht, ist
-                        // Laternenkollision die Rechnung nach CS2s Regel.
+                        // Laternen freihalten: was ueber den Mast an die Leuchte reicht 3 m, alles
+                        // darunter nur den Mast, 0,5 m (Nutzer 2026-10-04). NICHT nach `Tree`:
+                        // das heisst TreeData, und die haben auch Buesche mit Altersstufen -
+                        // Wildblumenbusch 01 bekam deshalb 3 m, Klein 02 ohne TreeData 0,5 m.
                         if (laternen != null && laternen.Count > 0)
                         {
-                            var frei = kind.Tree ? 3f : 0.5f;
+                            var hoehe = kind.Hoehe > 0 ? kind.Hoehe : (kind.Tree ? float.MaxValue : 0f);
                             var weg = false;
-                            foreach (var l in laternen) if (math.distancesq(world, l.Position) < frei * frei) { weg = true; break; }
+                            foreach (var l in laternen)
+                            {
+                                var frei = hoehe > l.Masthoehe ? 3f : 0.5f;
+                                if (math.distancesq(world, l.Position) < frei * frei) { weg = true; break; }
+                            }
                             if (weg) { result.LaternenVerworfen++; continue; }
                         }
                         int gx = (int)Math.Floor(world.x / 16f), gy = (int)Math.Floor(world.y / 16f);

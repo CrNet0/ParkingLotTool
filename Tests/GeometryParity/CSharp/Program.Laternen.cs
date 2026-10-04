@@ -97,44 +97,43 @@ internal static partial class Program
         Console.WriteLine($"Gegenprobe ohne Umriss ({mitRand.Name}): {(probe4 != null ? "faellt auf - " + probe4 : "UNBEMERKT")}");
         if (probe4 == null) fehler++;
 
-        fehler += PruefeLaternenkollision();
+        fehler += PruefeLaternenfreiraum();
 
         Console.WriteLine(fehler == 0 ? "LATERNEN OK" : $"LATERNEN: {fehler} Fehler");
         return fehler == 0 ? 0 : 1;
     }
 
     /**
-     * Die nachgerechnete CS2-Pruefung (Geometry/Laternenkollision) an einer
-     * Doppellaterne mit den Massen aus der Inventur (StreetlightDouble02, Arme
-     * +-1,9 m, Mast 0,3 m; Beinhoehe hier angenommen 5 m). Prueft unsere
-     * Umsetzung, nicht CS2 selbst: Mast, Arme nur fuer hohe Pflanzen, Drehung.
+     * Freiraum um die Laterne in der Pflanzenplanung (Nutzerbefund 2026-10-04):
+     * Wildblumenbusch 01 hat TreeData und bekam deshalb den Baumabstand. Hier
+     * zwei Arten MIT TreeData auf einer Gruenflaeche um eine Laterne mit 5 m
+     * Mast: der 1,5 m hohe Busch muss bis 0,5 m heran (einige zwischen 0,5 und
+     * 3 m), der 12 m hohe Baum muss 3 m einhalten.
      */
-    private static int PruefeLaternenkollision()
+    private static int PruefeLaternenfreiraum()
     {
-        LaternenKoerper Doppel(float2 vorn) => new LaternenKoerper
+        var mitte = new float2(500, 500);
+        var gras = new[] { new[] { mitte + new float2(-12, -12), mitte + new float2(12, -12), mitte + new float2(12, 12), mitte + new float2(-12, 12) } };
+        var laterne = new LaternenKoerper { Position = mitte, Vorwaerts = new float2(0, 1), Bein = new float3(0.3f, 5f, 0.3f), Max = new float3(1.9f, 7f, 0.15f) };
+        var arten = new[]
         {
-            Position = new float2(100, 200), Vorwaerts = vorn, Stehend = true, RundesBein = true,
-            Bein = new float3(0.3f, 5f, 0.3f), Min = new float3(-1.9f, 0, -0.15f), Max = new float3(1.9f, 7.02f, 0.15f),
-        };
-        var k = Doppel(new float2(0, 1));
-        var o = k.Position;
-        var faelle = new (string Name, LaternenKoerper K, float2 P, float R, float H, bool Soll)[]
-        {
-            ("niedriger Busch am Mast", k, o + new float2(0.6f, 0), 0.5f, 1f, true),
-            ("niedriger Busch knapp frei", k, o + new float2(0.75f, 0), 0.5f, 1f, false),
-            ("niedriger Busch unter dem Arm", k, o + new float2(1.5f, 0), 0.5f, 1f, false),
-            ("hoher Busch am Armende", k, o + new float2(2.3f, 0), 0.5f, 6f, true),
-            ("hoher Busch quer zum Arm", k, o + new float2(0, 0.8f), 0.5f, 6f, false),
-            ("gedreht: Arme laufen in Z", Doppel(new float2(1, 0)), o + new float2(0, 2.3f), 0.5f, 6f, true),
-            ("gedreht: quer dazu frei", Doppel(new float2(1, 0)), o + new float2(2.3f, 0), 0.5f, 6f, false),
+            new VegetationSpecies { Id = "busch", Tree = true, Spacing = 1.2f, Hoehe = 1.5f },
+            new VegetationSpecies { Id = "baum", Tree = true, Spacing = 4f, Hoehe = 12f },
         };
         var fehler = 0;
-        foreach (var f in faelle)
+        // Wuchs nach Hoehe, nicht nach TreeData: beide haben TreeData.
+        if (arten[0].Baumartig || !arten[1].Baumartig) { fehler++; Console.WriteLine("Wuchs: Busch/Baum falsch eingeordnet"); }
+        foreach (var (art, minSoll, nahErwartet) in new[] { (0, 0.5f, true), (1, 3f, false) })
         {
-            var ist = Laternenkollision.Beruehrt(f.K, f.P, f.R, f.H);
-            if (ist != f.Soll) { fehler++; Console.WriteLine($"Kollision {f.Name}: {ist} statt {f.Soll}"); }
+            var plan = ParkingVegetation.Plan(gras, new VegetationOptions { Enabled = true, Density = 100, Seed = 7 },
+                new[] { arten[art] }, new[] { laterne });
+            var abstaende = plan.Plants.Select(p => math.distance(p.Position, mitte)).OrderBy(d => d).ToList();
+            var naechster = abstaende.Count > 0 ? abstaende[0] : float.MaxValue;
+            var nah = abstaende.Any(d => d < 3f);
+            var ok = naechster >= minSoll - 1e-4f && nah == nahErwartet && abstaende.Count > 0;
+            Console.WriteLine($"Laternenfreiraum {arten[art].Id}: {abstaende.Count} Pflanzen, naechste {naechster:F2} m - {(ok ? "ok" : "FALSCH")}");
+            if (!ok) fehler++;
         }
-        Console.WriteLine($"Laternenkollision: {faelle.Length - fehler} von {faelle.Length} richtig");
         return fehler;
     }
 

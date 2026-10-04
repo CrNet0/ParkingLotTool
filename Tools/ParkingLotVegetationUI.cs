@@ -18,8 +18,8 @@ namespace ParkingLotTool.Tools
         public string Id, Name, Icon;
         public bool Tree;
         public float Spacing;
-        /** Kollisionsradius m_Size.x/2 und Hoehe m_Bounds.max.y - so prueft CS2 sie gegen Laternen. */
-        [JsonIgnore] public float Radius, Hoehe;
+        /** Hoehe der groessten Altersstufe (m_Bounds.max.y): reicht sie an die Leuchte einer Laterne? */
+        [JsonIgnore] public float Hoehe;
         [JsonIgnore] public Entity Prefab;
     }
     internal sealed class VegetationSet
@@ -159,9 +159,15 @@ namespace ParkingLotTool.Tools
                         // vergleicht damit gegen dieselbe Zahl, die CS2 fuer seine
                         // Kollisionskreise benutzt (`ObjectGeometryData.m_Size`).
                         Tree = tree, Spacing = math.max(0.5f, math.max(size.x, size.z)), Prefab = entity,
-                        Radius = geometry.m_Size.x * 0.5f, Hoehe = geometry.m_Bounds.max.y });
+                        Hoehe = geometry.m_Bounds.max.y });
                 }
             _vegetationAssets.Sort((a,b) => string.Compare(a.Name,b.Name,StringComparison.CurrentCulture));
+            // Der ganze Katalog einmal ins Log: wer pflanzt sich wie ein Baum, wer wie ein Busch,
+            // und wer hat TreeData (Altersstufen). Die beiden fallen nicht zusammen.
+            Mod.log.Info("PLT-Vegetationskatalog Wuchs (Baum ab " + VegetationSpecies.BaumHoehe.ToString("F1") + " m): "
+                + string.Join("; ", _vegetationAssets.Select(a => a.Name + " [" + a.Id.Replace("StaticObjectPrefab:", "") + "] "
+                    + (a.Hoehe >= VegetationSpecies.BaumHoehe ? "Baum" : "Busch") + (a.Tree ? "/TreeData" : "")
+                    + " " + a.Hoehe.ToString("F1") + " m hoch, " + a.Spacing.ToString("F1") + " m breit")));
             AddVegetationSet("wild-deciduous", "Wilde Laubbäume", "Wild deciduous trees", "TreesDeciduous",
                 "EU_AlderTree01", "BirchTree01", "NA_LondonPlaneTree01", "NA_LindenTree01", "NA_HickoryTree01", "EU_ChestnutTree01", "OakTree01");
             AddVegetationSet("wild-coniferous", "Wilde Nadelbäume", "Wild coniferous trees", "TreesNeedle", "PineTree01", "SpruceTree01");

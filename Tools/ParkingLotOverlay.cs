@@ -59,7 +59,7 @@ namespace ParkingLotTool.Tools
             foreach(var plant in plan.Plants) {
                 var point=new float3(plant.Position.x,0,plant.Position.y);
                 point.y=TerrainUtils.SampleHeight(ref heights,point);
-                if(math.all(math.isfinite(point))) _vegetation.Add((point,species[plant.Species].Tree));
+                if(math.all(math.isfinite(point))) _vegetation.Add((point,species[plant.Species].Baumartig));
             }
         }
         private readonly List<float3> _chargers = new List<float3>();
