@@ -14,8 +14,10 @@ namespace ParkingLotTool.Geometry
         Mittelstreifen,
         /** Kopf-an-Kopf-Linie ohne Mittelstreifen, Ecke von vier Buchten. Doppelmodell. */
         KopfAnKopf,
-        /** Hinter einer Randreihe, zum Platz gerichtet. Einzelmodell. */
+        /** Hinter einer Randreihe am Grundstuecksrand, zum Platz gerichtet. Einzelmodell. */
         Rand,
+        /** Innen im Gruenstreifen hinter einer Einzelreihe. Doppelmodell. */
+        Streifen,
     }
 
     public struct LaternenPlatz
@@ -156,6 +158,8 @@ namespace ParkingLotTool.Geometry
         {
             internal float T0, T1;
             internal readonly List<Bucht> Buchten = new List<Bucht>();
+            /** Ein Partner deckt diese Seite - je Lauf, nicht je Reihe. */
+            internal bool PartnerOben, PartnerUnten;
         }
 
         private sealed class Reihe
@@ -163,7 +167,6 @@ namespace ParkingLotTool.Geometry
             internal float SMin, SMax;
             internal readonly List<Bucht> Buchten = new List<Bucht>();
             internal readonly List<Lauf> Laeufe = new List<Lauf>();
-            internal bool PartnerOben, PartnerUnten;
         }
 
         public static LaternenPlan Plan(ParkingLayout layout, float abstand)
@@ -178,8 +181,31 @@ namespace ParkingLotTool.Geometry
             foreach (var n in layout.NetLine)
                 if (n.Kind == "aisle" || n.Kind == "cross" || n.Kind == "perimeter" || n.Kind == "entrance")
                     gassen.Add((n.A, n.B));
-            bool IstGruen(float2 p) { foreach (var r in gras) if (InRing(p, r)) return true; return false; }
+            var asphalt = (layout.AsphaltSurface ?? Array.Empty<float2[]>()).Where(r => r != null && r.Length >= 3).ToArray();
+            // Gruen = Gras, auf dem kein Asphalt liegt. Aeltere Zettel legten Gras unter
+            // den ganzen Platz (ALCU: 43 von 54 Buchten im Gras), dann galt die Fahrgasse
+            // als Gruenstreifen und Laternen standen auf dem Asphalt.
+            bool IstGruen(float2 p)
+            {
+                var imGras = false;
+                foreach (var r in gras) if (InRing(p, r)) { imGras = true; break; }
+                if (!imGras) return false;
+                foreach (var r in asphalt) if (InRing(p, r)) return false;
+                return true;
+            }
             bool NahGasse(float2 p, float tol) { foreach (var g in gassen) if (AbstandSegment(p, g.A, g.B) < tol) return true; return false; }
+            // Am Grundstuecksrand: ausserhalb des Umrisses oder naeher als `naehe` an
+            // seiner Kante. Der gezogene Umriss, NICHT `layout.Ring`: der liegt im Zellenweg auf
+            // der Randstrasse, Randreihen lagen ausserhalb und galten beidseitig als Rand.
+            var umriss = layout.Grundstueck ?? Array.Empty<float2>();
+            bool AmRand(float2 p, float naehe)
+            {
+                if (umriss.Length < 3) return false;
+                if (!InRing(p, umriss)) return true;
+                for (var i = 0; i < umriss.Length; i++)
+                    if (AbstandSegment(p, umriss[i], umriss[(i + 1) % umriss.Length]) < naehe) return true;
+                return false;
+            }
 
             /*
              * AUSRICHTUNGSGRUPPEN MIT EINER ACHSE UND OERTLICHEM NULLPUNKT.
@@ -275,52 +301,86 @@ namespace ParkingLotTool.Geometry
                         float u0 = math.max(la.T0, lb.T0), u1 = math.min(la.T1, lb.T1);
                         if (u1 - u0 < 2.5f) continue; // mind. eine Bucht; 3,0 lag genau auf der Kante
                         if (gap > 0.5f && NahGasse(W(sMitte, (u0 + u1) / 2), 1.5f)) continue;
-                        A.PartnerOben = true;
-                        B.PartnerUnten = true;
+                        // Gedeckt ist der ganze Lauf - je Lauf, nicht je Reihe: eine Reihe
+                        // auf derselben Linie wie eine Doppelreihe galt sonst als gepaart.
+                        // Und der ganze Lauf, nicht nur die Ueberlappung: die Paarlinie
+                        // reicht ueber beide Laeufe, sonst stand neben jeder ihrer
+                        // Laternen noch eine Randlaterne.
+                        la.PartnerOben = true;
+                        lb.PartnerUnten = true;
                         plan.Paare++;
                         PaarLaternen(roh, la, lb, sMitte, gap > 0.5f, S, dc, W, IstGruen, NahGasse);
                     }
                 }
 
-                // Randreihen: die Seite ohne Partner und ohne Fahrgasse ist die Rueckseite
+                // Einzelreihen: die Seite ohne Partner. Hinten liegt direkt hinter der
+                // Bucht Gruen oder der Grundstuecksrand, vorne der Asphalt der Fahrgasse.
+                // Abstaende zur Gassenlinie taugten nicht: Gassen sind 6-7 m breit, und
+                // 3,0 m lag genau auf der Kante (Nutzerbefund 2026-10-04).
                 foreach (var r in reihen)
                 foreach (var lauf in r.Laeufe)
+                foreach (var (sRand, d, gedeckt) in new[] { (r.SMax, +1f, lauf.PartnerOben), (r.SMin, -1f, lauf.PartnerUnten) })
+                foreach (var (t0, t1) in gedeckt ? Array.Empty<(float, float)>() : new[] { (lauf.T0, lauf.T1) })
                 {
-                    var tm = (lauf.T0 + lauf.T1) / 2;
-                    foreach (var (sRand, d) in new[] { (r.SMax, +1f), (r.SMin, -1f) })
+                    var tm = (t0 + t1) / 2;
+                    var hinten = 0;
+                    foreach (var f in new[] { 0.25f, 0.5f, 0.75f })
                     {
-                        if (d > 0 ? r.PartnerOben : r.PartnerUnten) continue;
-                        if (NahGasse(W(sRand + d * 2f, tm), 3.5f)) continue;
-                        float tiefe = 0;
-                        for (var k = 1; k <= 32; k++) { if (!IstGruen(W(sRand + d * (k * 0.25f - 0.125f), tm))) break; tiefe = k * 0.25f; }
-                        var s = sRand + d * (tiefe >= 1f ? math.min(tiefe / 2, 2f) : 0.5f);
-                        var L = lauf.T1 - lauf.T0;
-                        var n = math.max(1, (int)math.round(L / S));
-                        plan.Randlaeufe++;
-                        for (var k = 0; k <= n; k++)
-                        {
-                            if (L < S * 0.6f && k > 0 && k < n) continue;
-                            var t = lauf.T0 + 1.5f + (L - 3f) * k / n;
-                            roh.Add(new LaternenPlatz { Position = W(s, t), Art = LaternenArt.Rand, Richtung = -d * dc });
-                        }
+                        var q = W(sRand + d * 0.4f, t0 + (t1 - t0) * f);
+                        if (IstGruen(q) || AmRand(q, 3f)) hinten++;
                     }
+                    if (hinten < 2) continue;
+                    float tiefe = 0;
+                    for (var k = 1; k <= 160; k++) { if (!IstGruen(W(sRand + d * (k * 0.25f - 0.125f), tm))) break; tiefe = k * 0.25f; }
+                    var s = sRand + d * (tiefe >= 1f ? math.min(tiefe / 2, 2f) : 0.5f);
+                    // Aussen nur am Grundstuecksrand: dort einseitig, zum Platz gerichtet.
+                    // Innen (Einzelreihe vor einem Gruenstreifen) das Doppelmodell - der
+                    // Nutzer: die Einseitigen gelten nur fuer aussen.
+                    // Aussen heisst: das Gruen hinter der Reihe reicht bis an den Umriss.
+                    // Gefragt wird knapp hinter seinem Ende. Eine feste Probe 3 m hinter
+                    // der Reihe lag beim 6 m breiten Randband genau auf der 3-m-Schwelle.
+                    var aussen = AmRand(W(sRand + d * (tiefe + 0.5f), tm), 2f);
+                    var L = t1 - t0;
+                    plan.Randlaeufe++;
+                    // Kurz: eine Laterne in der Mitte. Lang: Stuecke von hoechstens dem
+                    // Abstand, Enden 1,5 m eingerueckt. Mit nur zwei Endlaternen blieb von
+                    // kurzen Randabschnitten nach dem Ausduennen an den Ecken nichts uebrig.
+                    var stellen = new List<float>();
+                    // +0,1: Laeufe sind Vielfache der Buchtbreite und trafen 0,6 x Abstand
+                    // genau (sechs Buchten a 3 m bei 30 m).
+                    if (L < S * 0.6f + 0.1f) stellen.Add(t0 + L / 2);
+                    else
+                    {
+                        var m = math.max(1, (int)math.ceil((L - 3f) / S - 0.01f));
+                        for (var k = 0; k <= m; k++) stellen.Add(t0 + 1.5f + (L - 3f) * k / m);
+                    }
+                    foreach (var t in stellen)
+                        roh.Add(aussen
+                            ? new LaternenPlatz { Position = W(s, t), Art = LaternenArt.Rand, Richtung = -d * dc }
+                            : new LaternenPlatz { Position = W(s, t), Art = LaternenArt.Streifen, Richtung = dc });
                 }
             }
 
-            // Naeher als 4 m: zusammenlegen; eine Kappe gewinnt
-            var fertig = new List<LaternenPlatz>();
-            foreach (var lt in roh)
+            // Aussen und innen getrennt (Nutzer 2026-10-04: die Randleuchten duerfen
+            // nicht beeinflussen, wie innen gesetzt wird). Innen: naeher als 5 m
+            // zusammenlegen, eine Kappe gewinnt. Aussen: zusammenlegen und auf
+            // 0,45 x Abstand ausduennen - an schraegen Kanten bringt jedes
+            // Treppenstueck zwei mit.
+            var innen = new List<LaternenPlatz>();
+            foreach (var lt in roh.Where(l => l.Art != LaternenArt.Rand))
             {
-                var i = fertig.FindIndex(f => math.distance(f.Position, lt.Position) < 4f);
-                if (i >= 0) { plan.Zusammengelegt++; if (lt.Art == LaternenArt.Kappe) fertig[i] = lt; continue; }
-                fertig.Add(lt);
+                var i = innen.FindIndex(f => math.distance(f.Position, lt.Position) < 5f);
+                if (i >= 0) { plan.Zusammengelegt++; if (lt.Art == LaternenArt.Kappe) innen[i] = lt; continue; }
+                innen.Add(lt);
             }
-            // Randlaternen ausduennen
-            var innen = fertig.Where(l => l.Art != LaternenArt.Rand).ToList();
             var rand = new List<LaternenPlatz>();
-            foreach (var lt in fertig.Where(l => l.Art == LaternenArt.Rand))
+            // -0,1: Randlaternen sitzen 1,5 m eingerueckt auf dem Buchtraster, ihre
+            // Abstaende sind oft Vielfache von 1,5 m - und 0,45 x 20/30/40 m trifft
+            // genau dieses Raster.
+            var randAbstand = math.max(4f, 0.45f * S - 0.1f);
+            foreach (var lt in roh.Where(l => l.Art == LaternenArt.Rand))
             {
-                if (innen.Concat(rand).Any(f => math.distance(f.Position, lt.Position) < 0.45f * S)) { plan.Ausgeduennt++; continue; }
+                if (rand.Any(f => math.distance(f.Position, lt.Position) < randAbstand)) { plan.Ausgeduennt++; continue; }
                 rand.Add(lt);
             }
             plan.Laternen.AddRange(innen);

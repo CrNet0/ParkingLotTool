@@ -773,6 +773,13 @@ namespace ParkingLotTool.Geometry
         public RejectInfo[] Rejects { get; internal set; } = Array.Empty<RejectInfo>();
         public Entrance[] Entrances { get; internal set; } = Array.Empty<Entrance>();
         public float2[] Ring { get; internal set; } = Array.Empty<float2>();
+        /**
+         * Der Umriss, den der Spieler gezogen hat - unveraendert. `Ring` taugt
+         * dafuer nicht: im Zellenweg ist er die Mittellinie der Randstrasse
+         * (rund 14 m eingerueckt), im Teilflaechenweg der Umriss. Die Laternen
+         * brauchen den echten Rand, um aussen von innen zu trennen.
+         */
+        public float2[] Grundstueck { get; internal set; } = Array.Empty<float2>();
         public LayoutSection[] Sections { get; internal set; } = Array.Empty<LayoutSection>();
         public LayoutPassInfo[] PassInfo { get; internal set; } = Array.Empty<LayoutPassInfo>();
         public LayoutCrossRouteInfo[] CrossRouteInfo { get; internal set; } =
@@ -904,7 +911,9 @@ namespace ParkingLotTool.Geometry
              * der einen unbenutzten Weg bewacht, gibt eine Sicherheit vor,
              * die es nicht gibt.
              */
-            return BuildZellen(site, settings);
+            var layout = BuildZellen(site, settings);
+            layout.Grundstueck = site?.ToArray() ?? Array.Empty<float2>();
+            return layout;
         }
 
         /** Wie viele Materialflaechen unter CS2s Mindestkante liegen. */

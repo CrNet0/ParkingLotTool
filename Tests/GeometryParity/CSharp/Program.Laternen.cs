@@ -16,6 +16,8 @@ using Unity.Mathematics;
  * - Zittern: alle Koordinaten +-0,5 mm - das Ergebnis darf sich nicht aendern
  *   (genau daran zerfielen am 2026-10-04 die Reihen).
  * - Ohne Gras: dann gibt es keine Kappen - der Vergleich MUSS scheitern.
+ * - Ohne Grundstuecksumriss: dann ist nichts aussen, es gibt keine einseitigen
+ *   Randlaternen - der Vergleich MUSS scheitern.
  * - Verschobene Erwartung: eine Laterne 1 m daneben - MUSS scheitern.
  */
 internal static partial class Program
@@ -43,25 +45,39 @@ internal static partial class Program
             if (befund != null) fehler++;
         }
 
-        // Gegenprobe 1: Zittern um +-0,5 mm darf nichts aendern
-        var zufall = new System.Random(4711);
-        float Z() => (float)(zufall.NextDouble() - 0.5) * 0.001f;
+        // Gegenprobe 1: Zittern um +-0,5 mm darf nichts aendern. Fuenf Startwerte
+        // und alle drei Abstaende: ein einzelner Lauf fand nur die Kanten, die sein
+        // Zufall gerade traf (2026-10-04: die 13,5-m-Ausduennung erst im dritten Anlauf).
         foreach (var fall in faelle)
         {
-            var l = fall.Layout;
-            var zitter = NeuesLayout(
-                l.Bay.Select(p => p.Select(q => q + new float2(Z(), Z())).ToArray()).ToArray(),
-                l.GrassSurface.Select(r => r.Select(q => q + new float2(Z(), Z())).ToArray()).ToArray(),
-                l.AisleLine, l.CrossLine, l.NetLine);
-            var befund = VergleicheLaternen(fall.Erwartet[30], ParkingLanterns.Plan(zitter, 30).Laternen, 0.1f);
-            Console.WriteLine($"Zittern {fall.Name}: {(befund ?? "unveraendert")}");
-            if (befund != null) fehler++;
+            string erster = null;
+            var laeufe = 0;
+            foreach (var saat in new[] { 4711, 1, 2, 3, 4 })
+            {
+                var zufall = new System.Random(saat);
+                float Z() => (float)(zufall.NextDouble() - 0.5) * 0.001f;
+                var l = fall.Layout;
+                var zitter = NeuesLayout(
+                    l.Bay.Select(p => p.Select(q => q + new float2(Z(), Z())).ToArray()).ToArray(),
+                    l.GrassSurface.Select(r => r.Select(q => q + new float2(Z(), Z())).ToArray()).ToArray(),
+                    l.AsphaltSurface.Select(r => r.Select(q => q + new float2(Z(), Z())).ToArray()).ToArray(),
+                    l.AisleLine, l.CrossLine, l.NetLine,
+                    l.Grundstueck.Select(q => q + new float2(Z(), Z())).ToArray());
+                foreach (var (abstand, soll) in fall.Erwartet)
+                {
+                    laeufe++;
+                    var befund = VergleicheLaternen(soll, ParkingLanterns.Plan(zitter, abstand).Laternen, 0.1f);
+                    if (befund != null && erster == null) erster = $"Saat {saat} @{abstand} m: {befund}";
+                }
+            }
+            Console.WriteLine($"Zittern {fall.Name} ({laeufe} Laeufe): {(erster ?? "unveraendert")}");
+            if (erster != null) fehler++;
         }
 
         // Gegenprobe 2: ohne Gras keine Kappen - muss auffallen
         var mitKappen = faelle.First(f => f.Erwartet[30].Any(x => x.Art == "Kappe"));
-        var ohneGras = NeuesLayout(mitKappen.Layout.Bay, Array.Empty<float2[]>(), mitKappen.Layout.AisleLine,
-            mitKappen.Layout.CrossLine, mitKappen.Layout.NetLine);
+        var ohneGras = NeuesLayout(mitKappen.Layout.Bay, Array.Empty<float2[]>(), mitKappen.Layout.AsphaltSurface, mitKappen.Layout.AisleLine,
+            mitKappen.Layout.CrossLine, mitKappen.Layout.NetLine, mitKappen.Layout.Grundstueck);
         var probe2 = VergleicheLaternen(mitKappen.Erwartet[30], ParkingLanterns.Plan(ohneGras, 30).Laternen);
         Console.WriteLine($"Gegenprobe ohne Gras ({mitKappen.Name}): {(probe2 != null ? "faellt auf - " + probe2 : "UNBEMERKT")}");
         if (probe2 == null) fehler++;
@@ -73,13 +89,29 @@ internal static partial class Program
         Console.WriteLine($"Gegenprobe verschobene Erwartung: {(probe3 != null ? "faellt auf" : "UNBEMERKT")}");
         if (probe3 == null) fehler++;
 
+        // Gegenprobe 4: ohne Umriss ist nichts aussen - muss auffallen
+        var mitRand = faelle.First(f => f.Erwartet[30].Any(x => x.Art == "Rand"));
+        var ohneUmriss = NeuesLayout(mitRand.Layout.Bay, mitRand.Layout.GrassSurface, mitRand.Layout.AsphaltSurface, mitRand.Layout.AisleLine,
+            mitRand.Layout.CrossLine, mitRand.Layout.NetLine, Array.Empty<float2>());
+        var probe4 = VergleicheLaternen(mitRand.Erwartet[30], ParkingLanterns.Plan(ohneUmriss, 30).Laternen);
+        Console.WriteLine($"Gegenprobe ohne Umriss ({mitRand.Name}): {(probe4 != null ? "faellt auf - " + probe4 : "UNBEMERKT")}");
+        if (probe4 == null) fehler++;
+
         Console.WriteLine(fehler == 0 ? "LATERNEN OK" : $"LATERNEN: {fehler} Fehler");
         return fehler == 0 ? 0 : 1;
     }
 
     private static string VergleicheLaternen(List<(float2 P, string Art, float2 R)> soll, List<LaternenPlatz> ist, float tol = 0.05f)
     {
-        if (soll.Count != ist.Count) return $"Anzahl {ist.Count} statt {soll.Count}";
+        if (soll.Count != ist.Count)
+        {
+            // Welche fehlt oder ist zu viel: sonst sucht man die Kante blind.
+            var zuViel = ist.Where(x => !soll.Any(s => math.distance(x.Position, s.P) < tol && x.Art.ToString() == s.Art));
+            var fehlt = soll.Where(s => !ist.Any(x => math.distance(x.Position, s.P) < tol && x.Art.ToString() == s.Art));
+            return $"Anzahl {ist.Count} statt {soll.Count}"
+                + string.Concat(zuViel.Take(3).Select(x => $"; zu viel {x.Art} ({x.Position.x:F2}/{x.Position.y:F2})"))
+                + string.Concat(fehlt.Take(3).Select(s => $"; fehlt {s.Art} ({s.P.x:F2}/{s.P.y:F2})"));
+        }
         var frei = ist.ToList();
         foreach (var s in soll)
         {
@@ -93,8 +125,10 @@ internal static partial class Program
         return null;
     }
 
-    private static ParkingLayout NeuesLayout(float2[][] bay, float2[][] gras, float2[][] aisle, float2[][] cross, NetSegment[] netze)
-        => new ParkingLayout { Bay = bay, GrassSurface = gras, AisleLine = aisle, CrossLine = cross, NetLine = netze };
+    private static ParkingLayout NeuesLayout(float2[][] bay, float2[][] gras, float2[][] asphalt, float2[][] aisle, float2[][] cross,
+        NetSegment[] netze, float2[] grundstueck)
+        => new ParkingLayout { Bay = bay, GrassSurface = gras, AsphaltSurface = asphalt, AisleLine = aisle, CrossLine = cross,
+            NetLine = netze, Grundstueck = grundstueck };
 
     private static LaternenFall LiesLaternenFall(string pfad)
     {
@@ -109,7 +143,8 @@ internal static partial class Program
         var fall = new LaternenFall
         {
             Name = Path.GetFileNameWithoutExtension(pfad),
-            Layout = NeuesLayout(Ringe("Bay"), Ringe("GrassSurface"), Ringe("AisleLine"), Ringe("CrossLine"), netze),
+            Layout = NeuesLayout(Ringe("Bay"), Ringe("GrassSurface"), Ringe("AsphaltSurface"), Ringe("AisleLine"), Ringe("CrossLine"), netze,
+                l.GetProperty("Grundstueck").EnumerateArray().Select(P).ToArray()),
         };
         foreach (var e in wurzel.GetProperty("Erwartet").EnumerateObject())
             fall.Erwartet[int.Parse(e.Name)] = e.Value.EnumerateArray().Select(x => (
