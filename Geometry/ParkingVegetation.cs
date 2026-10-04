@@ -12,8 +12,13 @@ namespace ParkingLotTool.Geometry
         /** Hoehe der groessten Altersstufe (m_Bounds.max.y); 0 = unbekannt. */
         public float Hoehe;
 
-        /** Ab hier pflanzt der Planer wie einen Baum. */
-        public const float BaumHoehe = 4f;
+        /**
+         * Ab hier pflanzt der Planer wie einen Baum. GEMESSEN am Katalog (2026-10-04,
+         * 63 Pflanzen): hoechster Busch Wilder Gruenbusch 02 mit 4,0 m, kleinster Baum
+         * der Apfelbaum mit 5,7 m. Die Grenze liegt in der Luecke; bei 4 m lag der
+         * Gruenbusch genau auf der Kante.
+         */
+        public const float BaumHoehe = 5f;
 
         /**
          * Pflanzt sich wie ein Baum: hoch genug. NICHT `Tree` - das heisst
