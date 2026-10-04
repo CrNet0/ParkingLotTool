@@ -18,6 +18,8 @@ namespace ParkingLotTool.Tools
         public string Id, Name, Icon;
         public bool Tree;
         public float Spacing;
+        /** Kollisionsradius m_Size.x/2 und Hoehe m_Bounds.max.y - so prueft CS2 sie gegen Laternen. */
+        [JsonIgnore] public float Radius, Hoehe;
         [JsonIgnore] public Entity Prefab;
     }
     internal sealed class VegetationSet
@@ -156,7 +158,8 @@ namespace ParkingLotTool.Tools
                         // Die ECHTE Groesse, ohne eigene Schranken: `ParkingVegetation.Spacing`
                         // vergleicht damit gegen dieselbe Zahl, die CS2 fuer seine
                         // Kollisionskreise benutzt (`ObjectGeometryData.m_Size`).
-                        Tree = tree, Spacing = math.max(0.5f, math.max(size.x, size.z)), Prefab = entity });
+                        Tree = tree, Spacing = math.max(0.5f, math.max(size.x, size.z)), Prefab = entity,
+                        Radius = geometry.m_Size.x * 0.5f, Hoehe = geometry.m_Bounds.max.y });
                 }
             _vegetationAssets.Sort((a,b) => string.Compare(a.Name,b.Name,StringComparison.CurrentCulture));
             AddVegetationSet("wild-deciduous", "Wilde Laubbäume", "Wild deciduous trees", "TreesDeciduous",

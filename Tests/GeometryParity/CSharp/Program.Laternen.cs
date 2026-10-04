@@ -97,8 +97,45 @@ internal static partial class Program
         Console.WriteLine($"Gegenprobe ohne Umriss ({mitRand.Name}): {(probe4 != null ? "faellt auf - " + probe4 : "UNBEMERKT")}");
         if (probe4 == null) fehler++;
 
+        fehler += PruefeLaternenkollision();
+
         Console.WriteLine(fehler == 0 ? "LATERNEN OK" : $"LATERNEN: {fehler} Fehler");
         return fehler == 0 ? 0 : 1;
+    }
+
+    /**
+     * Die nachgerechnete CS2-Pruefung (Geometry/Laternenkollision) an einer
+     * Doppellaterne mit den Massen aus der Inventur (StreetlightDouble02, Arme
+     * +-1,9 m, Mast 0,3 m; Beinhoehe hier angenommen 5 m). Prueft unsere
+     * Umsetzung, nicht CS2 selbst: Mast, Arme nur fuer hohe Pflanzen, Drehung.
+     */
+    private static int PruefeLaternenkollision()
+    {
+        LaternenKoerper Doppel(float2 vorn) => new LaternenKoerper
+        {
+            Position = new float2(100, 200), Vorwaerts = vorn, Stehend = true, RundesBein = true,
+            Bein = new float3(0.3f, 5f, 0.3f), Min = new float3(-1.9f, 0, -0.15f), Max = new float3(1.9f, 7.02f, 0.15f),
+        };
+        var k = Doppel(new float2(0, 1));
+        var o = k.Position;
+        var faelle = new (string Name, LaternenKoerper K, float2 P, float R, float H, bool Soll)[]
+        {
+            ("niedriger Busch am Mast", k, o + new float2(0.6f, 0), 0.5f, 1f, true),
+            ("niedriger Busch knapp frei", k, o + new float2(0.75f, 0), 0.5f, 1f, false),
+            ("niedriger Busch unter dem Arm", k, o + new float2(1.5f, 0), 0.5f, 1f, false),
+            ("hoher Busch am Armende", k, o + new float2(2.3f, 0), 0.5f, 6f, true),
+            ("hoher Busch quer zum Arm", k, o + new float2(0, 0.8f), 0.5f, 6f, false),
+            ("gedreht: Arme laufen in Z", Doppel(new float2(1, 0)), o + new float2(0, 2.3f), 0.5f, 6f, true),
+            ("gedreht: quer dazu frei", Doppel(new float2(1, 0)), o + new float2(2.3f, 0), 0.5f, 6f, false),
+        };
+        var fehler = 0;
+        foreach (var f in faelle)
+        {
+            var ist = Laternenkollision.Beruehrt(f.K, f.P, f.R, f.H);
+            if (ist != f.Soll) { fehler++; Console.WriteLine($"Kollision {f.Name}: {ist} statt {f.Soll}"); }
+        }
+        Console.WriteLine($"Laternenkollision: {faelle.Length - fehler} von {faelle.Length} richtig");
+        return fehler;
     }
 
     private static string VergleicheLaternen(List<(float2 P, string Art, float2 R)> soll, List<LaternenPlatz> ist, float tol = 0.05f)

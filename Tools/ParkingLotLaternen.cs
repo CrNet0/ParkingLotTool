@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Game.Common;
+using Game.Objects;
 using Game.Prefabs;
 using Game.Simulation;
 using Game.Tools;
@@ -29,8 +30,8 @@ namespace ParkingLotTool.Tools
     {
         private static readonly LaternenOptionen StandardLaternen = new LaternenOptionen();
 
-        /** Laternenpunkte des laufenden Baus - auch die Pflanzenplanung des Baus haelt sie frei. */
-        private List<float2> _bauLaternenPunkte;
+        /** Laternen des laufenden Baus - auch die Pflanzenplanung des Baus haelt sie frei. */
+        private List<LaternenKoerper> _bauLaternenKoerper;
         private int _laternenCount;
         private readonly Dictionary<string, Entity> _laternenPrefabs = new Dictionary<string, Entity>();
 
@@ -41,8 +42,41 @@ namespace ParkingLotTool.Tools
                 ? ParkingLanterns.Plan(layout, optionen.Abstand)
                 : new LaternenPlan();
 
-        internal static List<float2> Laternenpunkte(LaternenPlan plan)
-            => plan.Laternen.Select(l => l.Position).ToList();
+        /**
+         * Die Kollisionsform jeder Laterne aus den Daten ihres Prefabs, so wie
+         * CS2 sie gegen Pflanzen prueft (Geometry/Laternenkollision). Ohne
+         * gefundenes Prefab wird die Laterne nicht gebaut - dann haelt auch
+         * niemand Platz fuer sie frei.
+         */
+        internal List<LaternenKoerper> LaternenKoerperFuer(LaternenPlan plan, LaternenOptionen optionen)
+        {
+            var liste = new List<LaternenKoerper>();
+            foreach (var platz in plan.Laternen)
+            {
+                var name = optionen.ModellFuer(platz);
+                var prefab = LaternenPrefab(name);
+                if (prefab == Entity.Null || !EntityManager.HasComponent<ObjectGeometryData>(prefab)) continue;
+                var g = EntityManager.GetComponentData<ObjectGeometryData>(prefab);
+                var bauart = LaternenKatalog.Modell(name)?.Bauart
+                    ?? (platz.Doppelt ? LaternenBauart.Doppelt : LaternenBauart.Einseitig);
+                liste.Add(new LaternenKoerper
+                {
+                    Position = platz.Position,
+                    Vorwaerts = math.normalizesafe(LaternenKatalog.Vorwaerts(platz, bauart)),
+                    Stehend = (g.m_Flags & GeometryFlags.Standing) != 0,
+                    RundesBein = (g.m_Flags & GeometryFlags.CircularLeg) != 0,
+                    BeinOhneKollision = (g.m_Flags & GeometryFlags.IgnoreLegCollision) != 0,
+                    Rund = (g.m_Flags & GeometryFlags.Circular) != 0,
+                    Bein = g.m_LegSize,
+                    BeinVersatz = g.m_LegOffset,
+                    Min = (g.m_Flags & GeometryFlags.IgnoreBottomCollision) != 0
+                        ? new float3(g.m_Bounds.min.x, math.max(g.m_Bounds.min.y, 0f), g.m_Bounds.min.z) : g.m_Bounds.min,
+                    Max = g.m_Bounds.max,
+                    Groesse = g.m_Size.x,
+                });
+            }
+            return liste;
+        }
 
         /** Laternen und Pflanzen der Vorschau neu, ohne neue Layoutrechnung. */
         internal void RefreshLaternenPreview() => RefreshVegetationPreview();
@@ -61,7 +95,7 @@ namespace ParkingLotTool.Tools
         {
             var optionen = AktuelleLaternen;
             var plan = LaternenPlanFuer(layout, optionen);
-            _bauLaternenPunkte = Laternenpunkte(plan);
+            _bauLaternenKoerper = LaternenKoerperFuer(plan, optionen);
             _laternenCount = 0;
             if (plan.Laternen.Count == 0) yield break;
             var fehlend = new HashSet<string>();

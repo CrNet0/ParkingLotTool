@@ -50,9 +50,9 @@ namespace ParkingLotTool.Tools
             _overlay.SetLaternen(laternen, laternenOptionen, _terrainSystem);
             var options=_bauvegetation ?? _uiSystem?.Vegetation ?? new VegetationOptions();
             var assets=(_baupflanzen ?? _uiSystem?.VegetationAssets ?? Array.Empty<VegetationAsset>()).Where(a=>options.Species.Contains(a.Id)).ToArray();
-            var species=assets.Select(a=>new VegetationSpecies {Id=a.Id,Tree=a.Tree,Spacing=a.Spacing}).ToArray();
+            var species=assets.Select(a=>new VegetationSpecies {Id=a.Id,Tree=a.Tree,Spacing=a.Spacing,Radius=a.Radius,Hoehe=a.Hoehe}).ToArray();
             ParkingVegetation.Dichtefaktor = Mod.Optionen?.Vegetationsdichte ?? 1f;
-            var plan=ParkingVegetation.Plan(grass,options,species,Laternenpunkte(laternen));
+            var plan=ParkingVegetation.Plan(grass,options,species,LaternenKoerperFuer(laternen, laternenOptionen));
             if (ParkingLotLiveLog.Aktiv)
             {
                 _vorschauPflanzenkandidaten = plan.Candidates;
@@ -410,8 +410,14 @@ namespace ParkingLotTool.Tools
         {
             var s = new StringBuilder(options);
             foreach(var ring in grass) {s.Append('|');foreach(var p in ring) s.Append(Math.Round(p.x*1000)).Append(',').Append(Math.Round(p.y*1000)).Append(';');}
-            // Die Laternen gehoeren dazu: andere Laternenpunkte heissen andere Freihaltung.
-            if (_bauLaternenPunkte != null) { s.Append("|L"); foreach (var p in _bauLaternenPunkte) s.Append(Math.Round(p.x*1000)).Append(',').Append(Math.Round(p.y*1000)).Append(';'); }
+            // Die Laternen gehoeren dazu: andere Lage, Drehung oder Modell heissen andere Freihaltung.
+            if (_bauLaternenKoerper != null)
+            {
+                s.Append("|L");
+                foreach (var k in _bauLaternenKoerper)
+                    foreach (var v in new[] { k.Position.x, k.Position.y, k.Vorwaerts.x, k.Vorwaerts.y, k.Bein.x, k.Bein.y, k.Max.x, k.Max.y, k.Max.z })
+                        s.Append(Math.Round(v*1000)).Append(',');
+            }
             using(var sha = SHA256.Create()) return Convert.ToBase64String(sha.ComputeHash(Encoding.UTF8.GetBytes(s.ToString())));
         }
         private int CreateVegetationDefinitions(float2[][] grass, ref TerrainHeightData heightData)
@@ -462,16 +468,16 @@ namespace ParkingLotTool.Tools
                           ? "GLEICH - dann liegt es an den Gruenflaechen"
                           : "verschieden") + ". Alt: " + old.Options));
             var assets=(_baupflanzen ?? _uiSystem?.VegetationAssets ?? Array.Empty<VegetationAsset>()).Where(a=>options.Species.Contains(a.Id)).ToArray();
-            var species=assets.Select(a=>new VegetationSpecies {Id=a.Id,Tree=a.Tree,Spacing=a.Spacing}).ToArray();
+            var species=assets.Select(a=>new VegetationSpecies {Id=a.Id,Tree=a.Tree,Spacing=a.Spacing,Radius=a.Radius,Hoehe=a.Hoehe}).ToArray();
             ParkingVegetation.Dichtefaktor = Mod.Optionen?.Vegetationsdichte ?? 1f;
-            var laternenpunkte = _bauLaternenPunkte;
+            var laternenpunkte = _bauLaternenKoerper;
             var rechnung = _bauarbeiter ? System.Threading.Tasks.Task.Run(() => ParkingVegetation.Plan(grass,options,species,laternenpunkte)) : null;
             while (rechnung != null && !rechnung.IsCompleted) yield return 0;
             var plan = rechnung != null ? rechnung.GetAwaiter().GetResult() : ParkingVegetation.Plan(grass,options,species,laternenpunkte);
             Mod.log.Info("PLT-Vorbauzettel Vegetation: Dichtefaktor "
                 + ParkingVegetation.Dichtefaktor.ToString("F1") + "; " + json + "; Kandidaten="+plan.Candidates+"; Pflanzen="+plan.Plants.Count+"; Grenze="+plan.Limited
                 + "; verworfen: Rand="+plan.RandVerworfen+", Wuerfel="+plan.WuerfelVerworfen
-                + ", Abstand="+plan.AbstandVerworfen+", ausserhalb="+plan.AussenVerworfen);
+                + ", Abstand="+plan.AbstandVerworfen+", ausserhalb="+plan.AussenVerworfen+", Laternen="+plan.LaternenVerworfen);
             if(options.Enabled && assets.Length==0) _uiSystem?.SetStatus(ParkingLotTexte.T("Vegetation: keine verfügbaren Pflanzen ausgewählt.","Vegetation: no available plants selected."));
             if(plan.Limited) Mod.log.Warn("PLT-Vegetation: Kandidatengrenze erreicht; Teilbepflanzung im Vorbauzettel.");
             var gewaehlt=new int[6];

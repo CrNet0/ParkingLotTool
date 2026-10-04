@@ -9,6 +9,11 @@ namespace ParkingLotTool.Geometry
         public string Id;
         public bool Tree;
         public float Spacing;
+        /**
+         * Wie CS2 die Pflanze gegen andere Objekte prueft: Radius m_Size.x/2,
+         * Hoehe m_Bounds.max.y (siehe Laternenkollision). 0 = Spacing/2.
+         */
+        public float Radius, Hoehe;
     }
     public sealed class VegetationOptions
     {
@@ -146,7 +151,7 @@ namespace ParkingLotTool.Geometry
         }
 
         public static VegetationPlan Plan(float2[][] rings, VegetationOptions options,
-            VegetationSpecies[] species, IReadOnlyList<float2> laternen = null)
+            VegetationSpecies[] species, IReadOnlyList<LaternenKoerper> laternen = null)
         {
             var result = new VegetationPlan();
             if (!options.Enabled || options.Density <= 0 || species.Length == 0) return result;
@@ -252,14 +257,17 @@ namespace ParkingLotTool.Geometry
                             { result.WuerfelVerworfen++; continue; }
                         }
                         var world = origin + axis * p.x + across * p.y;
-                        // Laternen freihalten (Laternenplan vom 2026-10-04): Baeume 3 m. Buesche
-                        // nur den Mast, 0,5 m (Nutzer 2026-10-04): mit halber Buschbreite blieb
-                        // bei 100 % Dichte ein leerer Ring um jede Laterne.
+                        // Laternen freihalten: genau dort, wo CS2 die Pflanze sonst verdecken
+                        // wuerde (Laternenkollision) - je Art verschieden, aber ohne Loch.
+                        // Baeume zusaetzlich mindestens 3 m (Laternenplan vom 2026-10-04).
                         if (laternen != null && laternen.Count > 0)
                         {
-                            var frei = kind.Tree ? 3f : 0.5f;
+                            var radius = kind.Radius > 0 ? kind.Radius : kind.Spacing * 0.5f;
+                            var hoehe = kind.Hoehe > 0 ? kind.Hoehe : radius * 2f;
                             var weg = false;
-                            foreach (var l in laternen) if (math.distancesq(world, l) < frei * frei) { weg = true; break; }
+                            foreach (var l in laternen)
+                                if ((kind.Tree && math.distancesq(world, l.Position) < 9f)
+                                    || Laternenkollision.Beruehrt(l, world, radius, hoehe)) { weg = true; break; }
                             if (weg) { result.LaternenVerworfen++; continue; }
                         }
                         int gx = (int)Math.Floor(world.x / 16f), gy = (int)Math.Floor(world.y / 16f);

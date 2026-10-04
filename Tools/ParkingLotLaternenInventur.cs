@@ -95,7 +95,8 @@ namespace ParkingLotTool.Tools
             var g = EntityManager.GetComponentData<ObjectGeometryData>(e);
             var text = "'" + asset.name + "' (" + asset.GetType().Name + "): Bounds " + F3(g.m_Bounds.min) + ".." + F3(g.m_Bounds.max)
                 + ", Hoehe " + F(g.m_Bounds.max.y - g.m_Bounds.min.y) + " m, Pivot " + F3(g.m_Pivot)
-                + ", Flags " + g.m_Flags;
+                + ", Flags " + g.m_Flags + ", Groesse " + F3(g.m_Size) + ", Bein " + F3(g.m_LegSize)
+                + " Versatz (" + F(g.m_LegOffset.x) + "|" + F(g.m_LegOffset.y) + ")";
             text += ", Platzierbar " + (EntityManager.HasComponent<PlaceableObjectData>(e) ? "ja" : "nein");
             text += ", UIObject " + (EntityManager.HasComponent<UIObjectData>(e) ? "ja" : "nein");
             if (EntityManager.HasComponent<StreetLightData>(e))
