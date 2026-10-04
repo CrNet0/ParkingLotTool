@@ -113,6 +113,7 @@ internal static partial class Program
 
     private static int Main(string[] args)
     {
+        if (args.Length == 1 && args[0] == "--laternen") return PruefeLaternen();
         if (args.Length == 1 && args[0] == "--versorgung") return PruefeVersorgungskurse();
         // Ohne diesen Rahmen zeigt Windows bei jeder unbehandelten Ausnahme
         // einen Absturzdialog. Waehrend der Arbeit lief der Test hunderte Male,
