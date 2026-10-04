@@ -16,7 +16,7 @@ const MODNAME = "Parking Lot Tool";
  * Waehrend einer automatischen Synchronisation Fortschritt und Balken,
  * klickdurchlaessig. Danach EINE Meldung mit allem, was von selbst passiert
  * ist (synchronisiert, Waisen repariert, Bauplaene wiederhergestellt), bis
- * C# sie nach 10 s wegnimmt oder ein Klick sie schliesst. Die Oberflaeche
+ * C# sie nach 30 s wegnimmt oder ein Klick sie schliesst. Die Oberflaeche
  * merkt sich bewusst nichts - so haengt nichts davon ab, wann diese
  * Komponente eingehaengt wurde.
  */

@@ -98,7 +98,8 @@ namespace ParkingLotTool.Tools
          */
         private ValueBinding<string> _syncErgebnis;
         private readonly Stopwatch _ergebnisUhr = new Stopwatch();
-        private const double ErgebnisSekunden = 10.0;
+        // 30 s (Nutzer 2026-10-04: "10 sind echt wenig, damit der User das mitbekommt").
+        private const double ErgebnisSekunden = 30.0;
 
         /*
          * EINE MELDUNG FUER ALLES, WAS VON SELBST PASSIERT (Nutzer,
