@@ -699,7 +699,23 @@ namespace ParkingLotTool.Tools
          */
         private void ParkplatzBearbeiten(string schluessel)
         {
-            if (!VersucheSchluessel(schluessel, out var lot)) return;
+            if (!VersucheSchluessel(schluessel, out var lot))
+            {
+                /*
+                 * NICHT STILL SCHEITERN.
+                 *
+                 * Der Schluessel enthaelt auch die Entity-Version. Wurde der
+                 * Parkplatz inzwischen neu gebaut, zeigt er auf die alte,
+                 * weggefallene Fassung. Vorher kehrte die Methode wortlos
+                 * zurueck - im Spiel sah das aus, als haette der Klick die
+                 * Auswahl verloren. Jetzt steht der Grund im Modlog.
+                 */
+                Mod.log.Warn("PLT-Liste: Bearbeiten-Schluessel '" + schluessel
+                    + "' zeigt auf keine vorhandene Flaeche mehr - die Liste "
+                    + "bitte neu aufbauen lassen.");
+                _frames = AktualisierungFrames;
+                return;
+            }
             if (EntityManager.HasComponent<Deleted>(lot)) return;
             _selectedInfo.SetSelection(lot);
             _selectedInfo.Focus(lot);

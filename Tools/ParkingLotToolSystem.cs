@@ -299,6 +299,32 @@ namespace ParkingLotTool.Tools
         private JobHandle OnUpdateGemessen(JobHandle inputDeps)
         {
             var deps = base.OnUpdate(inputDeps);
+            /*
+             * EIN OFFENER BEARBEITEN-AUFTRAG HAELT DAS WERKZEUG AKTIV.
+             *
+             * `RequestEdit` stellt das Werkzeug auf dieses hier um. CS2 kann
+             * diese Umschaltung aber im selben Bild wieder verwerfen - etwa
+             * wenn der Klick noch als Weltklick verarbeitet wird. Dann bleibt
+             * `_pendingEditLot` gesetzt, `TryBeginPendingEdit` laeuft nie, und
+             * jeder weitere Klick meldet nur "es wird bereits bearbeitet".
+             * Genau das sah der Nutzer als "die Auswahl geht verloren": erst
+             * das Verlassen des Werkzeugs raeumte den haengenden Auftrag weg.
+             *
+             * Deshalb wird die Umschaltung so lange wiederholt, bis das
+             * Werkzeug wirklich aktiv ist und den Auftrag verbraucht hat.
+             */
+            if (_pendingEditLot != Entity.Null && m_ToolSystem.activeTool != this)
+                m_ToolSystem.activeTool = this;
+            /*
+             * FALLBACK, falls CS2 kein Ende-Ereignis schickt. Ein Spielstand
+             * dieser Groesse braucht einige Sekunden; solange gewartet wird,
+             * wird nicht fortgesetzt. Danach schon - lieber spaet als die
+             * Bearbeitung ganz zu verlieren.
+             */
+            if (_editNachSpeichern != Entity.Null
+                && (!_speicherLaeuft
+                    || UnityEngine.Time.realtimeSinceStartup - _speicherSeit > 20f))
+                NimmBearbeitungNachSpeichernWiederAuf(true);
             PollChargerAudit();
             // Laeuft auch, wenn das Werkzeug nach Enter nicht mehr aktiv ist -
             // gerade der Zustand NACH dem Bau ist die Frage.
