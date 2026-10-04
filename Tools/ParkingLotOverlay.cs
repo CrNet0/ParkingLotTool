@@ -64,6 +64,29 @@ namespace ParkingLotTool.Tools
         }
         private readonly List<float3> _chargers = new List<float3>();
 
+        private readonly List<(float3 Position, LaternenPlatz Platz, LaternenBauart Bauart, float Reichweite)> _laternen
+            = new List<(float3, LaternenPlatz, LaternenBauart, float)>();
+
+        /**
+         * Die Laternen der Vorschau - derselbe Plan, den der Bau setzt.
+         * Wenige Dutzend je Parkplatz; sie werden direkt gezeichnet.
+         */
+        internal void SetLaternen(LaternenPlan plan, LaternenOptionen optionen, TerrainSystem terrain)
+        {
+            _laternen.Clear();
+            if (plan == null || optionen == null || !optionen.Enabled || terrain == null) return;
+            var heights = terrain.GetHeightData();
+            foreach (var platz in plan.Laternen)
+            {
+                var modell = LaternenKatalog.Modell(optionen.ModellFuer(platz));
+                var point = new float3(platz.Position.x, 0, platz.Position.y);
+                point.y = TerrainUtils.SampleHeight(ref heights, point);
+                if (!math.all(math.isfinite(point))) continue;
+                _laternen.Add((point, platz, modell?.Bauart ?? (platz.Doppelt ? LaternenBauart.Doppelt : LaternenBauart.Einseitig),
+                    modell?.Reichweite ?? 18f));
+            }
+        }
+
         private readonly struct Band
         {
             internal readonly Line3.Segment Segment;
@@ -85,6 +108,7 @@ namespace ParkingLotTool.Tools
             _bays.Clear();
             _chargers.Clear();
             _vegetation.Clear();
+            _laternen.Clear();
         }
 
         /**

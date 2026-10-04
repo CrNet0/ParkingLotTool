@@ -21,6 +21,14 @@ namespace ParkingLotTool.Tools
                 new float2(0f, 1f), position, diameter);
         }
 
+        /** Nur der Rand eines Kreises, innen durchsichtig (Lichtkreis der Laternen). */
+        internal void DrawRing(Color color, float3 position, float diameter, float width)
+        {
+            _buffer.DrawCircle(color, new Color(0f, 0f, 0f, 0f), width,
+                OverlayRenderSystem.StyleFlags.Projected,
+                new float2(0f, 1f), position, diameter);
+        }
+
         internal void DrawLine(Color color, Line3.Segment line, float width,
             bool cameraFacing = false)
         {

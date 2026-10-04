@@ -196,6 +196,8 @@ namespace ParkingLotTool
             updateSystem.UpdateAt<ParkingLotHerzschlagSystem>(SystemUpdatePhase.MainLoop);
             // Einmal nach dem Laden: Masse und Lichtbedingungen der Laternen.
             updateSystem.UpdateAt<ParkingLotLaternenInventurSystem>(SystemUpdatePhase.UIUpdate);
+            // Unsere Laternen nach Tag und Nacht schalten (Vanilla tut es nur fuer Strassen und Gebaeude).
+            updateSystem.UpdateAt<ParkingLotLaternenSchalterSystem>(SystemUpdatePhase.GameSimulation);
             // Der Gebuehrenabschnitt im Auswahlfenster. Er traegt sich in
             // OnCreate selbst bei SelectedInfoUISystem ein.
             updateSystem.UpdateAt<ParkingLotFeeSection>(SystemUpdatePhase.UIUpdate);

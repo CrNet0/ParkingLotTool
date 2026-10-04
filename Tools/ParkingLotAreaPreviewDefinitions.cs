@@ -346,6 +346,10 @@ namespace ParkingLotTool.Tools
             foreach (int n in CreateBayDecalDefinitionsSchritte(layout, _areaPreviewSettings,
                 heightData))
             { created += n; yield return n; }
+            // Laternen vor den Pflanzen: die Bepflanzung haelt ihre Punkte frei.
+            ProtokolliereBauschritt("CreateLanternDefinitions");
+            foreach (int n in CreateLanternDefinitionsSchritte(layout, heightData))
+            { created += n; yield return n; }
             ProtokolliereBauschritt("CreateVegetationDefinitions");
             /*
              * DIE BEPFLANZUNG HAENGT NICHT AM DEKO-SCHALTER.

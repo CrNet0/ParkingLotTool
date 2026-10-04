@@ -7,6 +7,20 @@ namespace ParkingLotTool.Tools
     internal static class ParkingLotPreviewStyle
     {
         internal static readonly Color VegetationColor = new Color(.49f,.83f,.33f,.75f);
+        /**
+         * Laternen wie im Design "PLT Laternenplanung": warmes Gelb fuer die
+         * Doppelmodelle innen, Orange fuer die Kappen, kraeftiges Orange fuer
+         * die Randleuchten. Der Lichtkreis zeigt die Reichweite des Modells
+         * nur als zarten Rand, damit Luecken auffallen, ohne zuzudecken.
+         */
+        internal static readonly Color LaterneKappeColor = new Color(.95f, .64f, .23f, .95f);
+        internal static readonly Color LaterneInnenColor = new Color(.97f, .81f, .33f, .95f);
+        internal static readonly Color LaterneRandColor = new Color(.91f, .45f, .18f, .95f);
+        internal static readonly Color LaterneArmColor = new Color(.12f, .14f, .13f, .9f);
+        internal static readonly Color LaterneLichtColor = new Color(1f, .9f, .6f, .28f);
+        internal const float LaterneMastDiameter = 1.1f;
+        internal const float LaterneArmLaenge = 2.2f;
+        internal const float LaterneArmBreite = .35f;
         internal static readonly Color BusStopColor = new Color(.18f,.73f,.95f,.9f);
         internal static readonly Color BusStopHoverColor = new Color(.95f,.96f,.25f,1f);
         /**

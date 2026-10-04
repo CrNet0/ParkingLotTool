@@ -112,6 +112,7 @@ namespace ParkingLotTool.Tools
                 _chargers.Count);
             for (var i = 0; i < _chargers.Count; i++)
                 buffer.DrawCircle(ChargerColor, _chargers[i], ChargerDiameter);
+            ZeichneLaternen(buffer);
 
             /*
              * DIE TEILFLAECHEN ALS KLICKZIELE.

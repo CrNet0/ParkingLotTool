@@ -49,7 +49,7 @@ namespace ParkingLotTool.Geometry
          * Ergebnis sah bei allen dreien gleich aus. Jetzt sagt der Bauzettel,
          * welche es war.
          */
-        public int AussenVerworfen, RandVerworfen, WuerfelVerworfen, AbstandVerworfen;
+        public int AussenVerworfen, RandVerworfen, WuerfelVerworfen, AbstandVerworfen, LaternenVerworfen;
     }
     /** Lokale Koordinaten und feste Hashes: gleiche Flaechen erzeugen gleiche
      * Pflanzen. 100 Prozent ist die Abstandsvorgabe, keine Vollbelegung.
@@ -146,7 +146,7 @@ namespace ParkingLotTool.Geometry
         }
 
         public static VegetationPlan Plan(float2[][] rings, VegetationOptions options,
-            VegetationSpecies[] species)
+            VegetationSpecies[] species, IReadOnlyList<float2> laternen = null)
         {
             var result = new VegetationPlan();
             if (!options.Enabled || options.Density <= 0 || species.Length == 0) return result;
@@ -252,6 +252,14 @@ namespace ParkingLotTool.Geometry
                             { result.WuerfelVerworfen++; continue; }
                         }
                         var world = origin + axis * p.x + across * p.y;
+                        // Laternen freihalten (Laternenplan vom 2026-10-04): Baeume 3 m, Buesche 1,5 m.
+                        if (laternen != null && laternen.Count > 0)
+                        {
+                            var frei = kind.Tree ? 3f : 1.5f;
+                            var weg = false;
+                            foreach (var l in laternen) if (math.distancesq(world, l) < frei * frei) { weg = true; break; }
+                            if (weg) { result.LaternenVerworfen++; continue; }
+                        }
                         int gx = (int)Math.Floor(world.x / 16f), gy = (int)Math.Floor(world.y / 16f);
                         bool clear = true;
                         for (int dy = -1; dy <= 1 && clear; dy++) for (int dx = -1; dx <= 1 && clear; dx++)

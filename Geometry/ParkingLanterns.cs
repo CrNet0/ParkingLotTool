@@ -31,6 +31,92 @@ namespace ParkingLotTool.Geometry
         public bool Doppelt => Art != LaternenArt.Rand;
     }
 
+    /** Wie ein Modell leuchtet - bestimmt die Drehung. */
+    public enum LaternenBauart
+    {
+        /** Ein Arm nach lokal +Z (Einzelstrassenlaterne, Gewerbe/Industrie 01-02). */
+        Einseitig,
+        /** Zwei Arme nach lokal +-X (Doppelstrassenlaterne). */
+        Doppelt,
+        /** Rund gebaut, leuchtet nach allen Seiten (Gewerbe/Industrie 03-04). */
+        Rundum,
+    }
+
+    public sealed class LaternenModell
+    {
+        public string Prefab;
+        public LaternenBauart Bauart;
+        public float Hoehe, Reichweite;
+    }
+
+    public sealed class LaternenSet
+    {
+        public string Id, Name;
+        public string Einzeln, Doppelt;
+        public bool Eigen;
+    }
+
+    /**
+     * DIE GEMESSENEN MODELLE (Inventur 2026-10-04, ParkingLotLaternenInventurSystem).
+     *
+     * Hoehe und Lichtreichweite aus den Prefab-Daten; die Bauart aus der Lage
+     * der Lichteffekte (Einzel: +Z, Doppel: +-X, 03/04 rund) und fuer
+     * Gewerbe/Industrie 01-02 aus der Ansage des Nutzers ("einseitig").
+     * Parklichtmaste hat der Nutzer abgelehnt: zu klein, zu wenig Licht.
+     */
+    public static class LaternenKatalog
+    {
+        public static readonly LaternenModell[] Modelle =
+        {
+            new LaternenModell { Prefab = "StreetlightSingle01", Bauart = LaternenBauart.Einseitig, Hoehe = 6.35f, Reichweite = 18f },
+            new LaternenModell { Prefab = "StreetlightSingle02", Bauart = LaternenBauart.Einseitig, Hoehe = 7.02f, Reichweite = 18f },
+            new LaternenModell { Prefab = "StreetlightSingle03", Bauart = LaternenBauart.Einseitig, Hoehe = 6.70f, Reichweite = 18f },
+            new LaternenModell { Prefab = "StreetlightDouble01", Bauart = LaternenBauart.Doppelt, Hoehe = 6.35f, Reichweite = 18f },
+            new LaternenModell { Prefab = "StreetlightDouble02", Bauart = LaternenBauart.Doppelt, Hoehe = 7.02f, Reichweite = 18f },
+            new LaternenModell { Prefab = "StreetlightDouble03", Bauart = LaternenBauart.Doppelt, Hoehe = 6.70f, Reichweite = 18f },
+            new LaternenModell { Prefab = "LightpoleCommercial01", Bauart = LaternenBauart.Einseitig, Hoehe = 10.62f, Reichweite = 20f },
+            new LaternenModell { Prefab = "LightpoleCommercial02", Bauart = LaternenBauart.Einseitig, Hoehe = 10.79f, Reichweite = 20f },
+            new LaternenModell { Prefab = "LightpoleCommercial03", Bauart = LaternenBauart.Rundum, Hoehe = 10.79f, Reichweite = 20f },
+            new LaternenModell { Prefab = "LightpoleCommercial04", Bauart = LaternenBauart.Rundum, Hoehe = 10.82f, Reichweite = 20f },
+            new LaternenModell { Prefab = "LightpoleIndustrial01", Bauart = LaternenBauart.Einseitig, Hoehe = 20.42f, Reichweite = 30f },
+            new LaternenModell { Prefab = "LightpoleIndustrial02", Bauart = LaternenBauart.Einseitig, Hoehe = 20.75f, Reichweite = 30f },
+            new LaternenModell { Prefab = "LightpoleIndustrial03", Bauart = LaternenBauart.Rundum, Hoehe = 22.27f, Reichweite = 30f },
+            new LaternenModell { Prefab = "LightpoleIndustrial04", Bauart = LaternenBauart.Rundum, Hoehe = 22.27f, Reichweite = 30f },
+        };
+
+        /** Die drei festen Sets; je Feld genau ein Modell (Nutzer 2026-10-04). */
+        public static readonly LaternenSet[] Sets =
+        {
+            new LaternenSet { Id = "strasse", Name = "Straße", Einzeln = "StreetlightSingle02", Doppelt = "StreetlightDouble02" },
+            new LaternenSet { Id = "gewerbe", Name = "Gewerbe", Einzeln = "LightpoleCommercial01", Doppelt = "LightpoleCommercial03" },
+            new LaternenSet { Id = "industrie", Name = "Industrie", Einzeln = "LightpoleIndustrial01", Doppelt = "LightpoleIndustrial03" },
+        };
+
+        public static LaternenModell Modell(string prefab)
+            => Modelle.FirstOrDefault(m => m.Prefab == prefab);
+
+        /**
+         * Wohin das Modell lokal +Z zeigen muss, als Richtung in XZ.
+         * Einseitig: der Arm (+Z) in die Leuchtrichtung. Doppelt und rundum:
+         * lokal +X auf die Richtung; bei Unitys LookRotation ist rechts =
+         * oben x vorn, also vorn = (-R.y, R.x).
+         */
+        public static float2 Vorwaerts(LaternenPlatz platz, LaternenBauart bauart)
+            => bauart == LaternenBauart.Einseitig ? platz.Richtung : new float2(-platz.Richtung.y, platz.Richtung.x);
+    }
+
+    /** Was der Spieler eingestellt hat; steht im Bauzettel. */
+    public sealed class LaternenOptionen
+    {
+        public bool Enabled = true;
+        public float Abstand = ParkingLanterns.StandardAbstand;
+        public string Set = "strasse";
+        public string Einzeln = "StreetlightSingle02";
+        public string Doppelt = "StreetlightDouble02";
+
+        public string ModellFuer(LaternenPlatz platz) => platz.Doppelt ? Doppelt : Einzeln;
+    }
+
     public sealed class LaternenPlan
     {
         public readonly List<LaternenPlatz> Laternen = new List<LaternenPlatz>();
