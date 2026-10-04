@@ -10,6 +10,7 @@ const STANDARD = '{"Enabled":true,"Abstand":30,"Set":"strasse","Einzeln":"Street
 const value$ = bindValue<string>("ParkingLotTool", "Laternen", STANDARD);
 const default$ = bindValue<string>("ParkingLotTool", "LaternenDefault", STANDARD);
 const katalog$ = bindValue<string>("ParkingLotTool", "LaternenKatalog", '{"Modelle":[],"Sets":[]}');
+const lichtkreise$ = bindValue<boolean>("ParkingLotTool", "LaternenLichtkreise", false);
 type Optionen = {Enabled:boolean;Abstand:number;Set:string;Einzeln:string;Doppelt:string};
 type Modell = {Id:string;Name:string;Icon:string;Bauart:string};
 type LSet = {Id:string;Name:string;Einzeln:string;Doppelt:string;Custom:boolean};
@@ -81,6 +82,7 @@ export const LaternenFenster = ({ pos, onPos, onClose }: {
  const [rechts,setRechts]=useState(false);
  const [setName,setSetName]=useState("");
  const standard:Optionen=JSON.parse(useValue(default$));
+ const lichtkreise=useValue(lichtkreise$);
  const vergleich=(o:Optionen)=>JSON.stringify([o.Enabled,o.Abstand,o.Einzeln,o.Doppelt]);
  const abweichend=vergleich(optionen)!==vergleich(standard);
  const fehlt=[optionen.Einzeln,optionen.Doppelt].some(id=>katalog.Modelle.length>0&&!katalog.Modelle.some(m=>m.Id===id&&m.Icon!==""));
@@ -107,6 +109,16 @@ export const LaternenFenster = ({ pos, onPos, onClose }: {
     </div>
     <Slider label={t("Abstand","Spacing")} tooltip={t("Größter Abstand zwischen zwei Laternen einer Reihe","Largest gap between two lanterns along a row")}
      value={optionen.Abstand} min={20} max={40} step={1} digits={0} unit="m" ton="Fahrwege" onChange={Abstand=>senden({Abstand})}/>
+    <div className={base.schalterReihe}>
+     <MitTooltip text={t("Zeigt in der Vorschau, wie weit jede Laterne leuchtet. Nur Anzeige, ändert nichts am Bau.","Shows in the preview how far each lantern lights. Display only, does not change the build.")}>
+      <span className={styles.schalterText}>{t("Leuchtreichweite zeigen","Show light range")}</span>
+     </MitTooltip>
+     <button role="switch" aria-label={t("Leuchtreichweite zeigen","Show light range")} aria-checked={lichtkreise}
+      className={`${base.schalter} ${lichtkreise?base.schalterAn:""}`}
+      onClick={()=>trigger("ParkingLotTool","SetLaternenLichtkreise",!lichtkreise)}>
+      <span className={`${base.schalterGriff} ${lichtkreise?base.schalterGriffAn:""}`}/>
+     </button>
+    </div>
     <div className={styles.label}>{t("Sets","Sets")}</div>
     <div className={styles.sets}>{katalog.Sets.map(s=><div key={s.Id} className={styles.set}>
      <MitTooltip text={`${s.Name}: ${name(s.Einzeln)} / ${name(s.Doppelt)}`}>

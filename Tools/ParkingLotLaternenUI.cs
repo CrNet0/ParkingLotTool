@@ -36,6 +36,14 @@ namespace ParkingLotTool.Tools
     public sealed partial class ParkingLotUISystem
     {
         private ValueBinding<string> _laternen, _laternenDefault, _laternenKatalog;
+        private ValueBinding<bool> _laternenLichtkreise;
+
+        /**
+         * Lichtkreise in der Vorschau (Nutzer 2026-10-04: Schalter, Standard aus).
+         * Eine Anzeigeeinstellung, kein Teil der Laternenwahl: steht nicht im
+         * Bauzettel, sondern in den Einstellungen des Spielers.
+         */
+        internal bool LaternenLichtkreise => _laternenLichtkreise?.value ?? false;
         private readonly List<LaternenSetEintrag> _laternenSets = new List<LaternenSetEintrag>();
         private string LaternenSetsPath => Path.Combine(Path.GetDirectoryName(SettingsPath()), "laternen-sets.json");
 
@@ -69,6 +77,15 @@ namespace ParkingLotTool.Tools
             AddBinding(_laternenDefault = new ValueBinding<string>(Group, "LaternenDefault", LaternenStandard()));
             AddBinding(_laternenKatalog = new ValueBinding<string>(Group, "LaternenKatalog", "{\"Modelle\":[],\"Sets\":[]}"));
             AddBinding(new TriggerBinding(Group, "RefreshLaternen", VeroeffentlicheLaternen));
+            AddBinding(_laternenLichtkreise = new ValueBinding<bool>(Group, "LaternenLichtkreise", _defaults?.LaternenLichtkreise ?? false));
+            AddBinding(new TriggerBinding<bool>(Group, "SetLaternenLichtkreise", an =>
+            {
+                if (!UpdateValue(_laternenLichtkreise, an)) return;
+                var next = _defaults.Clone();
+                next.LaternenLichtkreise = an;
+                if (TryWriteDefaults(next)) _defaults = next;
+                Tool()?.RefreshLaternenPreview();
+            }));
             AddBinding(new TriggerBinding(Group, "SaveLaternenDefault", SpeichereLaternenStandard));
             AddBinding(new TriggerBinding(Group, "ResetLaternen", SetzeLaternenZurueck));
             AddBinding(new TriggerBinding<string>(Group, "SetLaternen", json =>

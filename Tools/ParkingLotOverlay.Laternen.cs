@@ -16,12 +16,16 @@ namespace ParkingLotTool.Tools
          * zarter Lichtkreis in der gemessenen Reichweite. Farbe nach Ort:
          * Kappe, innen (Mittelstreifen und Kopf-an-Kopf), Rand.
          */
+        /** Lichtkreise zeigen - Schalter im Laternenfenster, Standard aus. */
+        internal bool LichtkreiseZeigen;
+
         private void ZeichneLaternen(ParkingLotPreviewBuffer buffer)
         {
             if (_laternen.Count == 0) return;
             ParkingLotMessung.Zaehle(ParkingLotMessung.Zaehler.Sonstige, _laternen.Count);
-            foreach (var (pos, platz, bauart, reichweite) in _laternen)
-                buffer.DrawRing(LaterneLichtColor, pos, 2f * reichweite, .3f);
+            if (LichtkreiseZeigen)
+                foreach (var (pos, platz, bauart, reichweite) in _laternen)
+                    buffer.DrawRing(LaterneLichtColor, pos, 2f * reichweite, .3f);
             foreach (var (pos, platz, bauart, _) in _laternen)
             {
                 var vorn = LaternenKatalog.Vorwaerts(platz, bauart);

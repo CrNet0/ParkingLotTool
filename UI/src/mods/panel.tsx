@@ -10,7 +10,7 @@ import {
 } from "./controls";
 import { ReportTab } from "./report";
 import { DebugTab } from "./debug";
-import { entwicklerDebug$, autoEntryMode$, setAutoEntryMode } from "./bindings";
+import { entwicklerDebug$, autoEntryMode$, setAutoEntryMode, arbeitOffen$ } from "./bindings";
 import { ZoningTab } from "./zoning";
 import { ListeTab } from "./liste";
 import {
@@ -314,6 +314,7 @@ export const ParkingLotPanel = () => {
   const entwicklerDebug = useValue(entwicklerDebug$);
   const autoEntryMode = useValue(autoEntryMode$);
   const syncOffen = useValue(syncOffen$);
+  const arbeitOffen = useValue(arbeitOffen$);
   const syncAuto = useValue(syncAuto$);
   const toolActive = useValue(toolActive$);
   const edgeSetback = useValue(edgeSetback$);
@@ -806,12 +807,16 @@ export const ParkingLotPanel = () => {
           </TooltipKnopf>
           {/* Die Liste zeigt das FERTIGE. Sie steht deshalb hinter den
               Bau-Reitern und vor den Messwerkzeugen. */}
-          <TooltipKnopf text={t.tooltipListe}
-            className={`${styles.tab} ${liste ? styles.tabAktiv : ""}`}
+          {/* OFFENE ARBEIT AM REITER (Nutzer 2026-10-04): Zahl und Farbe, solange
+              etwas zu synchronisieren oder zu reparieren ist. Die Zahl zaehlt der
+              Sync jedes Bild neu - ist alles erledigt, verschwindet beides. */}
+          <TooltipKnopf text={arbeitOffen > 0 ? t.tooltipListeArbeit(arbeitOffen) : t.tooltipListe}
+            className={`${styles.tab} ${liste ? styles.tabAktiv : ""} ${arbeitOffen > 0 ? styles.tabArbeit : ""}`}
             onMouseDown={haltAn}
             onClick={() => setTab("liste")}
           >
             {t.reiterListe}
+            {arbeitOffen > 0 ? <span className={styles.tabZaehler}>{arbeitOffen}</span> : null}
           </TooltipKnopf>
           {/* MESSEN STATT BAUEN. Der Dev-Debug-Reiter fasst Werkzeuge
               zusammen, die CS2 etwas fragen, statt einen Parkplatz zu

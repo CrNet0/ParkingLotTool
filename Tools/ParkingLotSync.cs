@@ -88,6 +88,13 @@ namespace ParkingLotTool.Tools
         private Dictionary<Entity, List<Entity>> _index;
 
         private ValueBinding<int> _syncOffen;
+        /**
+         * Was in der Parkplatzliste zu tun ist: synchronisieren, reparieren,
+         * Bauplan wiederherstellen. Der Reiter "Parkplaetze" zeigt die Zahl und
+         * faerbt sich (Nutzer 2026-10-04). Jedes Bild neu gezaehlt - nach dem
+         * Sync oder der Reparatur verschwindet der Hinweis von selbst.
+         */
+        private ValueBinding<int> _arbeitOffen;
         private ValueBinding<string> _syncLaeuft;
         private ValueBinding<bool> _syncAuto;
 
@@ -181,6 +188,7 @@ namespace ParkingLotTool.Tools
             LegeSchritteAn();
 
             AddBinding(_syncOffen = new ValueBinding<int>(Group, "SyncOffen", 0));
+            AddBinding(_arbeitOffen = new ValueBinding<int>(Group, "ArbeitOffen", 0));
             AddBinding(_syncLaeuft = new ValueBinding<string>(Group, "SyncLaeuft",
                 string.Empty));
             AddBinding(_syncErgebnis = new ValueBinding<string>(Group,
@@ -592,6 +600,8 @@ namespace ParkingLotTool.Tools
                 && _ergebnisUhr.Elapsed.TotalSeconds >= ErgebnisSekunden)
                 LeereMeldung();
             if (_syncOffen.value != _offen.Count) _syncOffen.Update(_offen.Count);
+            var zuTun = _offen.Count + _ohneBauplan.Count + OffeneWaisen();
+            if (_arbeitOffen.value != zuTun) _arbeitOffen.Update(zuTun);
             var arbeit = World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>();
             var hintergrund = arbeit.Offen
                 + World.GetOrCreateSystemManaged<ParkingLotFahrwegTauschSystem>().Offen
@@ -602,6 +612,20 @@ namespace ParkingLotTool.Tools
                 ? fortschritt.Fertig + "\t" + fortschritt.Gesamt + "\t" + arbeit.Fortschrittshinweis
                 : string.Empty;
             if (_syncLaeuft.value != laeuft) _syncLaeuft.Update(laeuft);
+        }
+
+        /** Verwaiste Parkplaetze, die noch keinen Traeger und Bauzettel zurueck haben. */
+        private int OffeneWaisen()
+        {
+            var waisen = World.GetOrCreateSystemManaged<ParkingLotWaisenSystem>();
+            var n = 0;
+            foreach (var liste in new[] { waisen.Waisen, waisen.Halbwaisen })
+                foreach (var lot in liste)
+                    if (EntityManager.Exists(lot) && !EntityManager.HasComponent<Deleted>(lot)
+                        && !(EntityManager.HasComponent<ParkingLotCarrierReference>(lot)
+                             && EntityManager.HasComponent<ParkingLotBuildReceipt>(lot)))
+                        n++;
+            return n;
         }
 
         private bool VersucheSchluessel(string schluessel, out Entity entity)

@@ -3,6 +3,8 @@
 ## Unreleased (1.0.5)
 
 - Addition: street lanterns along the rows, lit at night; street, commercial and industrial sets or your own, spacing 20–40 m; "Update" adds them to existing lots.
+- Addition: "Show light range" in the lantern window draws each lantern's reach in the preview (off by default).
+- Improvement: the "Parking lots" tab turns yellow and shows how many lots need a sync or repair.
 - Improvement: bushes with growth stages are planted like bushes, denser and right up to lanterns; "Update" replants existing lots.
 - Fix: grass left on the road where perimeter roads overlap (thanks bikester1).
 - Fix: editing a lot continues after an autosave instead of losing the selection (thanks bikester1).

@@ -488,6 +488,8 @@ export const parkplatzListe$ = bindValue<string>(MOD, "ParkplatzListe", "");
 
 /** Synchronisation bestehender Parkplaetze mit der aktuellen Modversion. */
 export const syncOffen$ = bindValue<number>(MOD, "SyncOffen", 0);
+/** Synchronisieren + Reparieren + Bauplan: was in der Parkplatzliste zu tun ist. */
+export const arbeitOffen$ = bindValue<number>(MOD, "ArbeitOffen", 0);
 export const syncLaeuft$ = bindValue<string>(MOD, "SyncLaeuft", "");
 export const syncAuto$ = bindValue<boolean>(MOD, "SyncAuto", false);
 /**

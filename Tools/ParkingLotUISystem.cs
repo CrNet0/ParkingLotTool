@@ -190,6 +190,10 @@ namespace ParkingLotTool.Tools
             [JsonProperty("Laternen", Required = Required.Default)]
             public string Laternen { get; set; }
 
+            /** Lichtkreise der Laternen in der Vorschau zeigen (Standard aus). */
+            [JsonProperty("LaternenLichtkreise", Required = Required.Default)]
+            public bool? LaternenLichtkreise { get; set; }
+
             internal UserDefaults Clone() => new UserDefaults
             {
                 Version = Version,
@@ -216,6 +220,7 @@ namespace ParkingLotTool.Tools
                 PanelYHochkant = PanelYHochkant,
                 Vegetation = Vegetation,
                 Laternen = Laternen,
+                LaternenLichtkreise = LaternenLichtkreise,
             };
         }
 

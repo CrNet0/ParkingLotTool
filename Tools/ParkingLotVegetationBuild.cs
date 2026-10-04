@@ -52,6 +52,7 @@ namespace ParkingLotTool.Tools
             // Erst die Laternen: die Pflanzen halten deren Punkte frei.
             var laternenOptionen = AktuelleLaternen;
             var laternen = LaternenPlanFuer(layout, laternenOptionen);
+            _overlay.LichtkreiseZeigen = _uiSystem?.LaternenLichtkreise ?? false;
             _overlay.SetLaternen(laternen, laternenOptionen, _terrainSystem);
             var options=_bauvegetation ?? _uiSystem?.Vegetation ?? new VegetationOptions();
             var assets=(_baupflanzen ?? _uiSystem?.VegetationAssets ?? Array.Empty<VegetationAsset>()).Where(a=>options.Species.Contains(a.Id)).ToArray();

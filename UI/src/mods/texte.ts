@@ -497,6 +497,9 @@ const en = {
   listeVorigeSeite: "Previous parking lots",
   listeNaechsteSeite: "Next parking lots",
   reiterListe: "Parking lots",
+  tooltipListeArbeit: (n: number) => n === 1
+    ? "1 parking lot needs a sync or repair - open the list."
+    : `${n} parking lots need a sync or repair - open the list.`,
   tooltipListe: "Every lot you built: figures, fee and a jump to it.",
   listeLeer: "No parking lots built yet.",
   listeKopf: (lots: number, plaetze: number, unterhalt: number) =>
@@ -1099,6 +1102,9 @@ const de: Texte = {
   listeVorigeSeite: "Vorige Parkplätze",
   listeNaechsteSeite: "Nächste Parkplätze",
   reiterListe: "Parkplätze",
+  tooltipListeArbeit: (n: number) => n === 1
+    ? "1 Parkplatz muss synchronisiert oder repariert werden - Liste öffnen."
+    : `${n} Parkplätze müssen synchronisiert oder repariert werden - Liste öffnen.`,
   tooltipListe:
     "Alle gebauten Parkplätze: Zahlen, Gebühr und ein Sprung hin.",
   listeLeer: "Noch keinen Parkplatz gebaut.",
