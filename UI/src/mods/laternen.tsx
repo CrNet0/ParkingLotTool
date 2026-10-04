@@ -55,11 +55,11 @@ export const LaternenSchalter = ({ onOeffnen }: { onOeffnen: (an: boolean) => vo
  useEffect(()=>{trigger("ParkingLotTool","RefreshLaternen");},[]);
  return <div className={styles.root}>
   <div className={base.schalterReihe}>
-   <MitTooltip text={t("Einstellungen der Laternen öffnen","Open the lamp settings")}>
-    <button className={`${base.label} ${styles.nameKnopf}`} onClick={()=>onOeffnen(true)}>{t("Laternen","Lamps")}</button>
+   <MitTooltip text={t("Einstellungen der Laternen öffnen","Open the lantern settings")}>
+    <button className={`${base.label} ${styles.nameKnopf}`} onClick={()=>onOeffnen(true)}>{t("Laternen","Lanterns")}</button>
    </MitTooltip>
-   <MitTooltip text={t("Straßenlaternen entlang der Reihen setzen; nachts an","Place street lamps along the rows; lit at night")}>
-    <button role="switch" aria-label={t("Laternen","Lamps")} aria-checked={optionen.Enabled}
+   <MitTooltip text={t("Straßenlaternen entlang der Reihen setzen; nachts an","Place street lanterns along the rows; lit at night")}>
+    <button role="switch" aria-label={t("Laternen","Lanterns")} aria-checked={optionen.Enabled}
      className={`${base.schalter} ${optionen.Enabled?base.schalterAn:""}`}
      onClick={()=>{const an=!optionen.Enabled;senden({Enabled:an});onOeffnen(an);}}>
      <span className={`${base.schalterGriff} ${optionen.Enabled?base.schalterGriffAn:""}`}/>
@@ -93,7 +93,7 @@ export const LaternenFenster = ({ pos, onPos, onClose }: {
    </React.Fragment>)}</div>
   </div>;
  };
- return <Fenster titel={t("Laternen","Lamps")}
+ return <Fenster titel={t("Laternen","Lanterns")}
    breite={rechts?BREITE_LINKS+BREITE_RECHTS:BREITE_LINKS}
    pos={pos} onPos={onPos} vonUnten onClose={onClose}>
   <div className={styles.zweiTeile}>
@@ -101,11 +101,11 @@ export const LaternenFenster = ({ pos, onPos, onClose }: {
    <div className={styles.teilLinks}>
     <div className={styles.row}>
      <div className={styles.label} style={{flex:"1 1 0"}}>{t("Standard für das ganze Fenster","Default for the whole window")}</div>
-     <SettingActions label={t("Laternen","Lamps")} active={abweichend}
+     <SettingActions label={t("Laternen","Lanterns")} active={abweichend}
       onReset={()=>trigger("ParkingLotTool","ResetLaternen")}
       onSetDefault={()=>trigger("ParkingLotTool","SaveLaternenDefault")}/>
     </div>
-    <Slider label={t("Abstand","Spacing")} tooltip={t("Größter Abstand zwischen zwei Laternen einer Reihe","Largest gap between two lamps along a row")}
+    <Slider label={t("Abstand","Spacing")} tooltip={t("Größter Abstand zwischen zwei Laternen einer Reihe","Largest gap between two lanterns along a row")}
      value={optionen.Abstand} min={20} max={40} step={1} digits={0} unit="m" ton="Fahrwege" onChange={Abstand=>senden({Abstand})}/>
     <div className={styles.label}>{t("Sets","Sets")}</div>
     <div className={styles.sets}>{katalog.Sets.map(s=><div key={s.Id} className={styles.set}>
@@ -127,7 +127,7 @@ export const LaternenFenster = ({ pos, onPos, onClose }: {
     {/* Feste Hoehe, nur der Text wechselt - das Fenster springt nicht. */}
     <div className={styles.hinweisBox}>
      {!optionen.Enabled
-      ? t("Laternen sind aus - der Schalter im Panel entscheidet, ob gesetzt wird.","Lamps are off - the switch in the panel decides whether any are placed.")
+      ? t("Laternen sind aus - der Schalter im Panel entscheidet, ob gesetzt wird.","Lanterns are off - the switch in the panel decides whether any are placed.")
       : fehlt
        ? t("Ein gewähltes Modell fehlt im Spiel und wird nicht gesetzt.","A selected model is missing in the game and will not be placed.")
        : optionen.Set===""

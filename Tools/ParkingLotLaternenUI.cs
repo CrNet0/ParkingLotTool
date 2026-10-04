@@ -75,7 +75,7 @@ namespace ParkingLotTool.Tools
             {
                 var o = Lies(json);
                 if (o == null) return;
-                SetzeLaternen(Ordne(o), ParkingLotTexte.T("Laternen geändert", "lamps changed"));
+                SetzeLaternen(Ordne(o), ParkingLotTexte.T("Laternen geändert", "lanterns changed"));
             }));
             AddBinding(new TriggerBinding<string>(Group, "SaveLaternenSet", json =>
             {
@@ -150,13 +150,13 @@ namespace ParkingLotTool.Tools
             if (!TryWriteDefaults(next)) return;
             _defaults = next;
             _laternenDefault.Update(LaternenStandard());
-            SetStatus(ParkingLotTexte.T("Laternen als Standard gespeichert.", "Lamps saved as default."));
+            SetStatus(ParkingLotTexte.T("Laternen als Standard gespeichert.", "Lanterns saved as default."));
         }
 
         private void SetzeLaternenZurueck()
         {
-            SetzeLaternen(LaternenStandardOptionen, ParkingLotTexte.T("Laternen zurückgesetzt", "lamps reset"));
-            SetStatus(ParkingLotTexte.T("Laternen auf den Standard zurückgesetzt.", "Lamps reset to your default."));
+            SetzeLaternen(LaternenStandardOptionen, ParkingLotTexte.T("Laternen zurückgesetzt", "lanterns reset"));
+            SetStatus(ParkingLotTexte.T("Laternen auf den Standard zurückgesetzt.", "Lanterns reset to your default."));
         }
 
         private void SpeichereLaternenSets()
