@@ -602,8 +602,15 @@ namespace ParkingLotTool.Tools
          * zwei Proben kommt UND wieder faehrt, wird nie gezaehlt. Deshalb
          * `geschaetzt` - die Oberflaeche kennzeichnet die Zahl entsprechend.
          *
-         * Ohne genug Tage im Ring gibt es gar keine Schaetzung, sondern nur
-         * die reinen Kosten. Die sind exakt.
+         * LIVE STATT NACH DREI TAGEN (Nutzer 2026-10-04: "verwirrt die Leute").
+         * Vorher gab es die Schaetzung erst mit drei Tagen im Ring; ein neuer,
+         * voller Parkplatz zeigte so tagelang nur seine Kosten. Jetzt zaehlen
+         * die Ankuenfte gegen die wirklich beobachtete Zeit - volle Ringtage plus
+         * der Anteil des laufenden Tages, hoechstens die Zeit seit dem Bau.
+         * Ab einer Spielstunde gibt es eine Zahl. Erneuert wird mit jeder
+         * Statistikprobe (alle 512 Bilder) und jeder Listenrunde (60 Bilder),
+         * nicht jedes Bild; am Tageswechsel springt sie nicht, weil der
+         * angebrochene Tag nur mit seinem Anteil zaehlt.
          */
         private int MonatsErgebnis(Entity lot, Infowerte werte,
                                    ParkingLotEconomyData wirtschaft,
@@ -611,15 +618,37 @@ namespace ParkingLotTool.Tools
         {
             var kosten = MonatlicherUnterhalt(wirtschaft);
             geschaetzt = false;
-            if (werte.TageImRing < Infoauswahl.TageFuerWoche) return -kosten;
+            var tage = BeobachteteTage(lot, werte);
+            if (tage < MindestTageFuerSchaetzung) return -kosten;
             if (werte.AutosLetzteWoche <= 0) return -kosten;
 
             var gebuehr = GebuehrVon(wirtschaft);
             if (gebuehr <= 0) return -kosten;
 
             geschaetzt = true;
-            var proTag = werte.AutosLetzteWoche / werte.TageImRing;
-            return proTag * gebuehr * TageJeMonat() - kosten;
+            var proTag = werte.AutosLetzteWoche / tage;
+            return UnityEngine.Mathf.RoundToInt(proTag * gebuehr * TageJeMonat()) - kosten;
+        }
+
+        /** Eine Spielstunde: vorher waere die Zahl reiner Zufall der ersten Ankuenfte. */
+        private const float MindestTageFuerSchaetzung = 1f / 24f;
+
+        /** Wie lange die Ankuenfte im Tagring beobachtet sind, in Spieltagen. */
+        private float BeobachteteTage(Entity lot, Infowerte werte)
+        {
+            if (werte.TageImRing <= 0) return 0f;
+            var heute = _zeit != null ? UnityEngine.Mathf.Clamp01(_zeit.normalizedTime) : 1f;
+            var tage = werte.TageImRing - 1 + heute;
+            if (EntityManager.HasComponent<ParkingLotStatistik>(lot))
+            {
+                var gebaut = EntityManager.GetComponentData<ParkingLotStatistik>(lot).GebautFrame;
+                var jetzt = _simulation != null ? _simulation.frameIndex : 0u;
+                // Der Bautag ist angebrochen: seit dem Bau ist weniger vergangen als volle Ringtage.
+                if (gebaut != 0u && jetzt > gebaut)
+                    tage = UnityEngine.Mathf.Min(tage,
+                        (jetzt - gebaut) / (float)Game.Simulation.TimeSystem.kTicksPerDay);
+            }
+            return tage;
         }
 
         /**

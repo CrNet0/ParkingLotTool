@@ -214,13 +214,29 @@ namespace ParkingLotTool.Tools
                 var s = EntityManager.GetComponentData<ParkingLotEconomyData>(lot).Upkeep;
                 var i = KostenVon(b) + KostenVon(lot);
                 soll += s; ist += i; fertig++;
-                if (i != s) abweichend.Add("Lot " + lot.Index + " " + i + " statt " + s);
+                if (i != s) abweichend.Add("Lot " + lot.Index + " " + i + " statt " + s + " [Begleiter " + Befund(b) + "; Flaeche " + Befund(lot) + "]");
             }
             _kontrolliert = true;
             var text = "PLT-Wirtschaft Kontrolle: " + fertig + " Parkplaetze, Unterhalt Soll "
                 + soll + ", Ist " + ist + " je Monat (Begleiter + Flaeche, wie die Stadtkasse).";
             if (abweichend.Count == 0) Mod.log.Info(text);
             else Mod.log.Warn(text + " Abweichend: " + string.Join("; ", abweichend));
+        }
+
+        /** Warum eine Entity so viel kostet, wie sie kostet - Bausteine der Budgetrechnung. */
+        private string Befund(Entity e)
+        {
+            if (e == Entity.Null || !EntityManager.Exists(e)) return "fehlt";
+            var prefab = EntityManager.GetComponentData<PrefabRef>(e).m_Prefab;
+            var t = "Upkeep " + (EntityManager.HasComponent<CityServiceUpkeep>(e) ? "ja" : "NEIN")
+                + ", Dienst " + (EntityManager.HasComponent<ServiceObjectData>(prefab) ? "ja" : "NEIN")
+                + ", Usage " + (EntityManager.HasComponent<ServiceUsage>(e)
+                    ? EntityManager.GetComponentData<ServiceUsage>(e).m_Usage.ToString("0.#####") : "fehlt")
+                + ", Eintraege";
+            if (!EntityManager.HasBuffer<ServiceUpkeepData>(prefab)) return t + " KEIN Puffer";
+            foreach (var x in EntityManager.GetBuffer<ServiceUpkeepData>(prefab, true))
+                t += " " + x.m_Upkeep.m_Resource + "=" + x.m_Upkeep.m_Amount + (x.m_ScaleWithUsage ? "s" : "");
+            return t;
         }
 
         /** Unterhalt einer Entity so, wie CityServiceBudgetSystem ihn zaehlt (nur Geld, skaliert). */
