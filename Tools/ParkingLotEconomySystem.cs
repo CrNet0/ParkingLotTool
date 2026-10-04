@@ -173,11 +173,71 @@ namespace ParkingLotTool.Tools
                 Abschalten();
                 return;
             }
-            if (!TryResolveRoadsService()) return;
+            // KEIN Abbruch mehr, wenn ParkingLot01 fehlt: der Dienst wird nur
+            // fuer die Zuordnung des Lot-Prefabs gebraucht. Der Begleiter hat
+            // seine aus dem Rezept und zahlte sonst die volle Basis 65.536,
+            // weil niemand seinen Nutzungsanteil setzte.
+            TryResolveRoadsService();
             var begleiter = BegleiterJeLot();
             using var lots = _lots.ToEntityArray(Allocator.Temp);
             for (var i = 0; i < lots.Length; i++)
                 UpdateLot(lots[i], begleiter);
+            Kontrolle(lots, begleiter);
+        }
+
+        private bool _kontrolliert;
+
+        [Preserve]
+        protected override void OnGameLoadingComplete(Purpose purpose, GameMode mode)
+        {
+            base.OnGameLoadingComplete(purpose, mode);
+            _kontrolliert = false;
+        }
+
+        /**
+         * EINMAL JE SPIELSTAND: WAS KOSTET JEDER PARKPLATZ WIRKLICH?
+         *
+         * Gerechnet wie `CityServiceBudgetSystem`: Prefab-Basis mal
+         * `ServiceUsage`, ohne Komponente der volle Betrag. Steht im Log, damit
+         * ein Spielerbericht wie der vom 2026-10-04 sofort zeigt, wo es haengt.
+         */
+        private void Kontrolle(NativeArray<Entity> lots,
+            System.Collections.Generic.Dictionary<Entity, Entity> begleiter)
+        {
+            if (_kontrolliert || lots.Length == 0) return;
+            int soll = 0, ist = 0, fertig = 0;
+            var abweichend = new System.Collections.Generic.List<string>();
+            foreach (var lot in lots)
+            {
+                if (!EntityManager.HasComponent<ParkingLotEconomyData>(lot)
+                    || !begleiter.TryGetValue(lot, out var b)) return; // noch nicht eingeschwungen
+                var s = EntityManager.GetComponentData<ParkingLotEconomyData>(lot).Upkeep;
+                var i = KostenVon(b) + KostenVon(lot);
+                soll += s; ist += i; fertig++;
+                if (i != s) abweichend.Add("Lot " + lot.Index + " " + i + " statt " + s);
+            }
+            _kontrolliert = true;
+            var text = "PLT-Wirtschaft Kontrolle: " + fertig + " Parkplaetze, Unterhalt Soll "
+                + soll + ", Ist " + ist + " je Monat (Begleiter + Flaeche, wie die Stadtkasse).";
+            if (abweichend.Count == 0) Mod.log.Info(text);
+            else Mod.log.Warn(text + " Abweichend: " + string.Join("; ", abweichend));
+        }
+
+        /** Unterhalt einer Entity so, wie CityServiceBudgetSystem ihn zaehlt (nur Geld, skaliert). */
+        private int KostenVon(Entity e)
+        {
+            if (e == Entity.Null || !EntityManager.Exists(e) || !EntityManager.HasComponent<CityServiceUpkeep>(e)) return 0;
+            var prefab = EntityManager.GetComponentData<PrefabRef>(e).m_Prefab;
+            if (!EntityManager.HasComponent<ServiceObjectData>(prefab) || !EntityManager.HasBuffer<ServiceUpkeepData>(prefab)) return 0;
+            var summe = 0;
+            foreach (var eintrag in EntityManager.GetBuffer<ServiceUpkeepData>(prefab, true))
+            {
+                if (eintrag.m_Upkeep.m_Resource != Game.Economy.Resource.Money) continue;
+                summe += eintrag.m_ScaleWithUsage && EntityManager.HasComponent<ServiceUsage>(e)
+                    ? eintrag.ApplyServiceUsage(EntityManager.GetComponentData<ServiceUsage>(e).m_Usage).m_Upkeep.m_Amount
+                    : eintrag.m_Upkeep.m_Amount;
+            }
+            return summe;
         }
 
         /**
@@ -538,7 +598,7 @@ namespace ParkingLotTool.Tools
                     + "CityServiceBuilding.");
                 return false;
             }
-            if (!EntityManager.HasComponent<ServiceObjectData>(prefab))
+            if (!EntityManager.HasComponent<ServiceObjectData>(prefab) && _roadsService != Entity.Null)
             {
                 EntityManager.AddComponentData(prefab,
                     new ServiceObjectData { m_Service = _roadsService });
@@ -571,7 +631,7 @@ namespace ParkingLotTool.Tools
             if (!EntityManager.HasComponent<CollectedServiceBuildingBudgetData>(
                     prefab))
                 return false;
-            if (!EntityManager.HasComponent<ServiceObjectData>(prefab))
+            if (!EntityManager.HasComponent<ServiceObjectData>(prefab) && _roadsService != Entity.Null)
             {
                 EntityManager.AddComponentData(prefab,
                     new ServiceObjectData { m_Service = _roadsService });

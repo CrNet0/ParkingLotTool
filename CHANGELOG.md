@@ -6,6 +6,7 @@
 - Addition: "Show light range" in the lantern window draws each lantern's reach in the preview (off by default).
 - Improvement: the "Parking lots" tab turns yellow and shows how many lots need a sync or repair.
 - Improvement: bushes with growth stages are planted like bushes, denser and right up to lanterns; "Update" replants existing lots.
+- Fix: every parking lot added about 65,000 a month to road upkeep regardless of size; it now costs what its info panel shows (thanks SeanDFC02).
 - Fix: grass left on the road where perimeter roads overlap (thanks bikester1).
 - Fix: editing a lot continues after an autosave instead of losing the selection (thanks bikester1).
 

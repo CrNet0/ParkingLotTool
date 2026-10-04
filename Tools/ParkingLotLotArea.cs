@@ -277,6 +277,21 @@ namespace ParkingLotTool.Tools
                  * Sollwert bis zum Generatorlimit ohne Float-Rundungsrest als
                  * ServiceUsage darstellen; die Instanz setzt den Faktor.
                  */
+                /*
+                 * BASIS 0 - DIE FLAECHE ZAHLT NIE (Spielerbericht 2026-10-04:
+                 * jeder Parkplatz kostete ~65.000 im Monat, gleich welche Groesse).
+                 *
+                 * Seit dem 2026-09-14 zahlt der Begleiter. Hier stand aber noch
+                 * die alte Basis 65.536 - und `CityServiceBudgetSystem` zaehlt
+                 * jede Entity mit `CityServiceUpkeep` (m_UpkeepGroup, KEINE
+                 * UpdateFrame noetig). Eine neu gebaute Flaeche hat kein
+                 * `ServiceUsage`, also zaehlte der volle Betrag, und
+                 * `NullenFalls` setzt nur eine vorhandene Komponente auf 0.
+                 *
+                 * Der Eintrag bleibt (Geld, skaliert): `ParkingLotUpkeepDisplayPatch`
+                 * setzt hier fuer die Dauer der Anzeige den Betrag des Parkplatzes
+                 * ein und braucht dafuer genau so einen Eintrag.
+                 */
                 var wirtschaft = lot.AddComponent<CityServiceBuilding>();
                 wirtschaft.m_Upkeeps = new[]
                 {
@@ -285,7 +300,7 @@ namespace ParkingLotTool.Tools
                         m_Resources = new ResourceStackInEditor
                         {
                             m_Resource = ResourceInEditor.Money,
-                            m_Amount = ParkingLotEconomySystem.UpkeepBasis,
+                            m_Amount = 0,
                         },
                         m_ScaleWithUsage = true,
                     },
