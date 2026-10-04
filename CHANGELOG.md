@@ -4,6 +4,7 @@
 
 - Addition: street lanterns along the rows, lit at night; street, commercial and industrial sets or your own, spacing 20–40 m; "Update" adds them to existing lots.
 - Addition: "Show light range" in the lantern window draws each lantern's reach in the preview (off by default).
+- Improvement: "Update" takes a lot through all pending steps in one click; the result message stays 30 seconds.
 - Improvement: the "Parking lots" tab turns yellow and shows how many lots need a sync or repair.
 - Improvement: bushes with growth stages are planted like bushes, denser and right up to lanterns; "Update" replants existing lots.
 - Fix: every parking lot added about 65,000 a month to road upkeep regardless of size; it now costs what its info panel shows (thanks SeanDFC02).
