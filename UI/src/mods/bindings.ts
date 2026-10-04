@@ -527,6 +527,10 @@ export const parkplatzRundeZurueck = () =>
 export const parkplatzBearbeiten = (schluessel: string) =>
   trigger(MOD, "ParkplatzBearbeiten", schluessel);
 
+/** Aus dem Infofenster oeffnen - ohne Kamerasprung, der Parkplatz ist schon im Bild. */
+export const gewaehltenBearbeiten = (schluessel: string) =>
+  trigger(MOD, "GewaehltenBearbeiten", schluessel);
+
 /** Verwaiste Parkplaetze: Schalter (= Einstellung) und Reparatur. */
 export const waisenAuto$ = bindValue<boolean>(MOD, "WaisenAuto", false);
 export const setWaisenAuto = (v: boolean) => trigger(MOD, "SetWaisenAuto", v);

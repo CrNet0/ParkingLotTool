@@ -1,6 +1,6 @@
 import {
   editSelectedParkingLot, gewaehltenReparieren, meldeGewaehltenParkplatz,
-  parkplatzBearbeiten,
+  gewaehltenBearbeiten,
 } from "./bindings";
 import { TooltipKnopf } from "./controls";
 import styles from "./fee-section.module.scss";
@@ -28,15 +28,15 @@ export const ParkingEditSection = (props: {
    * raeumt dabei die Auswahl im Infofenster auf - mal vor, mal nach dem
    * Klick. Von Zeit zu Zeit verschwand so die Auswahl, und nichts geschah.
    *
-   * Jetzt geht derselbe Weg wie aus der Liste: den Schluessel, der beim
-   * Zeichnen der Sektion feststand, an `ParkplatzBearbeiten`. Der waehlt
-   * die Flaeche erneut an, springt hin und oeffnet erst dann das Werkzeug.
+   * Jetzt fast derselbe Weg wie aus der Liste: den Schluessel, der beim
+   * Zeichnen der Sektion feststand, an `GewaehltenBearbeiten`. Der waehlt
+   * die Flaeche erneut an und oeffnet das Werkzeug - ohne Kamerasprung.
    * Nur wenn kein Schluessel da ist, bleibt der alte Auswahlweg als
    * Rueckfall.
    */
   const bearbeiten = () => {
     const schluessel = props.schluessel ?? "";
-    if (schluessel !== "") parkplatzBearbeiten(schluessel);
+    if (schluessel !== "") gewaehltenBearbeiten(schluessel);
     else editSelectedParkingLot();
   };
   if (waise === 3) {

@@ -134,7 +134,10 @@ namespace ParkingLotTool.Tools
             AddBinding(new TriggerBinding<string>(
                 Group, "ParkplatzUmbenennen", ParkplatzUmbenennen));
             AddBinding(new TriggerBinding<string>(
-                Group, "ParkplatzBearbeiten", ParkplatzBearbeiten));
+                Group, "ParkplatzBearbeiten", schluessel => ParkplatzBearbeiten(schluessel, hinspringen: true)));
+            // Aus dem Infofenster: der Parkplatz ist schon im Bild, die Kamera bleibt stehen.
+            AddBinding(new TriggerBinding<string>(
+                Group, "GewaehltenBearbeiten", schluessel => ParkplatzBearbeiten(schluessel, hinspringen: false)));
             /*
              * VERWAISTE PARKPLAETZE. Der Schalter ist dieselbe Einstellung
              * wie im Optionsmenue; der Abgleich in die andere Richtung steht
@@ -697,7 +700,7 @@ namespace ParkingLotTool.Tools
          * verschiedenen Bildern landen, und dann bearbeitet der Mod kurz den
          * vorher ausgewaehlten Parkplatz.
          */
-        private void ParkplatzBearbeiten(string schluessel)
+        private void ParkplatzBearbeiten(string schluessel, bool hinspringen)
         {
             if (!VersucheSchluessel(schluessel, out var lot))
             {
@@ -718,7 +721,7 @@ namespace ParkingLotTool.Tools
             }
             if (EntityManager.HasComponent<Deleted>(lot)) return;
             _selectedInfo.SetSelection(lot);
-            _selectedInfo.Focus(lot);
+            if (hinspringen) _selectedInfo.Focus(lot);
             World.GetOrCreateSystemManaged<ParkingLotToolSystem>()
                 .RequestEdit(lot);
         }
