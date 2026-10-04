@@ -2,7 +2,7 @@
 
 ## 1.0.4 — October 4, 2026
 
-- Traffic inside parking lots drives at 25 km/h, so through traffic avoids them.
+- Traffic inside parking lots drives at 25 km/h and routes through them cost more, so through traffic avoids them.
 - "Update" brings existing lots to the new speed in seconds.
 - New option: trees don't age; save and reset for the vegetation window.
 - Pending updates are shown after loading; a click opens the lot list.
