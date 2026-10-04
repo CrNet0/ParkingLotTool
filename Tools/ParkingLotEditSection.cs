@@ -35,6 +35,16 @@ namespace ParkingLotTool.Tools
         private ParkingLotWaisenSystem _waisen;
         private int _waise;
         private bool _bauzettel;
+        /**
+         * Die zuletzt gueltig ausgewaehlte Flaeche - NUR fuer die Spur.
+         *
+         * Der Nutzer sah die Auswahl "irgendwann" verschwinden und konnte
+         * nicht sagen, ob die Flaeche geloescht wurde oder das Infofenster
+         * nur die Auswahl verlor. Beides steht jetzt in der Schrittspur:
+         * die alte Flaeche und ob sie noch existiert, geloescht oder
+         * temporaer ist.
+         */
+        private Entity _letzteAuswahl = Entity.Null;
 
         protected override void Reset() => visible = false;
 
@@ -46,6 +56,22 @@ namespace ParkingLotTool.Tools
                 && EntityManager.Exists(lot)
                 && !EntityManager.HasComponent<Deleted>(lot)
                 && !EntityManager.HasComponent<Temp>(lot);
+            if (da)
+            {
+                _letzteAuswahl = lot;
+            }
+            else if (_letzteAuswahl != Entity.Null)
+            {
+                var alt = _letzteAuswahl;
+                ParkingLotSchrittmarke.Setze("Auswahl: verloren (war " + alt
+                    + "; jetzt " + lot + "; existiert="
+                    + EntityManager.Exists(alt)
+                    + "; geloescht=" + (EntityManager.Exists(alt)
+                        && EntityManager.HasComponent<Deleted>(alt))
+                    + "; temporaer=" + (EntityManager.Exists(alt)
+                        && EntityManager.HasComponent<Temp>(alt)) + ")");
+                _letzteAuswahl = Entity.Null;
+            }
             _bauzettel = da
                 && EntityManager.HasComponent<ParkingLotCarrierReference>(lot)
                 && EntityManager.HasComponent<ParkingLotBuildReceipt>(lot)
@@ -53,6 +79,9 @@ namespace ParkingLotTool.Tools
                 && EntityManager.HasBuffer<ParkingLotBuildEntrance>(lot)
                 && EntityManager.HasBuffer<ParkingLotBuildText>(lot);
             _waise = da ? _waisen.Zustand(lot) : 0;
+            _schluessel = da
+                ? ParkingLotListeUISystem.SchluesselVon(lot)
+                : string.Empty;
             visible = _bauzettel || _waise > 0;
         }
 
@@ -67,6 +96,25 @@ namespace ParkingLotTool.Tools
             writer.Write(_waise);
             writer.PropertyName("bauzettel");
             writer.Write(_bauzettel);
+            /*
+             * DER SCHLUESSEL GEHOERT MIT IN DIE OBERFLAECHE.
+             *
+             * Der Bearbeiten-Knopf lag vorher auf einem eigenen Ausloeser,
+             * der `SelectedInfoUISystem.selectedEntity` erst beim Klick las.
+             * Beim Einstieg ins Bearbeiten wechselt das Werkzeug, und CS2
+             * raeumt dabei die Auswahl im Infofenster auf - mal vor, mal
+             * nach dem Ausloeser. Von Zeit zu Zeit kam deshalb gar keine
+             * oder die falsche Flaeche an, und die Auswahl war weg.
+             *
+             * Der Schluessel steht schon hier fest, solange die Sektion
+             * sichtbar ist. Die Oberflaeche schickt ihn zusammen mit dem
+             * Klick zurueck - derselbe Weg wie aus der Parkplatzliste, der
+             * die Flaeche ebenfalls ueber den Schluessel adressiert.
+             */
+            writer.PropertyName("schluessel");
+            writer.Write(_schluessel);
         }
+
+        private string _schluessel = string.Empty;
     }
 }

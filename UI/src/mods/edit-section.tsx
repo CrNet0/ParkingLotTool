@@ -1,5 +1,6 @@
 import {
   editSelectedParkingLot, gewaehltenReparieren, meldeGewaehltenParkplatz,
+  parkplatzBearbeiten,
 } from "./bindings";
 import { TooltipKnopf } from "./controls";
 import styles from "./fee-section.module.scss";
@@ -14,9 +15,30 @@ import { useTexte } from "./texte";
  * Debug zu erstellen."* Genau hier ist der Ort dafuer - der Nutzer hat den
  * Parkplatz schon angeklickt, um sich zu wundern.
  */
-export const ParkingEditSection = (props: { waise?: number; bauzettel?: boolean }) => {
+export const ParkingEditSection = (props: {
+  waise?: number; bauzettel?: boolean; schluessel?: string;
+}) => {
   const t = useTexte();
   const waise = props.waise ?? 0;
+  /*
+   * DIE FLAECHE KOMMT ALS SCHLUESSEL MIT, NICHT AUS DER SPIELAUSWAHL.
+   *
+   * Der Knopf las frueher `SelectedInfoUISystem.selectedEntity` erst beim
+   * Klick. Der Einstieg ins Bearbeiten wechselt aber das Werkzeug, und CS2
+   * raeumt dabei die Auswahl im Infofenster auf - mal vor, mal nach dem
+   * Klick. Von Zeit zu Zeit verschwand so die Auswahl, und nichts geschah.
+   *
+   * Jetzt geht derselbe Weg wie aus der Liste: den Schluessel, der beim
+   * Zeichnen der Sektion feststand, an `ParkplatzBearbeiten`. Der waehlt
+   * die Flaeche erneut an, springt hin und oeffnet erst dann das Werkzeug.
+   * Nur wenn kein Schluessel da ist, bleibt der alte Auswahlweg als
+   * Rueckfall.
+   */
+  const bearbeiten = () => {
+    const schluessel = props.schluessel ?? "";
+    if (schluessel !== "") parkplatzBearbeiten(schluessel);
+    else editSelectedParkingLot();
+  };
   if (waise === 3) {
     return (
       <div className={styles.editSection}>
@@ -61,7 +83,7 @@ export const ParkingEditSection = (props: { waise?: number; bauzettel?: boolean 
         text={t.tooltipBearbeiten}
         className={styles.editButton}
         onMouseDown={(event: any) => event.stopPropagation()}
-        onClick={editSelectedParkingLot}
+        onClick={bearbeiten}
       >
         {t.bearbeiten}
       </TooltipKnopf>

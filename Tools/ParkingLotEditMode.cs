@@ -46,6 +46,31 @@ namespace ParkingLotTool.Tools
         private bool _editBuildingEconomyEnabled;
         private bool _replacementEconomyTransferred;
 
+        /**
+         * DIE BEARBEITUNG UEBERLEBT EIN AUTOMATISCHES SPEICHERN.
+         *
+         * Ansage des Nutzers am 2026-10-03: die Auswahl verschwand
+         * "irgendwann", und einen Moment davor ruckelte es. Die Schrittspur
+         * zeigte den Grund:
+         *
+         *     Bearbeiten laeuft Lot 125560:1
+         *     Bearbeiten Abbruch: Speichern von 03-October-19-41-52
+         *     Auswahl: verloren (... existiert=True; geloescht=False)
+         *
+         * Das Speichern bricht die Bearbeitung ab - richtig, denn ein
+         * Spielstand darf keine ausgeblendeten alten Teile enthalten. Nur
+         * war es danach vorbei: die Auswahl fiel mit dem Speichervorgang,
+         * und der Nutzer musste das Werkzeug verlassen und neu bearbeiten.
+         *
+         * Deshalb wird die Flaeche gemerkt und nach dem Speichern wieder
+         * geoeffnet. Der Spielstand bleibt sauber (der Abbruch kommt vor dem
+         * Schreiben), und der Nutzer merkt vom Autospeichern nur ein
+         * kurzes Ruckeln.
+         */
+        private Entity _editNachSpeichern = Entity.Null;
+        private bool _speicherLaeuft;
+        private float _speicherSeit;
+
         internal bool IsEditing => _editLot != Entity.Null;
 
         private void InitializeEditing()
@@ -94,22 +119,53 @@ namespace ParkingLotTool.Tools
                 || EntityManager.HasComponent<Temp>(lot)
                 || !HasCompleteBuildReceipt(lot))
             {
+                ParkingLotSchrittmarke.Setze("Bearbeiten-Anfrage " + lot
+                    + " abgelehnt: " + Ablehnungsgrund(lot));
                 _uiSystem?.SetStatus(ParkingLotTexte.T(
                     "Dieser Parkplatz hat keinen vollständigen Bauzettel.",
                     "This parking lot has no complete build receipt."));
                 return;
             }
-            if (IsEditing || _pendingEditLot != Entity.Null)
+            if (IsEditing)
             {
+                ParkingLotSchrittmarke.Setze("Bearbeiten-Anfrage " + lot
+                    + " abgelehnt: es laeuft bereits " + _editLot);
                 _uiSystem?.SetStatus(ParkingLotTexte.T(
                     "Es wird bereits ein Parkplatz bearbeitet.",
                     "A parking lot is already being edited."));
                 return;
             }
+            /*
+             * EIN HAENGENDER AUFTRAG DARF DEN NAECHSTEN NICHT BLOCKIEREN.
+             *
+             * Vorher galt `_pendingEditLot != Entity.Null` als "es wird
+             * bereits bearbeitet". Blieb der Auftrag aber haengen, weil CS2
+             * die Werkzeugumschaltung verworfen hatte, kam man aus diesem
+             * Zustand nur noch durch Verlassen des Werkzeugs heraus - genau
+             * das hat der Nutzer als "die Auswahl geht verloren" gesehen.
+             *
+             * Jetzt ersetzt ein neuer Klick den alten Auftrag. Der letzte
+             * Wunsch des Nutzers gewinnt, und `OnUpdateGemessen` holt das
+             * Werkzeug so lange zurueck, bis der Auftrag verbraucht ist.
+             */
+            if (_pendingEditLot != Entity.Null && _pendingEditLot != lot)
+                Mod.log.Info("PLT-Bearbeiten: offener Auftrag Lot "
+                    + _pendingEditLot.Index + " wird durch Lot " + lot.Index
+                    + " ersetzt.");
 
             _pendingEditLot = lot;
             if (m_ToolSystem.activeTool != this)
                 m_ToolSystem.activeTool = this;
+        }
+
+        /** Warum `RequestEdit` eine Flaeche nicht annehmen kann - fuer die Spur. */
+        private string Ablehnungsgrund(Entity lot)
+        {
+            if (lot == Entity.Null) return "keine Flaeche";
+            if (!EntityManager.Exists(lot)) return "existiert nicht mehr";
+            if (EntityManager.HasComponent<Deleted>(lot)) return "ist geloescht";
+            if (EntityManager.HasComponent<Temp>(lot)) return "ist temporaer";
+            return "kein vollstaendiger Bauzettel";
         }
 
         private bool HasCompleteBuildReceipt(Entity lot)
@@ -134,6 +190,7 @@ namespace ParkingLotTool.Tools
             if (_pendingEditLot == Entity.Null) return false;
             var lot = _pendingEditLot;
             _pendingEditLot = Entity.Null;
+            ParkingLotSchrittmarke.Setze("Bearbeiten beginnt Lot " + lot);
             if (!TryReadBuildReceipt(lot, out var receipt, out var points,
                     out var entrances, out var alignments, out var cuts,
                     out var zonen,
@@ -141,6 +198,8 @@ namespace ParkingLotTool.Tools
                     out var surfaceDecoration, out var surfaceZoning,
                     out var reason))
             {
+                ParkingLotSchrittmarke.Setze("Bearbeiten Lot " + lot
+                    + " abgebrochen: " + reason);
                 _uiSystem?.SetStatus(ParkingLotTexte.T(
                     "Bearbeiten nicht möglich: " + reason,
                     "Cannot edit: " + reason));
@@ -744,6 +803,7 @@ namespace ParkingLotTool.Tools
         private void AbortEdit(string reason, string statusDe, string statusEn)
         {
             if (!IsEditing) return;
+            ParkingLotSchrittmarke.Setze("Bearbeiten Abbruch: " + reason);
             RollBackReplacement();
             RestoreHiddenParts();
             var lot = _editLot;
@@ -908,6 +968,8 @@ namespace ParkingLotTool.Tools
         internal void CancelEditingForShutdown()
         {
             _pendingEditLot = Entity.Null;
+            _editNachSpeichern = Entity.Null;
+            _speicherLaeuft = false;
             if (IsEditing)
                 AbortEdit("Mod oder Spiel wird beendet",
                     "Bearbeitung abgebrochen.", "Edit cancelled.");
@@ -916,10 +978,41 @@ namespace ParkingLotTool.Tools
         private void OnEditGameSaveLoad(string saveName, string previewUri,
                                         bool start, bool success)
         {
-            if (!start || !IsEditing) return;
-            AbortEdit("Speichern von " + saveName,
-                "Bearbeitung vor dem Speichern automatisch abgebrochen.",
-                "Edit was automatically cancelled before saving.");
+            if (start)
+            {
+                _speicherLaeuft = true;
+                _speicherSeit = UnityEngine.Time.realtimeSinceStartup;
+                if (!IsEditing) return;
+                _editNachSpeichern = _editLot;
+                AbortEdit("Speichern von " + saveName,
+                    "Bearbeitung vor dem Speichern automatisch abgebrochen.",
+                    "Edit was automatically cancelled before saving.");
+                return;
+            }
+
+            // Ende des Speicherns: die Bearbeitung wieder aufnehmen.
+            _speicherLaeuft = false;
+            NimmBearbeitungNachSpeichernWiederAuf(success);
+        }
+
+        /**
+         * Oeffnet die beim Speichern abgebrochene Bearbeitung wieder.
+         *
+         * Der Schluessel ist die FLaeche selbst, nicht der Name: der
+         * Spielstand ist derselbe, die Entity hat dieselbe Gueltigkeit. Fehlt
+         * sie inzwischen oder wurde sie geloescht, passiert nichts.
+         */
+        private void NimmBearbeitungNachSpeichernWiederAuf(bool erfolg)
+        {
+            if (_editNachSpeichern == Entity.Null) return;
+            var lot = _editNachSpeichern;
+            _editNachSpeichern = Entity.Null;
+            if (!erfolg) return;
+            if (!EntityManager.Exists(lot)
+                || EntityManager.HasComponent<Deleted>(lot)) return;
+            ParkingLotSchrittmarke.Setze(
+                "Bearbeiten wird nach dem Speichern fortgesetzt: Lot " + lot);
+            RequestEdit(lot);
         }
 
         [Preserve]
@@ -928,6 +1021,8 @@ namespace ParkingLotTool.Tools
         {
             base.OnGamePreload(purpose, mode);
             _pendingEditLot = Entity.Null;
+            _editNachSpeichern = Entity.Null;
+            _speicherLaeuft = false;
             if (IsEditing)
                 AbortEdit("Spielstandwechsel", "Bearbeitung abgebrochen.",
                     "Edit cancelled.");
