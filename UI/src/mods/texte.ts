@@ -441,7 +441,7 @@ const en = {
   listeSchaetzung: "Estimate / month",
   listeBearbeiten: "Edit",
   syncHinweis: (n: number) => n === 1
-    ? "1 parking lot needs an update" : `${n} parking lots need an update`,
+    ? "1 parking lot needs an update - synchronize it in the list" : `${n} parking lots need an update - synchronize them in the list`,
   syncFortschritt: (fertig: number, gesamt: number) =>
     `Updating parking lots … ${fertig} / ${gesamt}`,
   syncFertig: (n: number) => n === 1
@@ -1042,7 +1042,7 @@ const de: Texte = {
   listeSchaetzung: "Schätzung / Monat",
   listeBearbeiten: "Bearbeiten",
   syncHinweis: (n: number) => n === 1
-    ? "1 Parkplatz braucht ein Update" : `${n} Parkplätze brauchen ein Update`,
+    ? "1 Parkplatz braucht ein Update - in der Liste synchronisieren" : `${n} Parkplätze brauchen ein Update - in der Liste synchronisieren`,
   syncFortschritt: (fertig: number, gesamt: number) =>
     `Parkplätze werden aktualisiert … ${fertig} / ${gesamt}`,
   syncFertig: (n: number) => n === 1

@@ -55,6 +55,13 @@ namespace ParkingLotTool.Tools
          * der noch Schritt 9 brauchte, Schritt 10 still uebersprungen.
          */
         private readonly Dictionary<Entity, int> _wartetAuf = new Dictionary<Entity, int>();
+        /**
+         * Parkplaetze, deren Sync angestossen wurde und die nach einem
+         * Hintergrundauftrag mit den restlichen Schritten weiterlaufen. Vorher
+         * endete der Durchgang am Tausch, und der Nutzer musste fuer jeden
+         * weiteren Schritt erneut druecken (2026-10-04: "Mach alles auf einmal").
+         */
+        private readonly HashSet<Entity> _fortsetzen = new HashSet<Entity>();
         // Keine Queue<T>: der Typ steht in CS2 in System UND mscorlib.
         private readonly List<Entity> _warteschlange = new List<Entity>();
         private int _gesamt;
@@ -210,6 +217,8 @@ namespace ParkingLotTool.Tools
             _gescheitert.Clear();
             _ohneBauplan.Clear();
             _warteschlange.Clear();
+            _wartetAuf.Clear();
+            _fortsetzen.Clear();
             _gesamt = _erledigt = 0;
             _letzterBestand = -1;
             _neuAufnehmen = mode == GameMode.Game;
@@ -261,11 +270,24 @@ namespace ParkingLotTool.Tools
                 ParkingLotSchrittmarke.Setze("Laden: Sync-Aufnahme beginnt");
                 Aufnehmen();
                 ParkingLotSchrittmarke.Setze("Laden: Sync-Aufnahme beendet");
-                if (Mod.Optionen?.AutomatischSynchronisieren ?? false) AlleEinreihen();
-                else if (_offen.Count > 0)
+                // Angestossene Parkplaetze laufen weiter, statt als "offen" zu warten.
+                foreach (var lot in new List<Entity>(_fortsetzen))
                 {
-                    _meldungOffen = _offen.Count;
-                    VeroeffentlicheMeldung();
+                    if (_wartetAuf.ContainsKey(lot)) continue;
+                    _fortsetzen.Remove(lot);
+                    if (_offenMenge.Contains(lot)) Einreihen(lot);
+                }
+                if (Mod.Optionen?.AutomatischSynchronisieren ?? false) AlleEinreihen();
+                else
+                {
+                    var offen = 0;
+                    foreach (var lot in _offen)
+                        if (!_warteschlange.Contains(lot) && !_wartetAuf.ContainsKey(lot)) offen++;
+                    if (offen > 0)
+                    {
+                        _meldungOffen = offen;
+                        VeroeffentlicheMeldung();
+                    }
                 }
             }
             Abarbeiten();
@@ -449,6 +471,7 @@ namespace ParkingLotTool.Tools
                     if (a.Hintergrund || a.Tausch)
                     {
                         _wartetAuf[lot] = schritt.Nummer;
+                        _fortsetzen.Add(lot);
                         // Ein vorgemerkter Neubau ist noch KEINE Wirkung.
                         // Datenstand bleibt vor diesem Schritt, bis der echte
                         // Hintergrundpfad das alte Lot ersetzt und die Aufnahme die
@@ -494,6 +517,9 @@ namespace ParkingLotTool.Tools
             }
             var schrittNummer = _wartetAuf.TryGetValue(lot, out var gewartet) ? gewartet : Migrationskatalog.Aktuell;
             _wartetAuf.Remove(lot);
+            // Weiterlaufen nur nach Erfolg - und am neuen Lot, falls ein Neubau es ersetzt hat.
+            var weiter = _fortsetzen.Remove(lot);
+            if (erfolgreich && weiter && neu != Entity.Null) _fortsetzen.Add(neu);
             if (erfolgreich)
             {
                 // Nur nach der echten Nachpruefung des Auftrags. Stand = dieser
