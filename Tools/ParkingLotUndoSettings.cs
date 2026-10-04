@@ -6,6 +6,7 @@ namespace ParkingLotTool.Tools
     internal sealed class ParkingLotDraftSettingsSnapshot
     {
         internal string Vegetation;
+        internal string Laternen;
         internal float EdgeSetback;
         internal float AisleWidth;
         internal float CrossWidth;
@@ -31,6 +32,7 @@ namespace ParkingLotTool.Tools
             => new ParkingLotDraftSettingsSnapshot
             {
                 Vegetation = VegetationJson,
+                Laternen = LaternenJson,
                 EdgeSetback = _edgeSetback.value,
                 AisleWidth = _aisleWidth.value,
                 CrossWidth = _crossWidth.value,
@@ -55,6 +57,7 @@ namespace ParkingLotTool.Tools
             if (snapshot == null) return;
             var changed = false;
             changed |= UpdateValue(_vegetation, snapshot.Vegetation);
+            if (snapshot.Laternen != null) changed |= UpdateValue(_laternen, snapshot.Laternen);
             changed |= UpdateValue(_edgeSetback, snapshot.EdgeSetback);
             changed |= UpdateValue(_aisleWidth, snapshot.AisleWidth);
             changed |= UpdateValue(_crossWidth, snapshot.CrossWidth);

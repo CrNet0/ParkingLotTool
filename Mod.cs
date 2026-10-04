@@ -237,8 +237,8 @@ namespace ParkingLotTool
             // schaltet es ausserhalb davon ein und wieder aus.
             updateSystem.UpdateAt<ParkingLotFahrwegTauschWerkzeug>(SystemUpdatePhase.ToolUpdate);
             updateSystem.UpdateAt<ParkingLotFahrwegTauschSystem>(SystemUpdatePhase.UIUpdate);
-            updateSystem.UpdateAt<ParkingLotPflanzenTauschWerkzeug>(SystemUpdatePhase.ToolUpdate);
-            updateSystem.UpdateAt<ParkingLotPflanzenTauschSystem>(SystemUpdatePhase.UIUpdate);
+            updateSystem.UpdateAt<ParkingLotBestandsTauschWerkzeug>(SystemUpdatePhase.ToolUpdate);
+            updateSystem.UpdateAt<ParkingLotBestandsTauschSystem>(SystemUpdatePhase.UIUpdate);
             updateSystem.UpdateAfter<ParkingLotExklusivesBildSystem, ParkingLotHintergrundSystem>(SystemUpdatePhase.ToolUpdate);
             updateSystem.UpdateAfter<ParkingLotDefinitionsendeSystem, Game.Tools.ToolReadyBarrier>(SystemUpdatePhase.PostTool);
             updateSystem.UpdateBefore<ParkingLotDauerkursSystem, Game.Tools.GenerateNodesSystem>(SystemUpdatePhase.Modification1);

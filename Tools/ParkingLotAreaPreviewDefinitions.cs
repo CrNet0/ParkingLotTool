@@ -542,6 +542,7 @@ namespace ParkingLotTool.Tools
                 signature = signature * 31 + ((_baukontext?.Zettel.SurfaceDecorationOn ?? _uiSystem?.FlaecheDekoAn ?? true) ? 1 : 0);
                 signature = signature * 31 + ((_baukontext?.Zettel.BayIcons ?? _uiSystem?.Buchtsymbole ?? true) ? 1 : 0);
                 signature = signature * 31 + (_uiSystem?.VegetationJson.GetHashCode() ?? 0);
+                signature = signature * 31 + (_uiSystem?.LaternenJson.GetHashCode() ?? 0);
                 signature = signature * 31 + _grassSurfacePrefab.Index;
                 signature = signature * 31 + _grassSurfacePrefab.Version;
                 signature = signature * 31 + _zoningSurfacePrefab.Index;

@@ -131,7 +131,18 @@ namespace ParkingLotTool.Tools
                 ["PflanzenNachWuchs"] = new Ausfuehrung
                 {
                     Braucht = (lot, traeger, teile) => _werkzeug.BrauchtPflanzenNachWuchs(lot),
-                    Ausfuehren = (lot, traeger, teile) => World.GetOrCreateSystemManaged<ParkingLotPflanzenTauschSystem>().Einreihen(lot),
+                    Ausfuehren = (lot, traeger, teile) => World.GetOrCreateSystemManaged<ParkingLotBestandsTauschSystem>().Einreihen(lot, Tauschart.Pflanzen),
+                    Tausch = true,
+                },
+                /*
+                 * Laternen fuer Parkplaetze von vor dem 2026-10-04. Wer schon
+                 * welche hat (Testbauten) oder einen Laternenzettel, braucht
+                 * nichts. Ist der Standard des Spielers "aus", auch nicht.
+                 */
+                ["LaternenNachruesten"] = new Ausfuehrung
+                {
+                    Braucht = (lot, traeger, teile) => _werkzeug.BrauchtLaternenNachruesten(lot, teile),
+                    Ausfuehren = (lot, traeger, teile) => World.GetOrCreateSystemManaged<ParkingLotBestandsTauschSystem>().Einreihen(lot, Tauschart.Laternen),
                     Tausch = true,
                 },
                 ["Fahrwege25MitKosten"] = new Ausfuehrung

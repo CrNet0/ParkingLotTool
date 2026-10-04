@@ -2,7 +2,7 @@
 
 ## Unreleased (1.0.5)
 
-- Addition: street lamps along the rows, lit at night.
+- Addition: street lamps along the rows, lit at night; street, commercial and industrial sets or your own, spacing 20–40 m; "Update" adds them to existing lots.
 - Improvement: bushes with growth stages are planted like bushes, denser and right up to lamps; "Update" replants existing lots.
 
 ## 1.0.4 — October 4, 2026

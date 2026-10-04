@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json;
 using Game.Common;
 using Game.Objects;
 using Game.Prefabs;
@@ -35,7 +37,55 @@ namespace ParkingLotTool.Tools
         private int _laternenCount;
         private readonly Dictionary<string, Entity> _laternenPrefabs = new Dictionary<string, Entity>();
 
-        internal LaternenOptionen AktuelleLaternen => _uiSystem?.Laternen ?? StandardLaternen;
+        /** Die Laternenwahl eines Hintergrundbaus: aus dem Bauzettel, nie aus dem Panel. */
+        private LaternenOptionen _baulaternen;
+
+        internal LaternenOptionen AktuelleLaternen => _baulaternen ?? _uiSystem?.Laternen ?? StandardLaternen;
+
+        /** Bauzettel-Text 6: die Laternenwahl beim Bau (seit 2026-10-04). Fehlt er, null. */
+        internal LaternenOptionen LaternenVon(Entity lot)
+        {
+            if (lot == Entity.Null || !EntityManager.Exists(lot) || !EntityManager.HasBuffer<ParkingLotBuildText>(lot)) return null;
+            if (!TryReadBuildText(EntityManager.GetBuffer<ParkingLotBuildText>(lot, true), 6, out var json) || string.IsNullOrEmpty(json)) return null;
+            try { return JsonConvert.DeserializeObject<LaternenOptionen>(json); }
+            catch (Exception e) { Mod.log.Warn("Laternenzettel unlesbar: " + e.Message); return null; }
+        }
+
+        /** Ersetzt Bauzettel-Text 6 am fertigen Lot (Sync-Schritt 11). */
+        internal void SchreibeLaternenZettel(Entity lot, LaternenOptionen optionen)
+        {
+            var text = EntityManager.HasBuffer<ParkingLotBuildText>(lot)
+                ? EntityManager.GetBuffer<ParkingLotBuildText>(lot) : EntityManager.AddBuffer<ParkingLotBuildText>(lot);
+            for (var i = text.Length - 1; i >= 0; i--) if (text[i].Kind == 6) text.RemoveAt(i);
+            AddBuildText(text, 6, JsonConvert.SerializeObject(optionen));
+            if (LaternenVon(lot) == null)
+                throw new InvalidOperationException("Laternenzettel von Lot " + lot.Index + " liest nach dem Schreiben nicht zurueck.");
+        }
+
+        /**
+         * Sync-Schritt 11: Parkplatz ohne Laternenzettel und ohne Laternen, und
+         * der Standard des Spielers setzt welche. Wer schon Laternen hat (vor
+         * dem Zettel gebaut), braucht nichts - sonst stuenden sie doppelt.
+         */
+        internal bool BrauchtLaternenNachruesten(Entity lot, List<Entity> teile)
+        {
+            if (LaternenVon(lot) != null) return false;
+            var standard = _uiSystem?.LaternenStandardOptionen
+                ?? World.GetOrCreateSystemManaged<ParkingLotUISystem>().LaternenStandardOptionen;
+            if (!standard.Enabled) return false;
+            foreach (var t in teile)
+                if (EntityManager.Exists(t) && EntityManager.HasComponent<StreetLight>(t)) return false;
+            return true;
+        }
+
+        /** Beim Bearbeiten: die Wahl des Parkplatzes ins Fenster, ohne Zettel der Standard. */
+        private void LoadLaternen(Entity lot)
+        {
+            var optionen = LaternenVon(lot);
+            _uiSystem?.RestoreLaternen(optionen);
+            Mod.log.Info("PLT-Laternen laden Lot " + lot.Index + ": "
+                + (optionen != null ? JsonConvert.SerializeObject(optionen) : "kein Laternenzettel; Standard"));
+        }
 
         internal static LaternenPlan LaternenPlanFuer(ParkingLayout layout, LaternenOptionen optionen)
             => optionen != null && optionen.Enabled && layout != null
@@ -82,6 +132,41 @@ namespace ParkingLotTool.Tools
             return e;
         }
 
+        /**
+         * DIE DEFINITION EINER LATERNE - fuer den Bau UND das Nachruesten per
+         * Sync (Schritt 11). `prefab` ist Entity.Null, wenn das Modell fehlt;
+         * die Definition ist Entity.Null auch, wenn das Gelaende keine Hoehe hat.
+         */
+        internal Entity LaternenDefinition(LaternenPlatz platz, LaternenOptionen optionen, ref TerrainHeightData heightData,
+            out Entity prefab, out string name, out float3 position)
+        {
+            name = optionen.ModellFuer(platz);
+            prefab = LaternenPrefab(name);
+            position = new float3(platz.Position.x, 0f, platz.Position.y);
+            if (prefab == Entity.Null) return Entity.Null;
+            var bauart = LaternenKatalog.Modell(name)?.Bauart
+                ?? (platz.Doppelt ? LaternenBauart.Doppelt : LaternenBauart.Einseitig);
+            position.y = TerrainUtils.SampleHeight(ref heightData, position);
+            if (!math.all(math.isfinite(position))) return Entity.Null;
+            var vorn = LaternenKatalog.Vorwaerts(platz, bauart);
+            var definition = EntityManager.CreateEntity();
+            EntityManager.AddComponentData(definition, new CreationDefinition
+            {
+                m_Prefab = prefab,
+                // Aus der Lage: dieselbe Laterne bekommt bei jedem Bau
+                // denselben Wuerfel (Schaltschwelle in der Daemmerung).
+                m_RandomSeed = (int)math.hash(new int2((int)math.round(position.x * 16f), (int)math.round(position.z * 16f))),
+            });
+            EntityManager.AddComponent<Updated>(definition);
+            EntityManager.AddComponentData(definition, new ObjectDefinition
+            {
+                m_Position = position,
+                m_Rotation = quaternion.LookRotationSafe(new float3(vorn.x, 0f, vorn.y), math.up()),
+                m_Probability = 100, m_PrefabSubIndex = -1, m_Scale = new float3(1f), m_Intensity = 1f, m_ParentMesh = -1,
+            });
+            return definition;
+        }
+
         private IEnumerable<int> CreateLanternDefinitionsSchritte(ParkingLayout layout, TerrainHeightData heightData)
         {
             var optionen = AktuelleLaternen;
@@ -93,30 +178,9 @@ namespace ParkingLotTool.Tools
             foreach (var platz in plan.Laternen)
             {
                 yield return 0;
-                var name = optionen.ModellFuer(platz);
-                var prefab = LaternenPrefab(name);
+                var definition = LaternenDefinition(platz, optionen, ref heightData, out var prefab, out var name, out var position);
                 if (prefab == Entity.Null) { fehlend.Add(name); continue; }
-                var bauart = LaternenKatalog.Modell(name)?.Bauart
-                    ?? (platz.Doppelt ? LaternenBauart.Doppelt : LaternenBauart.Einseitig);
-                var position = new float3(platz.Position.x, 0f, platz.Position.y);
-                position.y = TerrainUtils.SampleHeight(ref heightData, position);
-                if (!math.all(math.isfinite(position))) continue;
-                var vorn = LaternenKatalog.Vorwaerts(platz, bauart);
-                var definition = EntityManager.CreateEntity();
-                EntityManager.AddComponentData(definition, new CreationDefinition
-                {
-                    m_Prefab = prefab,
-                    // Aus der Lage: dieselbe Laterne bekommt bei jedem Bau
-                    // denselben Wuerfel (Schaltschwelle in der Daemmerung).
-                    m_RandomSeed = (int)math.hash(new int2((int)math.round(position.x * 16f), (int)math.round(position.z * 16f))),
-                });
-                EntityManager.AddComponent<Updated>(definition);
-                EntityManager.AddComponentData(definition, new ObjectDefinition
-                {
-                    m_Position = position,
-                    m_Rotation = quaternion.LookRotationSafe(new float3(vorn.x, 0f, vorn.y), math.up()),
-                    m_Probability = 100, m_PrefabSubIndex = -1, m_Scale = new float3(1f), m_Intensity = 1f, m_ParentMesh = -1,
-                });
+                if (definition == Entity.Null) continue;
                 RecordObjectDefinition("Laterne", _laternenCount++, prefab, definition, position);
                 yield return 1;
             }

@@ -104,6 +104,8 @@ namespace ParkingLotTool.Tools
             _randzoning.Clear(); _randzoning.AddRange(_baukontext.Randzoning);
             _zoningSeitenPlan.Clear(); _zoningSeitenPlan.AddRange(_baukontext.Seitenplan);
             _bauvegetation = VegetationVon(lot);
+            // Ohne Laternenzettel (vor 2026-10-04 gebaut) der Standard des Spielers - wie Sync-Schritt 11.
+            _baulaternen = LaternenVon(lot) ?? World.GetOrCreateSystemManaged<ParkingLotUISystem>().LaternenStandardOptionen;
             // Nur der unveraenderliche Assetkatalog; KEINE Panelwahl.
             _baupflanzen = World.GetOrCreateSystemManaged<ParkingLotUISystem>().VegetationAssets;
             _editParkingFeeKnown = EntityManager.HasComponent<ParkingLotEconomyData>(lot);

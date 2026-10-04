@@ -1,4 +1,5 @@
 import { VegetationSchalter, VegetationFenster } from "./vegetation";
+import { LaternenSchalter, LaternenFenster } from "./laternen";
 import { randstrassen$, randstrassenDefault$, setRandstrassen } from "./bindings";
 import { useValue } from "cs2/api";
 import { useEffect, useRef, useState } from "react";
@@ -166,7 +167,13 @@ export const ParkingLotPanel = () => {
    * Im Fenster selbst koennte sie nicht liegen: beim Schliessen wird die
    * Komponente abgebaut, und beim naechsten Oeffnen faengt sie von vorn an.
    */
-  const [vegOffen, setVegOffen] = useState(false);
+  /*
+   * EIN SEITENFENSTER: Vegetation ODER Laternen, an derselben Stelle.
+   * Oeffnet man das eine, geht das andere zu (Nutzer 2026-10-04). Die Stelle
+   * gehoert dem Seitenfenster, nicht einem der beiden.
+   */
+  const [seitenfenster, setSeitenfenster] = useState<"vegetation" | "laternen" | null>(null);
+  const vegOffen = seitenfenster !== null;
   /*
    * ZWEI FAECHER, EINS JE STIL.
    *
@@ -655,7 +662,10 @@ export const ParkingLotPanel = () => {
     return () => { weg = true; cancelAnimationFrame(id); };
   }, [vegOffen, hochkant, vegStelle]);
 
-  const oeffneVegetation = (an: boolean) => { setVegOffen(an); };
+  const oeffneSeitenfenster = (welches: "vegetation" | "laternen") => (an: boolean) =>
+    setSeitenfenster(alt => an ? welches : (alt === welches ? null : alt));
+  const oeffneVegetation = oeffneSeitenfenster("vegetation");
+  const oeffneLaternen = oeffneSeitenfenster("laternen");
 
   /** Verhindert, dass ein Knopf in der Schiene die Leiste mitzieht. */
   const haltAn = (event: any) => event.stopPropagation();
@@ -1118,6 +1128,7 @@ export const ParkingLotPanel = () => {
             onReset={() => resetOne("CrossBays")}
             onSetDefault={() => setAsDefault("CrossBays")}
           />
+          <LaternenSchalter onOeffnen={oeffneLaternen} />
         </Spalte>
 
         <Spalte title={t.gruen} ton="Gruen" {...abschnitt("Gruen")} titleTooltip={t.tooltipGruen}>
@@ -1425,11 +1436,18 @@ export const ParkingLotPanel = () => {
       kann zugehen wenn ich aus dem Draft reiter gehe. Und wieder aufgehen
       wenn ich wieder nach Draft gehe."*
     */}
-    {vegOffen && tab === "layout" ? (
+    {seitenfenster === "vegetation" && tab === "layout" ? (
       <VegetationFenster
         pos={vegStelle ?? undefined}
         onPos={vegStelleSetzen}
-        onClose={() => setVegOffen(false)}
+        onClose={() => setSeitenfenster(null)}
+      />
+    ) : null}
+    {seitenfenster === "laternen" && tab === "layout" ? (
+      <LaternenFenster
+        pos={vegStelle ?? undefined}
+        onPos={vegStelleSetzen}
+        onClose={() => setSeitenfenster(null)}
       />
     ) : null}
     {zug ? (

@@ -320,6 +320,8 @@ namespace ParkingLotTool.Tools
                  */
                 AddBuildText(textBuffer, 3, q.FlaecheZoning ?? string.Empty);
                 AddBuildText(textBuffer, 5, settings.Zoningstrasse);
+                // Die Laternenwahl - beim Bearbeiten kommt sie ins Fenster zurueck.
+                AddBuildText(textBuffer, 6, Newtonsoft.Json.JsonConvert.SerializeObject(AktuelleLaternen));
                 if (q.VegetationAusProtokoll == null) WriteVegetation(lot);
                 else SchreibeVegetationAusProtokoll(lot, q.VegetationAusProtokoll);
                 return true;

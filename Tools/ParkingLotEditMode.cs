@@ -153,6 +153,7 @@ namespace ParkingLotTool.Tools
                     lot, true), 5, out var zoningRoad))
                 _uiSystem?.SetBuildReceiptZoningstrasse(zoningRoad);
             LoadVegetation(lot);
+            LoadLaternen(lot);
             /*
              * Die Bezugslinie gehoert zum Bauzettel, nicht zu den Reglern -
              * deshalb hier und nicht in `LoadBuildReceipt`. `NaN` und

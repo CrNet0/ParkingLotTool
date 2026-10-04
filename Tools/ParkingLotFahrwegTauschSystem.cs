@@ -86,7 +86,7 @@ namespace ParkingLotTool.Tools
             if (spiel == null || spiel.isGameLoading || !spiel.gameMode.IsGame()) return;
             if (_werkzeug.Beschaeftigt || _warteschlange.Count == 0) return;
             // Nie zwei Tauschwerkzeuge gleichzeitig: jedes setzt das aktive Werkzeug.
-            if (World.GetOrCreateSystemManaged<ParkingLotPflanzenTauschSystem>().Beschaeftigt) return;
+            if (World.GetOrCreateSystemManaged<ParkingLotBestandsTauschSystem>().Beschaeftigt) return;
             if (UnityEngine.Time.frameCount < _ruheBis) return;
             // Ein Werkzeugwechsel wuerde einen laufenden Entwurf verwerfen.
             if (_toolSystem.activeTool == _plt && _plt.ArbeitetGerade) return;

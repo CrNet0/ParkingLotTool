@@ -76,6 +76,10 @@ namespace ParkingLotTool.Geometry
                 + "Altersstufen enthalten (TreeData, unter 4 m): sie wurden bis 2026-10-04 wie Baeume "
                 + "gepflanzt. Gleiche Einstellungen (Arten, Dichte, Alter, Seed), Grün aus dem "
                 + "nachgerechneten Layout; Tausch per Temp + Apply."),
+            new Schritt(11, "LaternenNachruesten",
+                "Parkplaetze ohne Laternen und ohne Laternenzettel bekommen Laternen nach dem "
+                + "Standard des Spielers. Pflanzen im Freiraum einer Laterne weichen (Nutzer: die "
+                + "Laterne ist wichtiger); Abgleich der Buchtaufkleber gegen geaenderte Geometrie."),
         };
 
         /** Der Stand, den ein heute gebauter Parkplatz hat. */

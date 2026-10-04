@@ -186,6 +186,10 @@ namespace ParkingLotTool.Tools
             [JsonProperty("Vegetation", Required = Required.Default)]
             public string Vegetation { get; set; }
 
+            /** Das ganze Laternenfenster als Standard (Optionen-JSON). Fehlt es, gelten die Werkswerte. */
+            [JsonProperty("Laternen", Required = Required.Default)]
+            public string Laternen { get; set; }
+
             internal UserDefaults Clone() => new UserDefaults
             {
                 Version = Version,
@@ -211,6 +215,7 @@ namespace ParkingLotTool.Tools
                 PanelXHochkant = PanelXHochkant,
                 PanelYHochkant = PanelYHochkant,
                 Vegetation = Vegetation,
+                Laternen = Laternen,
             };
         }
 
@@ -435,6 +440,7 @@ namespace ParkingLotTool.Tools
             base.OnCreate();
             _defaults = LoadDefaults();
             InitVegetation();
+            InitLaternen();
 
             /*
              * DER MELDEREITER BRAUCHT VIER ZUSTAENDE UND VIER AUSLOESER.
@@ -1870,6 +1876,9 @@ namespace ParkingLotTool.Tools
             _panelX?.Update(StilX() ?? 0f);
             _panelY?.Update(StilY() ?? 0f);
             PublishDefaults();
+            // Die Fensterstandards gehen mit: sonst zeigte "Zuruecksetzen" weiter den verworfenen.
+            _vegetationDefault?.Update(VegetationStandard());
+            _laternenDefault?.Update(LaternenStandard());
             if (ApplyDefaults(_defaults))
             {
                 tool?.CommitUndoState(before, T("Werkswerte geladen",

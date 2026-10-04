@@ -569,7 +569,7 @@ namespace ParkingLotTool.Tools
             var arbeit = World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>();
             var hintergrund = arbeit.Offen
                 + World.GetOrCreateSystemManaged<ParkingLotFahrwegTauschSystem>().Offen
-                + World.GetOrCreateSystemManaged<ParkingLotPflanzenTauschSystem>().Offen;
+                + World.GetOrCreateSystemManaged<ParkingLotBestandsTauschSystem>().Offen;
             _gesamt = System.Math.Max(_gesamt,_warteschlange.Count + hintergrund);
             var fortschritt = HintergrundFortschritt.Zaehle(_gesamt, _warteschlange.Count, hintergrund);
             var laeuft = _warteschlange.Count + hintergrund > 0
