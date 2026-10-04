@@ -2,11 +2,11 @@
 
 ## 1.0.4 — October 4, 2026
 
-- Traffic inside parking lots drives at 25 km/h and routes through them cost more, so through traffic avoids them.
-- "Update" brings existing lots to the new speed in seconds.
-- New option: trees don't age; save and reset for the vegetation window.
-- Pending updates are shown after loading; a click opens the lot list.
-- Crash reports now show where the game crashed; the button is now "Report the last crash".
+- Change: traffic inside parking lots drives at 25 km/h and routes through them cost more, so through traffic avoids them.
+- Addition: "Update" brings existing lots to the new speed in seconds.
+- Addition: option "trees don't age"; save and reset for the vegetation window.
+- Addition: pending updates are shown after loading; a click opens the lot list.
+- Improvement: crash reports now show where the game crashed; the button is now "Report the last crash".
 - Fix: crash when editing a lot with bus stops while utilities were connected.
 - Fix: bus stops disappeared after editing a lot.
 - Fix: cancelling an edit could remove the lot's paths.
@@ -14,24 +14,23 @@
 
 ## 1.0.3 — October 1, 2026
 
-- Crash reports show how far the mod got while loading a save.
+- Improvement: crash reports show how far the mod got while loading a save.
 - Fix: the crash notice pointed to a tab players cannot see.
 
 ## 1.0.2 — September 29, 2026
 
-- Clearer status messages: a missing preview now says why and what to do;
-  all messages fully translated.
-- New status messages for the next step (preview ready, lot built).
+- Improvement: clearer status messages; a missing preview now says why and what to do, all messages fully translated.
+- Addition: status messages for the next step (preview ready, lot built).
 - Fix: the preview could stop appearing until the game was restarted.
 
 ## 1.0.1 — September 28, 2026
 
 - Fix: EV charging stations could be scattered across the lot.
-- Find It added to the dependencies (required by Asset Icon Library).
+- Change: Find It added to the dependencies (required by Asset Icon Library).
 
 ## 1.0.0 — September 28, 2026
 
-- First release on Paradox Mods.
+- Addition: first release on Paradox Mods.
 
 ## Unreleased — September 20, 2026
 
