@@ -71,6 +71,11 @@ namespace ParkingLotTool.Geometry
                 "Alte unsichtbare Vanilla-Fahrwege bekommen per Vanilla-Ersetzen (Temp + Apply) "
                 + "den 25-km/h-Klon. Lage, Knoten, Anschluesse und Besitzer bleiben; Gassen und "
                 + "Zoningstrassen frischen ihre Spuren selbst auf."),
+            new Schritt(10, "PflanzenNachWuchs",
+                "Pflanzen bestehender Parkplaetze werden neu gesetzt, wenn ihre Arten Buesche mit "
+                + "Altersstufen enthalten (TreeData, unter 4 m): sie wurden bis 2026-10-04 wie Baeume "
+                + "gepflanzt. Gleiche Einstellungen (Arten, Dichte, Alter, Seed), Grün aus dem "
+                + "nachgerechneten Layout; Tausch per Temp + Apply."),
         };
 
         /** Der Stand, den ein heute gebauter Parkplatz hat. */

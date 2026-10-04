@@ -24,7 +24,12 @@ namespace ParkingLotTool.Tools
     }
     internal sealed class VegetationReceipt
     {
-        public int Version = 1;
+        /**
+         * 2 = gepflanzt mit dem Wuchs nach Hoehe (Buesche mit TreeData wie
+         * Buesche, 2026-10-04). Alte Zettel tragen "Version":1 im JSON; Sync-
+         * Schritt 10 setzt ihre Pflanzen neu und hebt sie auf 2.
+         */
+        public int Version = 2;
         public string Options, Signature;
     }
     public sealed partial class ParkingLotToolSystem
@@ -418,6 +423,9 @@ namespace ParkingLotTool.Tools
                     foreach (var v in new[] { k.Position.x, k.Position.y, k.Vorwaerts.x, k.Vorwaerts.y, k.Bein.x, k.Bein.y, k.Max.x, k.Max.y, k.Max.z })
                         s.Append(Math.Round(v*1000)).Append(',');
             }
+            // Pflanzregel: ein Zettel mit alter Regel darf nie als "unveraendert" gelten,
+            // sonst uebernaehme ein Edit die alten Pflanzen und schriebe Version 2 darueber.
+            s.Append("|W2");
             using(var sha = SHA256.Create()) return Convert.ToBase64String(sha.ComputeHash(Encoding.UTF8.GetBytes(s.ToString())));
         }
         private int CreateVegetationDefinitions(float2[][] grass, ref TerrainHeightData heightData)
@@ -488,12 +496,9 @@ namespace ParkingLotTool.Tools
             {
                 yield return 0;
                 var asset=assets[plant.Species];
-                var position=new float3(plant.Position.x,0,plant.Position.y);
-                position.y=TerrainUtils.SampleHeight(ref heightData,position);
-                if(!math.all(math.isfinite(position))) continue;
-                var random=new Unity.Mathematics.Random(plant.Seed == 0 ? 1u : plant.Seed);
+                var definition=PflanzenDefinition(asset,plant,options,ref heightData,out var position,out var ageIndex,out var ziel);
+                if(definition==Entity.Null) continue;
                 _vegetationPlanned.Add((asset.Prefab,position.xz));
-                int ageIndex=ParkingVegetation.SelectAge(options.Ages, plant.Seed);
                 float age=ParkingVegetation.AgeValue(ageIndex);
                 gewaehlt[ageIndex]++;
                 // Was CS2 aus diesem Altersfeld machen WIRD - nachgebaut aus
@@ -502,15 +507,7 @@ namespace ParkingLotTool.Tools
                 var cs2 = age<0.1f?"Jung":age<0.25f?"Teen":age<0.6f?"Erwachsen"
                     :age<0.95f?"Elderly":"Tot";
                 erwartet[cs2]=erwartet.TryGetValue(cs2,out var e)?e+1:1;
-                if(asset.Tree) _vegetationTreeStates[(asset.Prefab,position.xz)]=new Game.Objects.Tree {
-                    m_State=(Game.Objects.TreeState)ParkingVegetation.ZustandsBits(ageIndex), m_Growth=128 };
-                var definition=EntityManager.CreateEntity();
-                EntityManager.AddComponentData(definition,new CreationDefinition {m_Prefab=asset.Prefab,m_RandomSeed=random.NextInt()});
-                EntityManager.AddComponent<Updated>(definition);
-                EntityManager.AddComponentData(definition,new ObjectDefinition {
-                    m_Position=position,m_Rotation=quaternion.RotateY(random.NextFloat(0,math.PI*2)),
-                    m_Probability=100,m_PrefabSubIndex=-1,m_Scale=new float3(1),m_Intensity=1,m_ParentMesh=-1,
-                    m_Age=age,m_IsDecoration=options.NoAging });
+                if(ziel.HasValue) _vegetationTreeStates[(asset.Prefab,position.xz)]=ziel.Value;
                 RecordObjectDefinition("Vegetation",_vegetationCount++,asset.Prefab,definition,position);
                 yield return 1;
             }
@@ -526,6 +523,75 @@ namespace ParkingLotTool.Tools
                 + "ueberlebt der Zustand den Bau nicht.");
             yield break;
         }
+        /**
+         * DIE DEFINITION EINER PFLANZE - fuer den Bau UND den Pflanzentausch des
+         * Syncs (Schritt 10), damit beide gleich pflanzen. Liefert Entity.Null,
+         * wenn das Gelaende an der Stelle keine Hoehe hat. `ziel` ist der
+         * Baumzustand, den CS2 aus dem Altersfeld nicht zuverlaessig macht und
+         * der deshalb nach dem Bau am dauerhaften Baum gesetzt wird.
+         */
+        internal Entity PflanzenDefinition(VegetationAsset asset, VegetationPlacement plant, VegetationOptions options,
+            ref TerrainHeightData heightData, out float3 position, out int ageIndex, out Game.Objects.Tree? ziel)
+        {
+            position=new float3(plant.Position.x,0,plant.Position.y);
+            position.y=TerrainUtils.SampleHeight(ref heightData,position);
+            ageIndex=ParkingVegetation.SelectAge(options.Ages, plant.Seed);
+            ziel=null;
+            if(!math.all(math.isfinite(position))) return Entity.Null;
+            var random=new Unity.Mathematics.Random(plant.Seed == 0 ? 1u : plant.Seed);
+            float age=ParkingVegetation.AgeValue(ageIndex);
+            if(asset.Tree) ziel=new Game.Objects.Tree {
+                m_State=(Game.Objects.TreeState)ParkingVegetation.ZustandsBits(ageIndex), m_Growth=128 };
+            var definition=EntityManager.CreateEntity();
+            EntityManager.AddComponentData(definition,new CreationDefinition {m_Prefab=asset.Prefab,m_RandomSeed=random.NextInt()});
+            EntityManager.AddComponent<Updated>(definition);
+            EntityManager.AddComponentData(definition,new ObjectDefinition {
+                m_Position=position,m_Rotation=quaternion.RotateY(random.NextFloat(0,math.PI*2)),
+                m_Probability=100,m_PrefabSubIndex=-1,m_Scale=new float3(1),m_Intensity=1,m_ParentMesh=-1,
+                m_Age=age,m_IsDecoration=options.NoAging });
+            return definition;
+        }
+
+        /**
+         * Sync-Schritt 10: aendert der Wuchs nach Hoehe die Pflanzung dieses
+         * Parkplatzes? Nur wenn eine gewaehlte Art TreeData hat und trotzdem als
+         * Busch gilt (oder umgekehrt). Ohne Katalog laesst sich das nicht sagen -
+         * dann JA, sonst setzte der Sync den Stand still hoch (AGENTS.md).
+         */
+        internal bool BrauchtPflanzenNachWuchs(Entity lot)
+        {
+            var zettel = ReadVegetation(lot);
+            if (zettel == null || zettel.Version >= 2) return false;
+            var options = VegetationVon(lot);
+            if (!options.Enabled || options.Density <= 0 || options.Species == null || options.Species.Length == 0) return false;
+            var katalog = World.GetOrCreateSystemManaged<ParkingLotUISystem>().VegetationAssets;
+            if (katalog == null || katalog.Length == 0) return true;
+            return katalog.Any(a => options.Species.Contains(a.Id)
+                && new VegetationSpecies { Tree = a.Tree, Hoehe = a.Hoehe }.Baumartig != a.Tree);
+        }
+
+        /** Hebt den Vegetationszettel auf Version 2 - nur nach gelungenem Pflanzentausch. */
+        internal void MarkiereVegetationNachWuchs(Entity lot)
+        {
+            var zettel = ReadVegetation(lot) ?? throw new InvalidOperationException("Kein Vegetationszettel an Lot " + lot.Index + ".");
+            zettel.Version = 2;
+            var saved = JsonConvert.SerializeObject(zettel);
+            if (EntityManager.HasBuffer<ParkingLotBuildText>(lot))
+            {
+                var text = EntityManager.GetBuffer<ParkingLotBuildText>(lot);
+                for (var i = text.Length - 1; i >= 0; i--) if (text[i].Kind == 4) text.RemoveAt(i);
+                AddBuildText(text, 4, saved);
+            }
+            if (EntityManager.HasBuffer<ParkingLotVegetationReceipt>(lot))
+            {
+                var buffer = EntityManager.GetBuffer<ParkingLotVegetationReceipt>(lot);
+                buffer.Clear();
+                foreach (byte b in Encoding.UTF8.GetBytes(saved)) buffer.Add(new ParkingLotVegetationReceipt { Value = b });
+            }
+            if (ReadVegetation(lot)?.Version != 2)
+                throw new InvalidOperationException("Vegetationszettel von Lot " + lot.Index + " liest nach dem Schreiben nicht Version 2.");
+        }
+
         /** Kurzform einer Unterschrift - acht Zeichen genuegen zum Vergleichen. */
         private static string Kurz(string s)
             => string.IsNullOrEmpty(s) ? "(keine)"

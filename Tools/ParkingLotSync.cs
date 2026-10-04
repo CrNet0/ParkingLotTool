@@ -48,6 +48,13 @@ namespace ParkingLotTool.Tools
         private readonly HashSet<Entity> _offenMenge = new HashSet<Entity>();
         private readonly HashSet<Entity> _gescheitert = new HashSet<Entity>();
         private readonly HashSet<Entity> _ohneBauplan = new HashSet<Entity>();
+        /**
+         * Auf welchen Schritt ein Parkplatz gerade im Hintergrund wartet. Bis
+         * 2026-10-04 setzte ein Erfolg den Stand auf `Aktuell` - richtig, solange
+         * der Tausch der letzte Schritt war; mit Schritt 10 haette ein Parkplatz,
+         * der noch Schritt 9 brauchte, Schritt 10 still uebersprungen.
+         */
+        private readonly Dictionary<Entity, int> _wartetAuf = new Dictionary<Entity, int>();
         // Keine Queue<T>: der Typ steht in CS2 in System UND mscorlib.
         private readonly List<Entity> _warteschlange = new List<Entity>();
         private int _gesamt;
@@ -440,6 +447,7 @@ namespace ParkingLotTool.Tools
                         + " Schritt " + schritt.Nummer + " " + schritt.Name + " beendet");
                     if (a.Hintergrund || a.Tausch)
                     {
+                        _wartetAuf[lot] = schritt.Nummer;
                         // Ein vorgemerkter Neubau ist noch KEINE Wirkung.
                         // Datenstand bleibt vor diesem Schritt, bis der echte
                         // Hintergrundpfad das alte Lot ersetzt und die Aufnahme die
@@ -483,10 +491,13 @@ namespace ParkingLotTool.Tools
                 _offen.Remove(lot);
                 _offenMenge.Remove(lot);
             }
+            var schrittNummer = _wartetAuf.TryGetValue(lot, out var gewartet) ? gewartet : Migrationskatalog.Aktuell;
+            _wartetAuf.Remove(lot);
             if (erfolgreich)
             {
-                // Nur nach der echten Fahrwege-Nachpruefung; keine Netzwerte.
-                SetzeStand(neu, Migrationskatalog.Aktuell);
+                // Nur nach der echten Nachpruefung des Auftrags. Stand = dieser
+                // Schritt; die Neuaufnahme arbeitet die Schritte danach ab.
+                SetzeStand(neu, schrittNummer);
                 _offen.Remove(lot);
                 _offenMenge.Remove(lot);
                 _neuAufnehmen = true;
@@ -504,13 +515,13 @@ namespace ParkingLotTool.Tools
                 {
                     _offen.Remove(lot);
                     _offenMenge.Remove(lot);
-                    SetzeStand(ziel, Migrationskatalog.Aktuell - 1);
+                    SetzeStand(ziel, schrittNummer - 1);
                 }
                 _offen.Remove(lot);
                 _offenMenge.Remove(lot);
                 if (EntityManager.Exists(ziel) && !EntityManager.HasComponent<Deleted>(ziel))
                     _gescheitert.Add(ziel);
-                Mod.log.Warn("PLT-Sync: Fahrwege-Neubau von " + lot
+                Mod.log.Warn("PLT-Sync: Hintergrundauftrag (Schritt " + schrittNummer + ") von " + lot
                     + " nicht abgeschlossen; " + ziel + " bleibt auf seinem Datenstand, neuer Versuch nach dem naechsten Laden.");
             }
         }
@@ -556,7 +567,8 @@ namespace ParkingLotTool.Tools
             if (_syncOffen.value != _offen.Count) _syncOffen.Update(_offen.Count);
             var arbeit = World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>();
             var hintergrund = arbeit.Offen
-                + World.GetOrCreateSystemManaged<ParkingLotFahrwegTauschSystem>().Offen;
+                + World.GetOrCreateSystemManaged<ParkingLotFahrwegTauschSystem>().Offen
+                + World.GetOrCreateSystemManaged<ParkingLotPflanzenTauschSystem>().Offen;
             _gesamt = System.Math.Max(_gesamt,_warteschlange.Count + hintergrund);
             var fortschritt = HintergrundFortschritt.Zaehle(_gesamt, _warteschlange.Count, hintergrund);
             var laeuft = _warteschlange.Count + hintergrund > 0

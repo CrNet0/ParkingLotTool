@@ -122,6 +122,18 @@ namespace ParkingLotTool.Tools
                     Ausfuehren = (lot, traeger, teile) => World.GetOrCreateSystemManaged<ParkingLotFahrwegTauschSystem>().Einreihen(lot),
                     Tausch = true,
                 },
+                /*
+                 * Buesche mit Altersstufen haben TreeData und wurden bis
+                 * 2026-10-04 wie Baeume gepflanzt (3 m zur Laterne, Baumgruppen,
+                 * 30 % am Streifenrand). Neu gesetzt wird nur, wo das die Pflanzung
+                 * aendert; danach traegt der Vegetationszettel Version 2.
+                 */
+                ["PflanzenNachWuchs"] = new Ausfuehrung
+                {
+                    Braucht = (lot, traeger, teile) => _werkzeug.BrauchtPflanzenNachWuchs(lot),
+                    Ausfuehren = (lot, traeger, teile) => World.GetOrCreateSystemManaged<ParkingLotPflanzenTauschSystem>().Einreihen(lot),
+                    Tausch = true,
+                },
                 ["Fahrwege25MitKosten"] = new Ausfuehrung
                 {
                     // Stillgelegt 2026-10-02: der Neubau lief ueber das sichtbare

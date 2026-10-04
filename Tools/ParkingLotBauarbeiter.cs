@@ -70,6 +70,20 @@ namespace ParkingLotTool.Tools
                 ComponentType.Exclude<Temp>(), ComponentType.Exclude<Deleted>());
         }
 
+        /** Die Layout-Einstellungen eines gebauten Parkplatzes aus seinem Bauzettel. */
+        internal static LayoutSettings LayoutEinstellungen(ParkingLotBaukontext k)
+        {
+            var settings = k.Zettel.ToLayoutSettings(k.Zugaenge);
+            settings.Zoningstrasse = k.Zoningstrasse;
+            settings.Zoningflaechen = k.Zonen;
+            settings.Randzoning = k.Randzoning.ToArray();
+            settings.BusStops = k.Bushalte.ToArray(); settings.Teilflaechenschnitte = k.Schnitte;
+            settings.TeilflaechenAusrichtungen = (k.Ausrichtungen ?? Array.Empty<Ausrichtzuweisung>())
+                .Select(a => new TeilflaechenAusrichtung { Anker = a.Anker, Winkel = a.Winkel }).ToArray();
+            settings.Ausrichtwinkel = double.IsNaN(k.Zettel.Ausrichtwinkel) ? (double?)null : k.Zettel.Ausrichtwinkel;
+            return settings;
+        }
+
         internal Task<ParkingLayout> BereiteHintergrund(Entity lot, int auftrag)
         {
             if (!_bauarbeiter) throw new InvalidOperationException("Kein isolierter Bauarbeiter.");
@@ -99,14 +113,7 @@ namespace ParkingLotTool.Tools
             _closed = true;
             LadeZoningBedienwerte(_baukontext.Zettel);
             var k = _baukontext;
-            var settings = k.Zettel.ToLayoutSettings(k.Zugaenge);
-            settings.Zoningstrasse = k.Zoningstrasse;
-            settings.Zoningflaechen = k.Zonen;
-            settings.Randzoning = k.Randzoning.ToArray();
-            settings.BusStops = k.Bushalte.ToArray(); settings.Teilflaechenschnitte = k.Schnitte;
-            settings.TeilflaechenAusrichtungen = (k.Ausrichtungen ?? Array.Empty<Ausrichtzuweisung>())
-                .Select(a => new TeilflaechenAusrichtung { Anker = a.Anker, Winkel = a.Winkel }).ToArray();
-            settings.Ausrichtwinkel = double.IsNaN(k.Zettel.Ausrichtwinkel) ? (double?)null : k.Zettel.Ausrichtwinkel;
+            var settings = LayoutEinstellungen(k);
             _areaPreviewSettings = settings;
             _alteZoningkurse = null; _erhalteneNetzteile.Clear(); _zoningErhalten = false;
             _erhalteneKursketten.Clear(); _hintergrundGassenkurse.Clear();

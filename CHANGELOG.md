@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased (1.0.5)
+
+- Addition: street lamps along the rows, lit at night.
+- Improvement: bushes with growth stages are planted like bushes, denser and right up to lamps; "Update" replants existing lots.
+
 ## 1.0.4 — October 4, 2026
 
 - Change: traffic inside parking lots drives at 25 km/h and routes through them cost more, so through traffic avoids them.
