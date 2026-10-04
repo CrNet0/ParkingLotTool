@@ -257,17 +257,16 @@ namespace ParkingLotTool.Geometry
                             { result.WuerfelVerworfen++; continue; }
                         }
                         var world = origin + axis * p.x + across * p.y;
-                        // Laternen freihalten: genau dort, wo CS2 die Pflanze sonst verdecken
-                        // wuerde (Laternenkollision) - je Art verschieden, aber ohne Loch.
-                        // Baeume zusaetzlich mindestens 3 m (Laternenplan vom 2026-10-04).
+                        // Laternen freihalten: Baeume 3 m, Buesche nur den Mast, 0,5 m (Nutzer
+                        // 2026-10-04). CS2 verdeckt Pflanzen am Mast nicht, weil beide denselben
+                        // Besitzer haben - sofern es nach dem Besitzerwechsel neu prueft
+                        // (PruefeVerdeckungNeu). Bestaetigt das der Bau nicht, ist
+                        // Laternenkollision die Rechnung nach CS2s Regel.
                         if (laternen != null && laternen.Count > 0)
                         {
-                            var radius = kind.Radius > 0 ? kind.Radius : kind.Spacing * 0.5f;
-                            var hoehe = kind.Hoehe > 0 ? kind.Hoehe : radius * 2f;
+                            var frei = kind.Tree ? 3f : 0.5f;
                             var weg = false;
-                            foreach (var l in laternen)
-                                if ((kind.Tree && math.distancesq(world, l.Position) < 9f)
-                                    || Laternenkollision.Beruehrt(l, world, radius, hoehe)) { weg = true; break; }
+                            foreach (var l in laternen) if (math.distancesq(world, l.Position) < frei * frei) { weg = true; break; }
                             if (weg) { result.LaternenVerworfen++; continue; }
                         }
                         int gx = (int)Math.Floor(world.x / 16f), gy = (int)Math.Floor(world.y / 16f);

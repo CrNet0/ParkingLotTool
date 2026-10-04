@@ -273,12 +273,46 @@ namespace ParkingLotTool.Tools
             if (_vegNachschauStufe == 1)
             {
                 SetzeBaumzustaende(lot);
+                PruefeVerdeckungNeu(lot);
                 _vegNachschauStufe = 2;
                 _vegNachschauFrame = UnityEngine.Time.frameCount + 120;
                 return;
             }
             _vegNachschauLot = Entity.Null;
             LogVegetationAges(lot, "NACH DEM BAU");
+        }
+
+        /**
+         * VERDECKTES NEU PRUEFEN LASSEN, SOBALD DER BESITZER STEHT (2026-10-04).
+         *
+         * CS2 prueft Teile desselben Besitzers nicht gegeneinander
+         * (OverrideSystem.ObjectIterator: gleiche Wurzel ueber Owner -> keine
+         * Kollision), genau wie die Deko eines Gebaeudes. Trotzdem waren nach
+         * dem Bau um 17:29 22 von 398 Pflanzen verdeckt - bei vollstaendiger
+         * Besitzerkette. CS2 hatte schon an den Vorschau-Objekten geprueft, als
+         * sie noch keinen Besitzer hatten, und das Ergebnis blieb stehen, weil
+         * danach niemand eine neue Pruefung anstiess.
+         *
+         * `Updated` ist der Vanilla-Weg dafuer: `UpdateCollectSystem` sammelt
+         * das Objekt ein, `OverrideSystem` prueft es mit dem jetzigen Besitzer
+         * neu. Was nur mit eigenen Teilen kollidierte, wird wieder sichtbar; was
+         * an fremden Objekten haengt, bleibt verdeckt. Die Zaehlung danach steht
+         * in "PLT-Vegetation NACH DEM BAU ... Overridden=".
+         */
+        private void PruefeVerdeckungNeu(Entity lot)
+        {
+            using var parts = _editRelatedParts.ToEntityArray(Allocator.Temp);
+            int verdeckt = 0, pflanzen = 0;
+            foreach (var part in parts)
+            {
+                if (EntityManager.GetComponentData<ParkingLotPartRelation>(part).Lot != lot) continue;
+                if (!EntityManager.HasComponent<Overridden>(part)) continue;
+                verdeckt++;
+                if (EntityManager.HasComponent<Game.Objects.Tree>(part)) pflanzen++;
+                if (!EntityManager.HasComponent<Updated>(part)) EntityManager.AddComponent<Updated>(part);
+            }
+            Mod.log.Info("PLT-Verdeckung Lot " + lot.Index + ": " + verdeckt + " eigene Teile verdeckt (davon "
+                + pflanzen + " Pflanzen), mit Besitzer neu zur Pruefung gegeben.");
         }
 
         private void SetzeBaumzustaende(Entity lot)
