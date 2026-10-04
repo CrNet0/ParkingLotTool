@@ -252,10 +252,12 @@ namespace ParkingLotTool.Geometry
                             { result.WuerfelVerworfen++; continue; }
                         }
                         var world = origin + axis * p.x + across * p.y;
-                        // Laternen freihalten (Laternenplan vom 2026-10-04): Baeume 3 m, Buesche 1,5 m.
+                        // Laternen freihalten (Laternenplan vom 2026-10-04): Baeume 3 m. Buesche
+                        // duerfen bis an den Mast (Nutzer 2026-10-04): halbe Breite + 0,4 m
+                        // Mast, statt pauschal 1,5 m.
                         if (laternen != null && laternen.Count > 0)
                         {
-                            var frei = kind.Tree ? 3f : 1.5f;
+                            var frei = kind.Tree ? 3f : kind.Spacing / 2 + 0.4f;
                             var weg = false;
                             foreach (var l in laternen) if (math.distancesq(world, l) < frei * frei) { weg = true; break; }
                             if (weg) { result.LaternenVerworfen++; continue; }
