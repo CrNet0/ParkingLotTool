@@ -7,6 +7,8 @@
 - Improvement: "Update" takes a lot through all pending steps in one click; the result message stays 30 seconds.
 - Improvement: the "Parking lots" tab turns yellow and shows how many lots need a sync or repair.
 - Improvement: bushes with growth stages are planted like bushes, denser and right up to lanterns; "Update" replants existing lots.
+- Fix: notifications such as missing workers now show above the parking lot instead of on the road at its entrance.
+- Fix: parking lots no longer demand electricity.
 - Fix: every parking lot added about 65,000 a month to road upkeep regardless of size; it now costs what its info panel shows (thanks SeanDFC02).
 - Fix: grass left on the road where perimeter roads overlap (thanks bikester1).
 - Fix: editing a lot continues after an autosave instead of losing the selection (thanks bikester1).
