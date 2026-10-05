@@ -233,6 +233,9 @@ namespace ParkingLotTool
             // UIUpdate, weil es auch in der Pause laufen soll und die
             // Bindungen fuer Liste, Panelkopf und Fortschrittsmeldung traegt.
             updateSystem.UpdateAt<ParkingLotSyncSystem>(SystemUpdatePhase.UIUpdate);
+            // Parkplaetze mit Flaechen/Pflanzen aus nicht geladenen Mods:
+            // erkennen, in der Liste zeigen, auf Klick reparieren.
+            updateSystem.UpdateAt<ParkingLotFehlendeAssetsSystem>(SystemUpdatePhase.UIUpdate);
             // Der Hinweis am Mauszeiger waehrend der Linienauswahl. Gleiche
             // Phase wie die Vanilla-Werkzeugtooltips.
             updateSystem.UpdateAt<ParkingLotAlignTooltipSystem>(

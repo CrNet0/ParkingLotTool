@@ -2374,6 +2374,21 @@ namespace ParkingLotTool.Tools
             else _panelOpen?.Update(true);
         }
 
+        /**
+         * NACH "REPARIEREN" UND "SYNCHRONISIEREN" GEHT DAS PANEL ZU (Nutzer
+         * 2026-10-05): "Ich will nicht selbst das Panel zu machen muessen."
+         * Bisher schloss es nur "Alle synchronisieren" - als Nebenwirkung des
+         * Bestandstauschs, der kurz sein eigenes Werkzeug setzt. Der Neubau im
+         * Hintergrund wartet dagegen, solange das Werkzeug einen Entwurf hat.
+         * Jetzt schliessen alle vier Knoepfe gleich, einzeln wie fuer alle.
+         */
+        internal void SchliesseWerkzeug()
+        {
+            var toolSystem = World.GetOrCreateSystemManaged<Game.Tools.ToolSystem>();
+            if (toolSystem.activeTool == World.GetOrCreateSystemManaged<ParkingLotToolSystem>())
+                toolSystem.activeTool = World.GetOrCreateSystemManaged<Game.Tools.DefaultToolSystem>();
+        }
+
         private void ToggleTool()
         {
             var toolSystem = World.GetOrCreateSystemManaged<Game.Tools.ToolSystem>();

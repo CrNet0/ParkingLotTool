@@ -997,8 +997,8 @@ namespace ParkingLotTool
                 {
                     "Options.OPTION[" + seite + "." + nameof(Setting) + "."
                         + nameof(Setting.WaisenAutomatischReparieren) + "]",
-                    _deutsch ? "Verwaiste Parkplätze automatisch reparieren"
-                        : "Repair orphaned parking lots automatically"
+                    _deutsch ? "Parkplätze automatisch reparieren"
+                        : "Repair parking lots automatically"
                 },
                 {
                     "Options.OPTION_DESCRIPTION[" + seite + "." + nameof(Setting) + "."
@@ -1009,11 +1009,17 @@ namespace ParkingLotTool
                           + "sie fehlen in der Liste und lassen sich nicht sauber "
                           + "abreißen. Ist dieser Schalter an, verbindet die Mod sie "
                           + "nach dem Laden selbst wieder, einen nach dem anderen. "
+                          + "Dasselbe gilt für Parkplätze mit Flächen oder Pflanzen aus "
+                          + "einem Mod, der nicht mehr geladen ist: sie bekommen deine "
+                          + "gespeicherte Standardfläche und -pflanzen. "
                           + "Aus: Liste und Infofenster bieten dafür einen Knopf an."
                         : "If a save was stored without Parking Lot Tool, its parking "
                           + "lots lose their link to the mod: they are missing from "
                           + "the list and cannot be removed cleanly. With this on, "
                           + "the mod reconnects them after loading, one at a time. "
+                          + "The same goes for lots with surfaces or plants from a mod "
+                          + "that is no longer loaded: they get your saved default "
+                          + "surface and plants. "
                           + "Off: the list and the info panel offer a button instead."
                 },
                 {

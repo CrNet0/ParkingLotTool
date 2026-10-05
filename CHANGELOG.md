@@ -4,7 +4,9 @@
 
 - Addition: street lanterns along the rows, lit at night; street, commercial and industrial sets or your own, spacing 20–40 m; "Update" adds them to existing lots.
 - Addition: "Show light range" in the lantern window draws each lantern's reach in the preview (off by default).
+- Addition: lots that use a surface or plant from a mod that is no longer loaded say what is missing; "Repair" rebuilds them with your saved default surface and plants, or automatically with "Repair automatically".
 - Improvement: "Update" takes a lot through all pending steps in one click; the result message stays 30 seconds.
+- Improvement: "Repair" and "Synchronize" close the panel, for one lot or all of them.
 - Improvement: the "Parking lots" tab turns yellow and shows how many lots need a sync or repair.
 - Improvement: bushes with growth stages are planted like bushes, denser and right up to lanterns; "Update" replants existing lots.
 - Fix: notifications such as missing workers now show above the parking lot instead of on the road at its entrance.

@@ -477,7 +477,13 @@ const en = {
   waisenAuto: "Repair automatically",
   tooltipWaisenAuto:
     "Same switch as in the mod settings. When on, orphaned lots are "
-    + "reconnected after loading, one at a time.",
+    + "reconnected and lots with missing assets are repaired after loading, "
+    + "one at a time.",
+  fehlendeAssets: (namen: string) =>
+    `Missing: ${namen}. The mod that provides it is not loaded. Turn it back on, or repair the lot.`,
+  tooltipFehlendReparieren:
+    "Rebuilds the lot with your saved default surface and plants in place of "
+    + "the missing ones. Shape and all other settings stay.",
   ohneBauzettel: "Editing unavailable: the build plan was lost with the save.",
   bauplanTitel: "Build plan missing",
   bauplanText:
@@ -1081,8 +1087,14 @@ const de: Texte = {
   waisenAuto: "Automatisch reparieren",
   tooltipWaisenAuto:
     "Derselbe Schalter wie in den Mod-Einstellungen. Ist er an, werden "
-    + "verwaiste Parkplätze nach dem Laden wieder verbunden, einer nach dem "
-    + "anderen.",
+    + "verwaiste Parkplätze nach dem Laden wieder verbunden und Parkplätze mit "
+    + "fehlenden Assets repariert, einer nach dem anderen.",
+  fehlendeAssets: (namen: string) =>
+    `Fehlt: ${namen}. Der Mod, der es liefert, ist nicht geladen. Schalte ihn wieder ein oder repariere den Parkplatz.`,
+  tooltipFehlendReparieren:
+    "Baut den Parkplatz mit deiner gespeicherten Standardfläche und deinen "
+    + "Standardpflanzen statt der fehlenden neu. Form und alle anderen "
+    + "Einstellungen bleiben.",
   ohneBauzettel: "Bearbeiten nicht möglich: der Bauplan ging mit dem Spielstand verloren.",
   bauplanTitel: "Bauplan fehlt",
   bauplanText:

@@ -89,6 +89,9 @@ namespace ParkingLotTool.Tools
             if (!_bauarbeiter) throw new InvalidOperationException("Kein isolierter Bauarbeiter.");
             if (!ParkingLotBaukontextLeser.TryRead(EntityManager, lot, out _baukontext, out var grund))
                 throw new InvalidOperationException(grund);
+            // Reparatur fehlender Assets: dieselben Bauwerte, nur andere Flaechen/Arten.
+            var ersatz = ParkingLotFehlendeAssetsSystem.ErsatzFuer(lot);
+            if (ersatz != null) _baukontext = _baukontext.MitFlaechen(ersatz.Strasse, ersatz.Deko, ersatz.Zoning);
             _definitionsmodus = ParkingLotDefinitionsmodus.Permanent;
             _definitionsauftrag = auftrag;
             _editLot = lot; _lotOwner = _lotCarrier = Entity.Null;
@@ -103,7 +106,7 @@ namespace ParkingLotTool.Tools
             _zoningflaechen.Clear(); _zoningflaechen.AddRange(_baukontext.Zonen ?? Array.Empty<ParkingGeometry.Zoningflaeche>());
             _randzoning.Clear(); _randzoning.AddRange(_baukontext.Randzoning);
             _zoningSeitenPlan.Clear(); _zoningSeitenPlan.AddRange(_baukontext.Seitenplan);
-            _bauvegetation = VegetationVon(lot);
+            _bauvegetation = ersatz?.Vegetation ?? VegetationVon(lot);
             // Ohne Laternenzettel (vor 2026-10-04 gebaut) der Standard des Spielers - wie Sync-Schritt 11.
             _baulaternen = LaternenVon(lot) ?? World.GetOrCreateSystemManaged<ParkingLotUISystem>().LaternenStandardOptionen;
             // Nur der unveraenderliche Assetkatalog; KEINE Panelwahl.

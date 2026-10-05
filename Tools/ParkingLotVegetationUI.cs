@@ -90,6 +90,13 @@ namespace ParkingLotTool.Tools
                 _vegetationSets.RemoveAll(s => s.Custom && s.Id == id); SaveVegetationSets(); PublishVegetation();
             }));
         }
+        // Fuer die Reparatur fehlender Assets: der gespeicherte Standard des Spielers.
+        internal string StandardFlaecheStrasse => _defaults?.SurfaceRoad;
+        internal string StandardFlaecheDeko => _defaults?.SurfaceDecoration;
+        internal VegetationOptions StandardVegetation
+            => JsonConvert.DeserializeObject<VegetationOptions>(VegetationStandard()) ?? new VegetationOptions();
+        internal void AktualisiereVegetationskatalog() => RefreshVegetation();
+
         /** Der gespeicherte Standard, sonst die Werkswerte - immer ohne Zufallszahl. */
         private string VegetationStandard()
         {
@@ -141,7 +148,10 @@ namespace ParkingLotTool.Tools
         {
             _vegetationAssets.Clear(); _vegetationSets.Clear();
             var prefabs = World.GetOrCreateSystemManaged<PrefabSystem>();
-            using (var query = EntityManager.CreateEntityQuery(ComponentType.ReadOnly<PlantData>(), ComponentType.ReadOnly<ObjectGeometryData>()))
+            // Ohne Deleted: ein im laufenden Spiel abgewaehltes Asset-Pack hinterlaesst
+            // abgemeldete Prefabs, deren Index CS2 schon einem anderen gegeben hat.
+            using (var query = EntityManager.CreateEntityQuery(ComponentType.ReadOnly<PlantData>(), ComponentType.ReadOnly<ObjectGeometryData>(),
+                       ComponentType.Exclude<Game.Common.Deleted>()))
             using (var entities = query.ToEntityArray(Allocator.Temp))
                 foreach (var entity in entities)
                 {

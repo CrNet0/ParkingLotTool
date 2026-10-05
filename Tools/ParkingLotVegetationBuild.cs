@@ -55,7 +55,9 @@ namespace ParkingLotTool.Tools
             _overlay.LichtkreiseZeigen = _uiSystem?.LaternenLichtkreise ?? false;
             _overlay.SetLaternen(laternen, laternenOptionen, _terrainSystem);
             var options=_bauvegetation ?? _uiSystem?.Vegetation ?? new VegetationOptions();
-            var assets=(_baupflanzen ?? _uiSystem?.VegetationAssets ?? Array.Empty<VegetationAsset>()).Where(a=>options.Species.Contains(a.Id)).ToArray();
+            var assets=(_baupflanzen ?? _uiSystem?.VegetationAssets ?? Array.Empty<VegetationAsset>()).Where(a=>options.Species.Contains(a.Id)
+                // Katalog vom Sitzungsbeginn: ein inzwischen abgemeldetes Prefab nie pflanzen.
+                && EntityManager.Exists(a.Prefab) && !EntityManager.HasComponent<Deleted>(a.Prefab)).ToArray();
             var species=assets.Select(a=>new VegetationSpecies {Id=a.Id,Tree=a.Tree,Spacing=a.Spacing,Hoehe=a.Hoehe}).ToArray();
             ParkingVegetation.Dichtefaktor = Mod.Optionen?.Vegetationsdichte ?? 1f;
             var plan=ParkingVegetation.Plan(grass,options,species,LaternenKoerperFuer(laternen, laternenOptionen));

@@ -49,5 +49,11 @@ namespace ParkingLotTool.Tools
             Randzoning = randzoning;
             Bushalte = bushalte;
         }
+
+        /** Dieselbe Kopie mit anderen Flaechen - fuer die Reparatur fehlender Assets. */
+        internal ParkingLotBaukontext MitFlaechen(string strasse, string deko, string zoning)
+            => new ParkingLotBaukontext(AltesLot, Zettel, Punkte, Zugaenge, Ausrichtungen,
+                Schnitte, Zonen, strasse, deko, zoning, Vegetationszettel, Zoningstrasse,
+                Seitenplan, Randzoning, Bushalte);
     }
 }

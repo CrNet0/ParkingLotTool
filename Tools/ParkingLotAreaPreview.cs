@@ -291,7 +291,10 @@ namespace ParkingLotTool.Tools
                 ComponentType.ReadOnly<SurfaceData>(),
                 ComponentType.ReadOnly<AreaData>(),
                 ComponentType.ReadOnly<AreaGeometryData>(),
-                ComponentType.Exclude<PlaceholderObjectElement>());
+                ComponentType.Exclude<PlaceholderObjectElement>(),
+                // Ein im laufenden Spiel abgewaehltes Asset-Pack: CS2 setzt
+                // Deleted und gibt den Prefab-Index einem anderen Prefab.
+                ComponentType.Exclude<Deleted>());
             InitializeAreaDiagnostics();
         }
 

@@ -54,6 +54,8 @@ const MANGEL_AB_FELD = 12;
 const WAISE_FELD = MANGEL_AB_FELD + FELDER_JE_BLOCK;
 const BAUZETTEL_FELD = WAISE_FELD + 1;
 const SYNC_FELD = BAUZETTEL_FELD + 1;
+/** Namen der Flaechen und Pflanzen aus nicht geladenen Mods, leer wenn alles da ist. */
+const FEHLT_FELD = SYNC_FELD + 1;
 
 /** Ab so vielen Proben traut sich eine Kachel eine Aussage zu. */
 const PROBEN_FUER_AUSSAGE = 5;
@@ -90,6 +92,7 @@ type Parkplatz = {
   waise: number;
   bauzettel: boolean;
   sync: boolean;
+  fehlt: string;
 };
 
 const zahl = (s: string | undefined) => {
@@ -391,7 +394,25 @@ const Kachel = ({ platz, bloecke, slot, runde }: {
             <div><Satz teile={mangel} zielId={platz.mangel.zielId} /></div>
           </div>
         )}
-        {platz.sync && platz.waise !== 1 && platz.waise !== 2 && (
+        {/* FEHLENDE ASSETS (Nutzer 2026-10-05): Flaeche oder Pflanze aus einem
+            Mod, der nicht geladen ist. Reparieren baut mit dem gespeicherten
+            Standard neu; Synchronisieren ginge vorher ohnehin ins Leere. */}
+        {platz.fehlt !== "" && platz.waise !== 1 && platz.waise !== 2 && (
+          <>
+            <div className={`${styles.listeHinweis} ${styles.listeHinweisMangel}`}>
+              <img src={icon("ExclamationMark")} />
+              <div>{t.fehlendeAssets(platz.fehlt)}</div>
+            </div>
+            <div className={styles.listeSyncZeile}>
+              <TooltipKnopf text={t.tooltipFehlendReparieren}
+                className={`${styles.listeTextknopf} ${styles.listeHinweisKnopf}`}
+                onClick={() => parkplatzReparieren(platz.id)}>
+                {t.waiseReparieren}
+              </TooltipKnopf>
+            </div>
+          </>
+        )}
+        {platz.sync && platz.fehlt === "" && platz.waise !== 1 && platz.waise !== 2 && (
           <div className={styles.listeSyncZeile}>
             <TooltipKnopf text={t.tooltipSync}
               className={`${styles.listeTextknopf} ${styles.listeHinweisKnopf}`}
@@ -472,6 +493,7 @@ export const ListeTab = () => {
     geschaetzt: zahl(f[11]) === 1, mangel: blockAus(f, MANGEL_AB_FELD),
     waise: zahl(f[WAISE_FELD]), bauzettel: zahl(f[BAUZETTEL_FELD]) === 1,
     sync: zahl(f[SYNC_FELD]) === 1,
+    fehlt: f[FEHLT_FELD] ?? "",
   })), [rohListe]);
   const bloecke = useMemo(() => {
     const result = new Map<string, Block[]>();
@@ -510,7 +532,8 @@ export const ListeTab = () => {
   // Zustand 3 (verbunden, Bauplan fehlt) zaehlt mit: "Alle reparieren"
   // stellt auch dessen Bauplan wieder her.
   const waisen = plaetze.filter(p => p.waise > 0).length;
-  const reparierbar = plaetze.filter(p => p.waise === 1 || p.waise === 3).length;
+  const fehlende = plaetze.filter(p => p.fehlt !== "" && p.waise !== 1 && p.waise !== 2).length;
+  const reparierbar = plaetze.filter(p => p.waise === 1 || p.waise === 3).length + fehlende;
   const summePlaetze = plaetze.reduce((summe, p) => summe + p.kapazitaet, 0);
   const summeFrei = plaetze.reduce((summe, p) => summe + Math.max(0, p.kapazitaet - p.belegt), 0);
   const unterhalt = plaetze.reduce((summe, p) => summe + p.unterhalt, 0);
@@ -526,7 +549,7 @@ export const ListeTab = () => {
           <strong>{`${plaetze.length} ${t.reiterListe}`}</strong>
         </div>
         <div className={styles.listeKopfAktionen}>
-        {waisen > 0 && <div className={styles.listeFilter}>
+        {(waisen > 0 || fehlende > 0) && <div className={styles.listeFilter}>
           {reparierbar > 0 && <TooltipKnopf text={t.tooltipWaiseReparieren}
             className={`${styles.listeTextknopf} ${styles.listeHinweisKnopf}`}
             onClick={parkplaetzeReparieren}>{t.waisenAlleReparieren(reparierbar)}</TooltipKnopf>}

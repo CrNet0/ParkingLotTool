@@ -51,6 +51,7 @@ namespace ParkingLotTool.Tools
         private ValueBinding<bool> _hatVorrunde;
         private ValueBinding<bool> _waisenAuto;
         private ParkingLotWaisenSystem _waisen;
+        private ParkingLotFehlendeAssetsSystem _fehlend;
         private ParkingLotSyncSystem _sync;
         private bool _zeigtVorrunde;
 
@@ -91,6 +92,7 @@ namespace ParkingLotTool.Tools
             _zeit = World.GetOrCreateSystemManaged<Game.Simulation.TimeSystem>();
             _stadtwerte = new CityStatistikQuelle(World);
             _waisen = World.GetOrCreateSystemManaged<ParkingLotWaisenSystem>();
+            _fehlend = World.GetOrCreateSystemManaged<ParkingLotFehlendeAssetsSystem>();
             _sync = World.GetOrCreateSystemManaged<ParkingLotSyncSystem>();
 
             /*
@@ -186,7 +188,8 @@ namespace ParkingLotTool.Tools
             // die Liste das sofort zeigen, nicht erst im Takt.
             var bestand = _lotQuery.CalculateEntityCount()
                 + (_waisen?.OffeneWaisen.Count ?? 0) * 100000
-                + (_waisen?.OhneBauzettel.Count ?? 0) * 1000;
+                + (_waisen?.OhneBauzettel.Count ?? 0) * 1000
+                + (_fehlend?.Anzahl ?? 0) * 10000000;
             if (bestand != _zuletztGezaehlt)
             {
                 _zuletztGezaehlt = bestand;
@@ -293,13 +296,19 @@ namespace ParkingLotTool.Tools
         private void ParkplatzReparieren(string schluessel)
         {
             if (!VersucheSchluessel(schluessel, out var lot)) return;
-            _waisen?.Reparieren(lot);
+            // Fehlende Assets zuerst: eine Waise hat keinen Bauzettel, den sie
+            // pruefen koennte - beides zugleich kommt also nicht vor.
+            if (_fehlend != null && _fehlend.Betrifft(lot)) _fehlend.Reparieren(lot);
+            else _waisen?.Reparieren(lot);
+            World.GetOrCreateSystemManaged<ParkingLotUISystem>().SchliesseWerkzeug();
             _frames = AktualisierungFrames;
         }
 
         private void ParkplaetzeReparieren()
         {
             _waisen?.ReparierenAlle();
+            _fehlend?.ReparierenAlle();
+            World.GetOrCreateSystemManaged<ParkingLotUISystem>().SchliesseWerkzeug();
             _frames = AktualisierungFrames;
         }
 
@@ -436,7 +445,9 @@ namespace ParkingLotTool.Tools
                     .Append(EntityManager.HasComponent<ParkingLotBuildReceipt>(lot)
                         ? 1 : 0)
                     // Feld 21: braucht eine Synchronisation.
-                    .Append('\t').Append(_sync != null && _sync.BrauchtSync(lot) ? 1 : 0);
+                    .Append('\t').Append(_sync != null && _sync.BrauchtSync(lot) ? 1 : 0)
+                    // Feld 22: Assets aus nicht geladenen Mods, leer wenn alles da ist.
+                    .Append('\t').Append(Saeubere(_fehlend?.Text(lot) ?? string.Empty));
             }
             SchreibeWaisen();
             Setze(_liste, _bau.ToString());

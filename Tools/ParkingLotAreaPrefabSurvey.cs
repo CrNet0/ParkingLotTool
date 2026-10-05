@@ -41,7 +41,8 @@ namespace ParkingLotTool.Tools
             // Game.Areas.RaycastJobs fuer seinen Maskenvergleich.
             _areaPrefabQuery = GetEntityQuery(
                 ComponentType.ReadOnly<AreaGeometryData>(),
-                ComponentType.ReadOnly<PrefabData>());
+                ComponentType.ReadOnly<PrefabData>(),
+                ComponentType.Exclude<Game.Common.Deleted>());
         }
 
         /**

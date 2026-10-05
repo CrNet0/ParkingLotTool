@@ -210,9 +210,13 @@ namespace ParkingLotTool.Tools
                 schluessel =>
                 {
                     if (VersucheSchluessel(schluessel, out var lot)) Einreihen(lot);
+                    World.GetOrCreateSystemManaged<ParkingLotUISystem>().SchliesseWerkzeug();
                 }));
-            AddBinding(new TriggerBinding(Group, "ParkplaetzeSynchronisieren",
-                AlleEinreihen));
+            AddBinding(new TriggerBinding(Group, "ParkplaetzeSynchronisieren", () =>
+            {
+                AlleEinreihen();
+                World.GetOrCreateSystemManaged<ParkingLotUISystem>().SchliesseWerkzeug();
+            }));
         }
 
         [Preserve]
@@ -289,8 +293,11 @@ namespace ParkingLotTool.Tools
                 else
                 {
                     var offen = 0;
+                    var hintergrund = World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>();
+                    // Was im Hintergrund schon gebaut wird, wartet auf nichts mehr.
                     foreach (var lot in _offen)
-                        if (!_warteschlange.Contains(lot) && !_wartetAuf.ContainsKey(lot)) offen++;
+                        if (!_warteschlange.Contains(lot) && !_wartetAuf.ContainsKey(lot)
+                            && !hintergrund.Gesperrt(lot)) offen++;
                     if (offen > 0)
                     {
                         _meldungOffen = offen;
@@ -345,6 +352,10 @@ namespace ParkingLotTool.Tools
                 var lot = lots[i];
                 var hintergrund = World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>();
                 if (hintergrund.IstErsatz(lot)) continue;
+                // Wird gerade wegen fehlender Assets neu gebaut: das ist keine
+                // offene Synchronisation (sonst "1 Parkplatz kann aktualisiert
+                // werden" nach jedem Reparieren, Nutzer 2026-10-05).
+                if (hintergrund.Gesperrt(lot) && ParkingLotFehlendeAssetsSystem.ErsatzFuer(lot) != null) continue;
                 if (hintergrund.Gesperrt(lot))
                 { _offen.Add(lot); _offenMenge.Add(lot); continue; }
                 var stand = StandVon(lot);
@@ -600,7 +611,8 @@ namespace ParkingLotTool.Tools
                 && _ergebnisUhr.Elapsed.TotalSeconds >= ErgebnisSekunden)
                 LeereMeldung();
             if (_syncOffen.value != _offen.Count) _syncOffen.Update(_offen.Count);
-            var zuTun = _offen.Count + _ohneBauplan.Count + OffeneWaisen();
+            var zuTun = _offen.Count + _ohneBauplan.Count + OffeneWaisen()
+                + World.GetOrCreateSystemManaged<ParkingLotFehlendeAssetsSystem>().Anzahl;
             if (_arbeitOffen.value != zuTun) _arbeitOffen.Update(zuTun);
             var arbeit = World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>();
             var hintergrund = arbeit.Offen
