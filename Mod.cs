@@ -312,9 +312,17 @@ namespace ParkingLotTool
             // Das eigene BuildingPrefab muss `Created` noch tragen, wenn CS2
             // seinen Prefabvertrag baut. Registrierung im spaeteren
             // Wirtschaftstick waere dafuer einen Lebenszyklus zu spaet.
+            //
+            // VOR PrefabInitializeSystem, nicht nur vor BuildingInitializeSystem
+            // (2026-10-05). Im Spiel laeuft PrefabInitializeSystem zuerst
+            // (SystemOrder 1007 vor 1019); dazwischen angemeldet, verpasste der
+            // Begleiter jedes Initialize und LateInitialize. Folgen: Archetyp
+            // musste von Hand nachgeholt werden, die Unterhaltsliste blieb leer
+            // (er zahlte nie), der Dienst stand leer. Alle anderen eigenen
+            // Prefabs sitzen schon vor PrefabInitializeSystem.
             if (!Aus("begleiter"))
             updateSystem.UpdateBefore<ParkingLotBuildingEconomyPrefabSystem,
-                Game.Prefabs.BuildingInitializeSystem>(
+                Game.Prefabs.PrefabInitializeSystem>(
                     SystemUpdatePhase.PrefabUpdate);
             updateSystem.UpdateBefore<ParkingLotEmployeeSystem,
                 Game.Simulation.WorkProviderSystem>(
