@@ -255,6 +255,10 @@ namespace ParkingLotTool
          * abstuerzen lassen, neu starten - dann steht im automatisch
          * erzeugten Absturzbericht, in welchem unserer Systeme es passiert
          * ist.
+         *
+         * NUR FUER EINEN LAUF (2026-10-05): `Mod.OnLoad` schaltet sie bei
+         * jedem Start wieder aus. Sie blieb sonst nach dem Absturz an und
+         * bremste das Spiel ueber Updates hinweg (Issue #6).
          */
         [SettingsUISection(ReiterAllgemein, GruppeHinweise)]
         public bool Absturzspur
@@ -908,8 +912,8 @@ namespace ParkingLotTool
                     _deutsch ? "Absturzspur mitschreiben (kann mit der Zeit ruckeln, nur bei Bedarf)"
                         : "Record a crash trace (may become laggy after time, only use when needed)" },
                 { "Options.OPTION_DESCRIPTION[" + pfadAbsturzspur + "]",
-                    _deutsch ? "Schreibt bei JEDEM Bild mit, welches System des Mods gerade läuft, und zwingt es sofort auf die Platte — damit nach einem Absturz dort steht, wo es passiert ist. Standard: aus, weil es spürbar Leistung kostet. Nur einschalten, wenn du einen Absturz wiederholen kannst."
-                        : "Records which of the mod's systems is running on EVERY frame and forces it straight to disk, so after a crash the trace says where it happened. Default: off, because it costs noticeable performance. Only turn it on if you can reproduce a crash." },
+                    _deutsch ? "Schreibt bei JEDEM Bild mit, welches System des Mods gerade läuft, und zwingt es sofort auf die Platte — damit nach einem Absturz dort steht, wo es passiert ist. Kostet spürbar Leistung. Nur einschalten, wenn du einen Absturz wiederholen kannst. Schaltet sich beim nächsten Spielstart von selbst wieder aus."
+                        : "Records which of the mod's systems is running on EVERY frame and forces it straight to disk, so after a crash the trace says where it happened. Costs noticeable performance. Only turn it on if you can reproduce a crash. Turns itself off the next time you start the game." },
                 { "Options.SECTION[" + seite + "]", "Parking Lot Tool" },
                 {
                     "Options.TAB[" + seite + "." + Setting.ReiterAllgemein + "]",

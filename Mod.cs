@@ -169,12 +169,28 @@ namespace ParkingLotTool
              * ihn einmal umlegt. Genau diese Sorte stiller Abweichung hat
              * uns schon zweimal Zeit gekostet.
              */
+            /*
+             * DIE SPUR GILT NUR FUER DEN LAUF, IN DEM SIE ANGESCHALTET WURDE
+             * (Nutzer 2026-10-05). Issue #6: ein Spieler hatte sie fuer einen
+             * Absturz eingeschaltet, sie blieb ueber das Update hinweg an und
+             * schrieb jedes Bild auf die Platte - CPU und GPU unter 40 %.
+             * "Das muss immer jemand extra anmachen und auch aus sein nach
+             * dem Crash." Der Absturz, den sie festhalten soll, passiert im
+             * selben Lauf wie das Anschalten; beim naechsten Start liegt die
+             * Spur schon auf der Platte und geht in den Absturzbericht. Also
+             * bei jedem Start aus und sofort gespeichert.
+             */
+            var spurWarAn = _setting.Absturzspur;
+            if (spurWarAn) _setting.Absturzspur = false;
             _setting.Geladen = true;
-            Tools.ParkingLotSchrittmarke.Mitschreiben = _setting.Absturzspur;
-            if (_setting.Absturzspur)
-                log.Info("PLT-Absturzspur ist AN (aus den Einstellungen). "
-                    + "Jedes Bild wird mitgeschrieben; das kostet Leistung "
-                    + "und ist nur zum Einkreisen eines Absturzes gedacht.");
+            Tools.ParkingLotSchrittmarke.Mitschreiben = false;
+            if (spurWarAn)
+            {
+                _setting.ApplyAndSave();
+                log.Info("PLT-Absturzspur war aus dem letzten Lauf noch AN "
+                    + "und ist jetzt AUS. Sie gilt nur fuer den Lauf, in dem "
+                    + "sie eingeschaltet wird.");
+            }
 
             /*
              * DIE NOTBREMSE IST WEG - und das ist eine Aussage, keine
