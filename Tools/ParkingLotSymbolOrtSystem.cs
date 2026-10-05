@@ -19,8 +19,8 @@ namespace ParkingLotTool.Tools
      * "Das kann zu Verwirrung fuehren."
      *
      * Der Begleiter bleibt, wo er ist; nur seine Symbole wandern. Jedes Symbol
-     * ist eine eigene Entity mit \`Icon.m_Location\`, und \`IconClusterSystem\`
-     * ordnet neu ein, was \`Updated\` traegt. Dieses System sitzt dafuer in
+     * ist eine eigene Entity mit `Icon.m_Location`, und `IconClusterSystem`
+     * ordnet neu ein, was `Updated` traegt. Dieses System sitzt dafuer in
      * ModificationEnd zwischen IconCommandSystem (setzt den Ort aus dem
      * Gebaeude) und IconClusterSystem (ordnet ein): rechnet CS2 den Ort neu,
      * steht das Symbol im selben Bild wieder ueber dem Parkplatz.
@@ -30,7 +30,10 @@ namespace ParkingLotTool.Tools
         /** So hoch ueber dem mittleren Gelaende der Flaeche - ueber Autos und Belag. */
         private const float Hoehe = 2f;
 
-        private EntityQuery _begleiter;
+        private EntityQuery _begleiter, _alleBegleiter;
+        private Game.Prefabs.PrefabSystem _prefabs;
+        private string _letzterBericht;
+        private int _bilder;
 
         [Preserve]
         protected override void OnCreate()
@@ -46,12 +49,24 @@ namespace ParkingLotTool.Tools
                 },
                 None = new[] { ComponentType.ReadOnly<Temp>(), ComponentType.ReadOnly<Deleted>() },
             });
-            RequireForUpdate(_begleiter);
+            _alleBegleiter = GetEntityQuery(new EntityQueryDesc
+            {
+                All = new[]
+                {
+                    ComponentType.ReadOnly<ParkingLotBuildingEconomyEnabled>(),
+                    ComponentType.ReadOnly<ParkingLotPartRelation>(),
+                },
+                None = new[] { ComponentType.ReadOnly<Temp>(), ComponentType.ReadOnly<Deleted>() },
+            });
+            _prefabs = World.GetOrCreateSystemManaged<Game.Prefabs.PrefabSystem>();
+            RequireForUpdate(_alleBegleiter);
         }
 
         [Preserve]
         protected override void OnUpdate()
         {
+            if (++_bilder % 512 == 0) Berichte();
+            if (_begleiter.IsEmptyIgnoreFilter) return;
             using var begleiter = _begleiter.ToEntityArray(Allocator.Temp);
             foreach (var b in begleiter)
             {
@@ -71,6 +86,45 @@ namespace ParkingLotTool.Tools
                 }
                 symbole.Dispose();
             }
+        }
+
+        /**
+         * Je Parkplatz: Plaetze, Symbole am Begleiter (Prefabname) und wo sie
+         * stehen. Nur bei Aenderung ins Log - Nutzerbefund 2026-10-05: bei zwei
+         * von drei Parkplaetzen im selben Gebiet erschien kein Symbol.
+         */
+        private void Berichte()
+        {
+            using var alle = _alleBegleiter.ToEntityArray(Allocator.Temp);
+            var teile = new System.Collections.Generic.List<string>();
+            foreach (var b in alle)
+            {
+                var lot = EntityManager.GetComponentData<ParkingLotPartRelation>(b).Lot;
+                var plaetze = EntityManager.Exists(lot) && EntityManager.HasComponent<ParkingLotEconomyData>(lot)
+                    ? EntityManager.GetComponentData<ParkingLotEconomyData>(lot).Capacity : -1;
+                var text = "Lot " + lot.Index + " (" + plaetze + " Plaetze, Begleiter " + b.Index + "): ";
+                if (!EntityManager.HasBuffer<IconElement>(b) || EntityManager.GetBuffer<IconElement>(b, true).Length == 0)
+                    text += "kein Symbol am Begleiter";
+                else
+                {
+                    var namen = new System.Collections.Generic.List<string>();
+                    foreach (var s in EntityManager.GetBuffer<IconElement>(b, true))
+                    {
+                        if (!EntityManager.Exists(s.m_Icon) || !EntityManager.HasComponent<Game.Prefabs.PrefabRef>(s.m_Icon)) continue;
+                        var ort = EntityManager.HasComponent<Icon>(s.m_Icon)
+                            ? EntityManager.GetComponentData<Icon>(s.m_Icon).m_Location : float3.zero;
+                        namen.Add(_prefabs.GetPrefabName(EntityManager.GetComponentData<Game.Prefabs.PrefabRef>(s.m_Icon).m_Prefab)
+                            + " @" + ort.x.ToString("0") + "/" + ort.z.ToString("0"));
+                    }
+                    text += namen.Count + " Symbol(e) " + string.Join(", ", namen);
+                }
+                teile.Add(text);
+            }
+            teile.Sort();
+            var bericht = string.Join("; ", teile);
+            if (bericht == _letzterBericht) return;
+            _letzterBericht = bericht;
+            Mod.log.Info("PLT-Symbole: " + bericht);
         }
 
         /** Mitte der Parkplatzflaeche (Mittel ihrer Eckpunkte), knapp ueber dem Gelaende. */
