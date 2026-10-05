@@ -10,10 +10,9 @@
 - Improvement: the "Parking lots" tab turns yellow and shows how many lots need a sync or repair.
 - Improvement: bushes with growth stages are planted like bushes, denser and right up to lanterns; "Synchronize" replants existing lots.
 - Improvement: the monthly income in the lot list appears after one game hour instead of three days and keeps updating.
-- Fix: some plants inside a new lot stayed invisible after building.
 - Fix: notifications such as missing workers now show above the parking lot instead of on the road at its entrance.
 - Fix: every parking lot added about 65,000 a month to road upkeep regardless of size; it now costs what its info panel shows (thanks SeanDFC02).
-- Fix: grass left on the road where perimeter roads overlap (thanks bikester1).
+- Fix: grass left on the road where perimeter roads overlap; editing an existing lot applies it (thanks bikester1).
 - Fix: editing a lot continues after an autosave instead of losing the selection (thanks bikester1).
 - Fix: "Record a crash trace" turns itself off the next time the game starts; left on, it slowed the game down.
 - Fix: the game no longer reports the mod's report ZIPs as broken assets when it starts; they now live in `Logs\.ParkingLotTool-Logs`.
