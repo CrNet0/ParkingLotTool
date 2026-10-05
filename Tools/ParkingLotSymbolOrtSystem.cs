@@ -32,6 +32,7 @@ namespace ParkingLotTool.Tools
 
         private EntityQuery _begleiter, _alleBegleiter;
         private Game.Prefabs.PrefabSystem _prefabs;
+        private Game.Simulation.TerrainSystem _gelaende;
         private string _letzterBericht;
         private int _bilder;
 
@@ -59,6 +60,7 @@ namespace ParkingLotTool.Tools
                 None = new[] { ComponentType.ReadOnly<Temp>(), ComponentType.ReadOnly<Deleted>() },
             });
             _prefabs = World.GetOrCreateSystemManaged<Game.Prefabs.PrefabSystem>();
+            _gelaende = World.GetOrCreateSystemManaged<Game.Simulation.TerrainSystem>();
             RequireForUpdate(_alleBegleiter);
         }
 
@@ -127,7 +129,12 @@ namespace ParkingLotTool.Tools
             Mod.log.Info("PLT-Symbole: " + bericht);
         }
 
-        /** Mitte der Parkplatzflaeche (Mittel ihrer Eckpunkte), knapp ueber dem Gelaende. */
+        /**
+         * Mitte der Parkplatzflaeche (Mittel ihrer Eckpunkte), knapp ueber dem
+         * Gelaende AN DER MITTE. Nur das Hoehenmittel der Ecken lag bei grossen
+         * Flaechen am Hang unter der Oberflaeche (2097 Plaetze: Symbol da, aber
+         * nicht zu sehen).
+         */
         private bool Mitte(Entity lot, out float3 mitte)
         {
             mitte = default;
@@ -137,7 +144,11 @@ namespace ParkingLotTool.Tools
             if (knoten.Length == 0) return false;
             var summe = float3.zero;
             for (var i = 0; i < knoten.Length; i++) summe += knoten[i].m_Position;
-            mitte = summe / knoten.Length + new float3(0f, Hoehe, 0f);
+            mitte = summe / knoten.Length;
+            var hoehen = _gelaende.GetHeightData();
+            var boden = Game.Simulation.TerrainUtils.SampleHeight(ref hoehen, mitte);
+            if (math.isfinite(boden)) mitte.y = math.max(mitte.y, boden);
+            mitte.y += Hoehe;
             return true;
         }
     }
