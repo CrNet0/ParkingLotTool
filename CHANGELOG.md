@@ -11,6 +11,7 @@
 - Fix: every parking lot added about 65,000 a month to road upkeep regardless of size; it now costs what its info panel shows (thanks SeanDFC02).
 - Fix: grass left on the road where perimeter roads overlap (thanks bikester1).
 - Fix: editing a lot continues after an autosave instead of losing the selection (thanks bikester1).
+- Fix: the game no longer reports the mod's report ZIPs as broken assets when it starts; they now live in `Logs\.ParkingLotTool-Logs`.
 
 ## 1.0.4 — October 4, 2026
 

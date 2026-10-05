@@ -94,6 +94,7 @@ namespace ParkingLotTool.Tools
                 }
 
                 KuerzeBauprotokoll(ordner, ref frei, ref weg);
+                ZieheMeldungenUm(ordner);
                 RaeumeMeldungen(ordner, ref frei, ref weg);
 
                 if (weg > 0)
@@ -111,9 +112,46 @@ namespace ParkingLotTool.Tools
         }
 
         /**
+         * ZIEHT DEN ALTEN MELDEORDNER UM (2026-10-05).
+         *
+         * Bis 1.0.4 lagen die Pakete in `ParkingLotTool-Logs`, den CS2 beim
+         * Start als Asset-Ordner durchsucht (Grund bei
+         * `ParkingLotMeldepaket.Wurzelname`). Jede Datei wandert in dieselbe
+         * Sparte unter dem neuen Namen; was dort schon gleich heisst, bleibt
+         * liegen statt zu ueberschreiben. Der alte Ordner geht nur, wenn er
+         * danach leer ist - fremde Dateien darin fassen wir nicht an.
+         */
+        private static void ZieheMeldungenUm(string ordner)
+        {
+            var alt = Path.Combine(ordner, ParkingLotMeldepaket.AlterWurzelname);
+            if (!Directory.Exists(alt)) return;
+            var neu = Path.Combine(ordner, ParkingLotMeldepaket.Wurzelname);
+            var bewegt = 0;
+            foreach (var sparte in Directory.GetDirectories(alt))
+            {
+                var ziel = Path.Combine(neu, Path.GetFileName(sparte));
+                Directory.CreateDirectory(ziel);
+                foreach (var datei in Directory.GetFiles(sparte))
+                {
+                    var nach = Path.Combine(ziel, Path.GetFileName(datei));
+                    if (File.Exists(nach)) continue;
+                    try { File.Move(datei, nach); bewegt++; }
+                    catch { }
+                }
+                if (Directory.GetFileSystemEntries(sparte).Length == 0)
+                    try { Directory.Delete(sparte); } catch { }
+            }
+            if (Directory.GetFileSystemEntries(alt).Length == 0)
+                try { Directory.Delete(alt); } catch { }
+            Mod.log.Info($"PLT-Logpflege: {bewegt} Meldepaket(e) nach "
+                + $"{ParkingLotMeldepaket.Wurzelname} umgezogen"
+                + (Directory.Exists(alt) ? ", alter Ordner bleibt (nicht leer)." : "."));
+        }
+
+        /**
          * RAEUMT AUCH DIE MELDEARCHIVE AUF.
          *
-         * Sie liegen seit dem 2026-09-14 in `ParkingLotTool-Logs/<Sparte>`
+         * Sie liegen seit dem 2026-09-14 in `.ParkingLotTool-Logs/<Sparte>`
          * und nicht mehr im Logs-Ordner selbst - die Schleife oben sieht sie
          * also nicht. Ohne diesen Zusatz waere genau der Ordner der einzige,
          * der wieder unbegrenzt waechst, und das war der Anlass der ganzen
@@ -124,7 +162,7 @@ namespace ParkingLotTool.Tools
         private static void RaeumeMeldungen(string ordner,
             ref long frei, ref int weg)
         {
-            var wurzel = Path.Combine(ordner, "ParkingLotTool-Logs");
+            var wurzel = Path.Combine(ordner, ParkingLotMeldepaket.Wurzelname);
             if (!Directory.Exists(wurzel)) return;
 
             foreach (var sparte in Directory.GetDirectories(wurzel))

@@ -68,10 +68,26 @@ namespace ParkingLotTool.Tools
             return new string(bau);
         }
 
+        /**
+         * DER PUNKT VOR DEM NAMEN HAELT CS2 HERAUS (2026-10-05).
+         *
+         * CS2 durchsucht beim Start den ganzen Logs-Ordner nach Assets und
+         * oeffnet dabei jede ZIP als Asset-Paket. Unsere Meldepakete sind
+         * gepackt (Deflated); CS2 schrieb fuer jede Datei darin eine Warnung
+         * "uses compression method Deflated that is not supported" ins
+         * FileSystem.log - gemessen 111 Zeilen. Ordner, deren Name mit `.`
+         * oder `~` beginnt, ueberspringt `FileSystemDataSource` (im
+         * Dekompilat belegt, dieselbe Regel wie beim Deaktivieren von Mods).
+         * Der alte Ordner `ParkingLotTool-Logs` wird beim Start umgezogen,
+         * siehe `ParkingLotLogpflege.ZieheMeldungenUm`.
+         */
+        internal const string Wurzelname = ".ParkingLotTool-Logs";
+        internal const string AlterWurzelname = "ParkingLotTool-Logs";
+
         /** Wo die Meldungen liegen - fuer den Ordner-Knopf im Panel. */
         internal static string Meldeordner => Path.Combine(
             Path.Combine(UnityEngine.Application.persistentDataPath, "Logs"),
-            "ParkingLotTool-Logs");
+            Wurzelname);
 
         /**
          * Schnuert das Paket. Gibt den Pfad zurueck, oder `null` samt Grund.
@@ -182,7 +198,7 @@ namespace ParkingLotTool.Tools
                     : anlass == Anlass.Leistung ? "Performance"
                     : anlass == Anlass.Vorschau ? "Preview" : "Build";
                 var unterordner = Path.Combine(
-                    Path.Combine(ordner, "ParkingLotTool-Logs"), sparte);
+                    Path.Combine(ordner, Wurzelname), sparte);
                 Directory.CreateDirectory(unterordner);
 
                 _kennung = Kennung();
