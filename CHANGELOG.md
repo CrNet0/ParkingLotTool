@@ -9,6 +9,8 @@
 - Improvement: "Repair" and "Synchronize" close the panel, for one lot or all of them.
 - Improvement: the "Parking lots" tab turns yellow and shows how many lots need a sync or repair.
 - Improvement: bushes with growth stages are planted like bushes, denser and right up to lanterns; "Synchronize" replants existing lots.
+- Improvement: the monthly income in the lot list appears after one game hour instead of three days and keeps updating.
+- Fix: some plants inside a new lot stayed invisible after building.
 - Fix: notifications such as missing workers now show above the parking lot instead of on the road at its entrance.
 - Fix: every parking lot added about 65,000 a month to road upkeep regardless of size; it now costs what its info panel shows (thanks SeanDFC02).
 - Fix: grass left on the road where perimeter roads overlap (thanks bikester1).
