@@ -68,13 +68,21 @@ namespace ParkingLotTool.Tools
                  */
                 companion.m_Meshes = new ObjectMeshInfo[0];
 
-                // Nur Strom, Arbeitsplatz und Laerm gehoeren zum Begleiter.
+                // Nur Arbeitsplatz und Laerm gehoeren zum Begleiter.
                 // Der geerbte ServiceConsumption-Unterhalt des Quellprefabs
                 // (gemessene 16.000) wird auf null gesetzt; der PLT-Unterhalt
                 // kommt allein aus dem ServiceUpkeepItem weiter unten.
+                //
+                // STROM 0 (Entscheidung des Nutzers 2026-08-26, bestaetigt
+                // 2026-10-05). Bis 2026-10-04 stand er nur zufaellig auf 0: das
+                // Prefab verpasste sein Initialize (siehe Mod.cs), und
+                // ConsumptionData blieb leer. Richtig initialisiert hatte der
+                // Begleiter 1.600 wie ParkingLot04 - mit Stromsymbol auf der
+                // Strasse, wo er steht, nicht ueber dem Parkplatz.
                 if (companion.TryGet<ServiceConsumption>(out var consumption))
                 {
                     consumption.m_Upkeep = 0;
+                    consumption.m_ElectricityConsumption = 0;
                     consumption.m_WaterConsumption = 0;
                     consumption.m_GarbageAccumulation = 0;
                     consumption.m_TelecomNeed = 0f;
