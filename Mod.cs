@@ -324,6 +324,10 @@ namespace ParkingLotTool
             updateSystem.UpdateBefore<ParkingLotBuildingEconomyPrefabSystem,
                 Game.Prefabs.PrefabInitializeSystem>(
                     SystemUpdatePhase.PrefabUpdate);
+            // Symbole des Begleiters ueber die Parkplatzmitte: nach IconCommandSystem,
+            // vor IconClusterSystem (beide ModificationEnd).
+            updateSystem.UpdateBefore<ParkingLotSymbolOrtSystem,
+                Game.Notifications.IconClusterSystem>(SystemUpdatePhase.ModificationEnd);
             updateSystem.UpdateBefore<ParkingLotEmployeeSystem,
                 Game.Simulation.WorkProviderSystem>(
                     SystemUpdatePhase.GameSimulation);
