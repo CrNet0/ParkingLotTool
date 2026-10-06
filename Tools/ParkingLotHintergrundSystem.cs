@@ -56,6 +56,8 @@ namespace ParkingLotTool.Tools
         private int _naechsterStart, _letztesArbeitsbild = -1;
         private ParkingLotExklusivesBildSystem _gate;
         internal int Offen => _queue.Count + (_aktiv != null ? 1 : 0) + _angehalten.Count;
+        /** Arbeitet gerade etwas? Ohne angehaltene Rueckwege - die warten auf den Spieler, nicht auf Zeit. */
+        internal bool Laeuft => _queue.Count > 0 || _aktiv != null;
         internal bool IstErsatz(Entity lot) => _aktiv != null && _aktiv.Neu == lot
             || _queue.Any(a => a.Neu == lot);
         internal string Fortschrittshinweis

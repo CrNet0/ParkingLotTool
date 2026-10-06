@@ -2351,6 +2351,7 @@ namespace ParkingLotTool.Tools
             // Welches Werkzeug vorher aktiv war, ist die wichtigste Zeile
             // dieser Datei: genau sie hat am 2026-08-25 FindIt.Picker als
             // Gegenspieler entlarvt.
+            if (World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().SperrtWegenArbeit("Hotkey")) return;
             Mod.log.Info("PLT-Hotkey: aktiviert das Werkzeug; vorher aktiv: "
                 + (_toolSystem.activeTool?.toolID ?? "<keins>"));
             _toolSystem.activeTool = _parkingLotTool;

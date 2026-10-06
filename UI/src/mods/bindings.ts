@@ -491,6 +491,8 @@ export const syncOffen$ = bindValue<number>(MOD, "SyncOffen", 0);
 /** Synchronisieren + Reparieren + Bauplan: was in der Parkplatzliste zu tun ist. */
 export const arbeitOffen$ = bindValue<number>(MOD, "ArbeitOffen", 0);
 export const syncLaeuft$ = bindValue<string>(MOD, "SyncLaeuft", "");
+/** Zaehlt hoch, wenn waehrend Sync/Reparatur jemand das Werkzeug oeffnen wollte. */
+export const syncPuls$ = bindValue<number>(MOD, "SyncPuls", 0);
 export const syncAuto$ = bindValue<boolean>(MOD, "SyncAuto", false);
 /**
  * Was von selbst passiert ist: "synchronisiert\tWaisen repariert\tBauplaene

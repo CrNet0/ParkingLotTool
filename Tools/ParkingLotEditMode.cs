@@ -114,6 +114,9 @@ namespace ParkingLotTool.Tools
 
         internal void RequestEdit(Entity lot)
         {
+            // Kein Bearbeiten, solange Sync oder Reparatur laufen (1.0.6) -
+            // die Meldung pulsiert stattdessen.
+            if (World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().SperrtWegenArbeit("Bearbeiten")) return;
             if (World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>().Sperrmeldung(lot)) return;
             if (lot == Entity.Null || !EntityManager.Exists(lot)
                 || EntityManager.HasComponent<Deleted>(lot)

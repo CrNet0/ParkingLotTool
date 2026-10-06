@@ -96,6 +96,7 @@ namespace ParkingLotTool.Tools
          */
         private ValueBinding<int> _arbeitOffen;
         private ValueBinding<string> _syncLaeuft;
+        private ValueBinding<int> _syncPuls;
         private ValueBinding<bool> _syncAuto;
 
         /**
@@ -191,6 +192,7 @@ namespace ParkingLotTool.Tools
             AddBinding(_arbeitOffen = new ValueBinding<int>(Group, "ArbeitOffen", 0));
             AddBinding(_syncLaeuft = new ValueBinding<string>(Group, "SyncLaeuft",
                 string.Empty));
+            AddBinding(_syncPuls = new ValueBinding<int>(Group, "SyncPuls", 0));
             AddBinding(_syncErgebnis = new ValueBinding<string>(Group,
                 "SyncErgebnis", string.Empty));
             AddBinding(new TriggerBinding(Group, "SyncErgebnisSchliessen", LeereMeldung));
@@ -409,8 +411,10 @@ namespace ParkingLotTool.Tools
 
         private void Einreihen(Entity lot)
         {
+            // Wartet der Parkplatz schon auf seinen Tausch oder Neubau, kommt er
+            // erst danach wieder dran (1.0.6: sonst doppelte Laternen).
             if (!_offenMenge.Contains(lot) || _warteschlange.Contains(lot)
-                || _gescheitert.Contains(lot)) return;
+                || _gescheitert.Contains(lot) || _wartetAuf.ContainsKey(lot)) return;
             var hintergrund = World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>();
             if (hintergrund.Gesperrt(lot)) return;
             if (_warteschlange.Count == 0 && hintergrund.Offen == 0)
@@ -624,6 +628,29 @@ namespace ParkingLotTool.Tools
                 ? fortschritt.Fertig + "\t" + fortschritt.Gesamt + "\t" + arbeit.Fortschrittshinweis
                 : string.Empty;
             if (_syncLaeuft.value != laeuft) _syncLaeuft.Update(laeuft);
+        }
+
+        /*
+         * SOLANGE SYNC ODER REPARATUR LAUFEN, BLEIBT DAS PLT-WERKZEUG ZU
+         * (Nutzer 2026-10-06). Zwei Spieler meldeten einen bei "1/3"
+         * haengenden Sync, einer dazu Abstuerze; das Oeffnen des Panels oder
+         * eine Bearbeitung mitten im Tausch war einer der Wege dorthin. Statt
+         * das Panel zu oeffnen, pulsiert die Fortschrittsmeldung kurz - "ich
+         * arbeite noch, bitte warten".
+         */
+        internal bool ArbeitLaeuft
+            => _warteschlange.Count > 0
+               || World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>().Laeuft
+               || World.GetOrCreateSystemManaged<ParkingLotFahrwegTauschSystem>().Offen > 0
+               || World.GetOrCreateSystemManaged<ParkingLotBestandsTauschSystem>().Offen > 0;
+
+        /** True heisst: gesperrt, Meldung pulsiert. Fuer jeden Weg, der das PLT-Werkzeug oeffnet. */
+        internal bool SperrtWegenArbeit(string wofuer)
+        {
+            if (!ArbeitLaeuft) return false;
+            _syncPuls.Update(_syncPuls.value + 1);
+            Mod.log.Info("PLT-Sync: " + wofuer + " gesperrt, Synchronisation/Reparatur laeuft noch.");
+            return true;
         }
 
         /** Verwaiste Parkplaetze, die noch keinen Traeger und Bauzettel zurueck haben. */

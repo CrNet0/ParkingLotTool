@@ -87,8 +87,27 @@ namespace ParkingLotTool.Tools
 
         private Vorbereitung _laeuft;
 
-        internal int Offen => _warteschlange.Count + (_laeuft != null ? 1 : 0);
-        internal bool Beschaeftigt => _laeuft != null || _werkzeug.Beschaeftigt || _toolSystem.activeTool == _werkzeug;
+        /** Was gerade im Tauschwerkzeug steckt - gegen doppeltes Einreihen. */
+        private (Entity Lot, Tauschart Art)? _imWerkzeug;
+
+        /*
+         * DER ZAEHLER ZAEHLT DAS LAUFENDE WERKZEUG MIT (1.0.6). Vorher fehlte
+         * es: waehrend der erste Parkplatz im Werkzeug steckte, stand schon
+         * "1/3" da - und blieb so, wenn er dort haengen blieb (MakaPakaUK).
+         */
+        internal int Offen => _warteschlange.Count + (_laeuft != null ? 1 : 0) + (_werkzeug.Beschaeftigt ? 1 : 0);
+
+        /*
+         * NUR DAS WERKZEUG SPERRT DEN ANDEREN TAUSCH (1.0.6).
+         *
+         * Vorher hiess "beschaeftigt" auch: rechnet gerade oder hat sein
+         * Werkzeug zwischen zwei Parkplaetzen noch aktiv. Der Fahrwegtausch
+         * wartete darauf, der Bestandstausch umgekehrt auf die WARTESCHLANGE
+         * des Fahrwegtauschs - beide warteten fuer immer (gemischte Bestaende
+         * mit Schritt 9 und 10/11). Jetzt sperrt nur, was wirklich das
+         * aktive Werkzeug braucht: ein laufender Tausch im Werkzeug.
+         */
+        internal bool WerkzeugLaeuft => _werkzeug.Beschaeftigt;
 
         [Preserve]
         protected override void OnCreate()
@@ -108,7 +127,8 @@ namespace ParkingLotTool.Tools
 
         internal void Einreihen(Entity lot, Tauschart art)
         {
-            if (_warteschlange.Contains((lot, art)) || (_laeuft?.Lot == lot && _laeuft.Art == art)) return;
+            if (_warteschlange.Contains((lot, art)) || (_laeuft?.Lot == lot && _laeuft.Art == art)
+                || (_imWerkzeug.HasValue && _imWerkzeug.Value.Lot == lot && _imWerkzeug.Value.Art == art)) return;
             _warteschlange.Add((lot, art));
             Mod.log.Info($"PLT-Bestandstausch: Lot {lot.Index} ({art}) eingereiht; offen {Offen}.");
         }
@@ -118,12 +138,12 @@ namespace ParkingLotTool.Tools
         {
             var spiel = GameManager.instance;
             if (spiel == null || spiel.isGameLoading || !spiel.gameMode.IsGame()) return;
-            if (_werkzeug.Beschaeftigt) return;
+            // Das Werkzeug laeuft nicht mehr, sobald ein anderes aktiv ist -
+            // dann fuehrt es der Controller zu Ende oder bricht es ab.
+            if (_werkzeug.Beschaeftigt) { _werkzeug.PflegeOhneWerkzeug(); return; }
             if (_laeuft == null)
             {
                 if (_warteschlange.Count == 0 || UnityEngine.Time.frameCount < _ruheBis) return;
-                // Nie zwei Tauschwerkzeuge gleichzeitig: jedes setzt das aktive Werkzeug.
-                if (World.GetOrCreateSystemManaged<ParkingLotFahrwegTauschSystem>().Offen > 0) return;
                 var (lot, art) = _warteschlange[0];
                 _warteschlange.RemoveAt(0);
                 var fehler = Bereite(lot, art, out _laeuft);
@@ -138,7 +158,8 @@ namespace ParkingLotTool.Tools
             if (e.Fehler != null) { _laeuft = null; Fertig(v.Lot, false, e.Fehler); return; }
             // Ein Werkzeugwechsel wuerde einen laufenden Entwurf verwerfen.
             if (_toolSystem.activeTool == _plt && _plt.ArbeitetGerade) return;
-            if (World.GetOrCreateSystemManaged<ParkingLotFahrwegTauschSystem>().Offen > 0) return;
+            // Nie zwei Tauschwerkzeuge gleichzeitig: jedes setzt das aktive Werkzeug.
+            if (World.GetOrCreateSystemManaged<ParkingLotFahrwegTauschSystem>().WerkzeugLaeuft) return;
             _laeuft = null;
             var auftrag = v.Art == Tauschart.Pflanzen ? PflanzenAuftrag(v, e) : LaternenAuftrag(v, e);
             Mod.log.Info($"PLT-Bestandstausch: Lot {v.Lot.Index} ({v.Art}): {e.Messung}; loeschen {auftrag.Loeschen.Count}.");
@@ -150,8 +171,31 @@ namespace ParkingLotTool.Tools
                 return;
             }
             if (_toolSystem.activeTool != _werkzeug) _vorher = _toolSystem.activeTool;
+            _imWerkzeug = (v.Lot, v.Art);
             _werkzeug.Starte(auftrag);
             _toolSystem.activeTool = _werkzeug;
+        }
+
+        /*
+         * BEIM LADEN ALLES VERGESSEN (1.0.6). Warteschlange, Vorbereitung und
+         * Werkzeugzustand trugen Entities der alten Welt in den neuen
+         * Spielstand; ein haengender Tausch hielt so bis zum Spielneustart.
+         * Der Sync baut seine Liste nach dem Laden ohnehin neu auf.
+         */
+        [Preserve]
+        protected override void OnGamePreload(Colossal.Serialization.Entities.Purpose purpose, GameMode mode)
+        {
+            base.OnGamePreload(purpose, mode);
+            if (_warteschlange.Count > 0 || _laeuft != null || _werkzeug.Beschaeftigt)
+                Mod.log.Info($"PLT-Bestandstausch: Laden - {_warteschlange.Count} eingereiht, "
+                    + $"{(_laeuft != null ? 1 : 0)} vorbereitet, Werkzeug {(_werkzeug.Beschaeftigt ? "beschaeftigt" : "frei")} verworfen.");
+            _warteschlange.Clear();
+            _laeuft = null;
+            _imWerkzeug = null;
+            _vorher = null;
+            _alleOk = true;
+            _ruheBis = 0;
+            _werkzeug.Zuruecksetzen();
         }
 
         /** Sammelt alles auf dem Spielthread und startet die Rechnung im Hintergrund. Fehlertext oder null. */
@@ -328,13 +372,16 @@ namespace ParkingLotTool.Tools
         private void Fertig(Entity lot, bool ok, string text)
         {
             if (!ok) _alleOk = false;
+            _imWerkzeug = null;
             Mod.log.Info($"PLT-Bestandstausch: Lot {lot.Index}: {(ok ? "fertig" : "nicht getauscht")} - {text}.");
             World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().MeldeHintergrundEnde(lot, lot, ok);
             _ruheBis = UnityEngine.Time.frameCount + 10;
             if (_warteschlange.Count > 0 || _laeuft != null) return;
             // Alles erledigt: voriges Werkzeug zurueck (oeffnet ein vorher offenes
             // PLT-Panel wieder). Nach einem Fehlschlag bleibt das Panel zu.
-            var zurueck = _alleOk && _vorher != null && _vorher != _werkzeug ? _vorher : null;
+            // Nie zurueck auf ein Tauschwerkzeug: das stuende danach leer und aktiv.
+            var zurueck = _alleOk && _vorher != null && _vorher != _werkzeug
+                && !(_vorher is ParkingLotFahrwegTauschWerkzeug) ? _vorher : null;
             if (_toolSystem.activeTool == _werkzeug)
                 _toolSystem.activeTool = zurueck ?? World.GetOrCreateSystemManaged<DefaultToolSystem>();
             _vorher = null;
@@ -370,6 +417,8 @@ namespace ParkingLotTool.Tools
         private readonly HashSet<Entity> _loeschMenge = new();
         private readonly List<Entity> _definitionen = new();
         private int _geplant, _seit;
+        /** Lief OnUpdate seit dem Start schon einmal? Sonst ist das Werkzeug nie aktiv geworden. */
+        private bool _lief;
         private EntityQuery _fremdeDefinitionen, _temps, _teile;
         private ParkingLotToolSystem _plt;
         private TerrainSystem _terrain;
@@ -399,6 +448,62 @@ namespace ParkingLotTool.Tools
             _definitionen.Clear(); _geplant = 0;
             _stufe = Stufe.Anlegen;
             _seit = UnityEngine.Time.frameCount;
+            _lief = false;
+        }
+
+        /*
+         * WENN EIN ANDERES WERKZEUG AKTIV IST (1.0.6).
+         *
+         * CS2 schaltet ein Werkzeug beim Wechsel ab (`ToolSystem.ToolUpdate`:
+         * `Enabled = false`), und Unity ruft fuer ein abgeschaltetes System
+         * KEIN `OnUpdate` mehr auf (`SystemBase.Update`). Der Abbruchzweig
+         * oben in `OnUpdate` war deshalb tot: ein Werkzeugwechsel mitten im
+         * Tausch liess ihn fuer immer "beschaeftigt", der Sync hing.
+         *
+         * Jetzt ruft der Controller (laeuft immer) diese Methode. Vor dem
+         * Apply wird verworfen - es hat sich nichts geaendert. Nach dem Apply
+         * wird zu Ende gefuehrt: Pruefen und Nachsetzen brauchen kein aktives
+         * Werkzeug, nur ihre Wartezeit.
+         */
+        internal void PflegeOhneWerkzeug()
+        {
+            if (_stufe == Stufe.Frei || m_ToolSystem.activeTool == this) return;
+            var bild = UnityEngine.Time.frameCount;
+            if (_stufe == Stufe.Pruefen || _stufe == Stufe.Nachsetzen) { NachDemApply(bild); return; }
+            // Ein frisch gesetztes Werkzeug wird erst im naechsten Bild aktiv.
+            if (!_lief && bild - _seit < 10) return;
+            Beende(false, _lief ? "Werkzeug gewechselt, Tausch verworfen" : "Werkzeug wurde nicht aktiv, Tausch verworfen");
+        }
+
+        /** Beim Laden: alles vergessen, ohne Rueckmeldung (der Sync startet neu). */
+        internal void Zuruecksetzen()
+        {
+            _definitionen.Clear();
+            _loeschMenge.Clear();
+            _stufe = Stufe.Frei;
+            _a = null;
+            _lief = false;
+        }
+
+        private void NachDemApply(int bild)
+        {
+            switch (_stufe)
+            {
+                case Stufe.Pruefen:
+                    if (bild - _seit < 3) break;
+                    if (!Pruefe(out var text)) { Beende(false, text); break; }
+                    _stufe = Stufe.Nachsetzen;
+                    _seit = bild;
+                    break;
+                case Stufe.Nachsetzen:
+                    // Wie nach dem Bau: Zustaende gehoeren an den DAUERHAFTEN Bestand.
+                    if (bild - _seit < 30) break;
+                    string bericht;
+                    try { bericht = _a.Nachsetzen(); }
+                    catch (Exception e) { Beende(false, "Nachsetzen gescheitert: " + e.Message); break; }
+                    Beende(true, $"{_a.Loeschen.Count} geloescht, {_geplant} neu angelegt, {bericht}");
+                    break;
+            }
         }
 
         [Preserve]
@@ -406,13 +511,10 @@ namespace ParkingLotTool.Tools
         {
             applyMode = ApplyMode.None;
             var bild = UnityEngine.Time.frameCount;
-            if (m_ToolSystem.activeTool != this)
-            {
-                if (_stufe == Stufe.Warten || _stufe == Stufe.Uebernehmen) applyMode = ApplyMode.Clear;
-                if (_stufe != Stufe.Frei && _stufe != Stufe.Pruefen && _stufe != Stufe.Nachsetzen)
-                    Beende(false, "Werkzeug gewechselt, Tausch verworfen");
-                return inputDeps;
-            }
+            // Nur noch der Fall "im selben Bild umgeschaltet"; den Wechsel
+            // davor faengt PflegeOhneWerkzeug ab.
+            if (m_ToolSystem.activeTool != this) return inputDeps;
+            if (_stufe != Stufe.Frei) _lief = true;
             switch (_stufe)
             {
                 case Stufe.Anlegen:
@@ -446,18 +548,8 @@ namespace ParkingLotTool.Tools
                     _seit = bild;
                     break;
                 case Stufe.Pruefen:
-                    if (bild - _seit < 3) break;
-                    if (!Pruefe(out var text)) { Beende(false, text); break; }
-                    _stufe = Stufe.Nachsetzen;
-                    _seit = bild;
-                    break;
                 case Stufe.Nachsetzen:
-                    // Wie nach dem Bau: Zustaende gehoeren an den DAUERHAFTEN Bestand.
-                    if (bild - _seit < 30) break;
-                    string bericht;
-                    try { bericht = _a.Nachsetzen(); }
-                    catch (Exception e) { Beende(false, "Nachsetzen gescheitert: " + e.Message); break; }
-                    Beende(true, $"{_a.Loeschen.Count} geloescht, {_geplant} neu angelegt, {bericht}");
+                    NachDemApply(bild);
                     break;
             }
             return inputDeps;

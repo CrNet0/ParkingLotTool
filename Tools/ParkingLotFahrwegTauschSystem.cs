@@ -33,6 +33,9 @@ namespace ParkingLotTool.Tools
 
         internal int Offen => _warteschlange.Count + (_werkzeug != null && _werkzeug.Beschaeftigt ? 1 : 0);
 
+        /** Nur ein laufender Tausch im Werkzeug sperrt den Bestandstausch (1.0.6, siehe dort). */
+        internal bool WerkzeugLaeuft => _werkzeug != null && _werkzeug.Beschaeftigt;
+
         [Preserve]
         protected override void OnCreate()
         {
@@ -79,14 +82,30 @@ namespace ParkingLotTool.Tools
 
         internal bool BrauchtTausch(Entity lot) => Plan(lot).Count > 0;
 
+        /** Beim Laden alles vergessen (1.0.6): Entities der alten Welt, haengender Tausch. */
+        [Preserve]
+        protected override void OnGamePreload(Colossal.Serialization.Entities.Purpose purpose, GameMode mode)
+        {
+            base.OnGamePreload(purpose, mode);
+            if (_warteschlange.Count > 0 || _werkzeug.Beschaeftigt)
+                Mod.log.Info($"PLT-Fahrwegtausch: Laden - {_warteschlange.Count} eingereiht, Werkzeug "
+                    + $"{(_werkzeug.Beschaeftigt ? "beschaeftigt" : "frei")} verworfen.");
+            _warteschlange.Clear();
+            _vorher = null;
+            _alleOk = true;
+            _ruheBis = 0;
+            _werkzeug.Zuruecksetzen();
+        }
+
         [Preserve]
         protected override void OnUpdate()
         {
             var spiel = GameManager.instance;
             if (spiel == null || spiel.isGameLoading || !spiel.gameMode.IsGame()) return;
-            if (_werkzeug.Beschaeftigt || _warteschlange.Count == 0) return;
+            if (_werkzeug.Beschaeftigt) { _werkzeug.PflegeOhneWerkzeug(); return; }
+            if (_warteschlange.Count == 0) return;
             // Nie zwei Tauschwerkzeuge gleichzeitig: jedes setzt das aktive Werkzeug.
-            if (World.GetOrCreateSystemManaged<ParkingLotBestandsTauschSystem>().Beschaeftigt) return;
+            if (World.GetOrCreateSystemManaged<ParkingLotBestandsTauschSystem>().WerkzeugLaeuft) return;
             if (UnityEngine.Time.frameCount < _ruheBis) return;
             // Ein Werkzeugwechsel wuerde einen laufenden Entwurf verwerfen.
             if (_toolSystem.activeTool == _plt && _plt.ArbeitetGerade) return;
@@ -108,7 +127,9 @@ namespace ParkingLotTool.Tools
             // Alles erledigt: voriges Werkzeug zurueck (oeffnet ein vorher
             // offenes PLT-Panel wieder). Nach einem Fehlschlag bleibt das
             // Panel zu, damit die Meldung sichtbar bleibt.
-            var zurueck = _alleOk && _vorher != null && _vorher != _werkzeug ? _vorher : null;
+            // Nie zurueck auf ein Tauschwerkzeug: das stuende danach leer und aktiv.
+            var zurueck = _alleOk && _vorher != null && _vorher != _werkzeug
+                && !(_vorher is ParkingLotBestandsTauschWerkzeug) ? _vorher : null;
             if (_toolSystem.activeTool == _werkzeug)
                 _toolSystem.activeTool = zurueck ?? World.GetOrCreateSystemManaged<DefaultToolSystem>();
             _vorher = null;

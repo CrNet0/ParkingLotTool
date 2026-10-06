@@ -48,6 +48,8 @@ namespace ParkingLotTool.Tools
         private readonly List<(Entity Kante, Entity Ziel, Entity Besitzer)> _plan = new();
         private readonly List<Entity> _definitionen = new();
         private int _seit;
+        /** Lief OnUpdate seit dem Start schon einmal? Sonst ist das Werkzeug nie aktiv geworden. */
+        private bool _lief;
         private EntityQuery _fremdeDefinitionen;
         private EntityQuery _temps;
         internal System.Action<Entity, bool, string> Fertig;
@@ -70,6 +72,37 @@ namespace ParkingLotTool.Tools
             _definitionen.Clear();
             _stufe = Stufe.Anlegen;
             _seit = UnityEngine.Time.frameCount;
+            _lief = false;
+        }
+
+        /*
+         * WENN EIN ANDERES WERKZEUG AKTIV IST (1.0.6) - wie beim Bestandstausch:
+         * ein abgeschaltetes Werkzeug bekommt kein OnUpdate mehr, der alte
+         * Abbruchzweig war tot. Vor dem Apply verwerfen, danach pruefen.
+         */
+        internal void PflegeOhneWerkzeug()
+        {
+            if (_stufe == Stufe.Frei || m_ToolSystem.activeTool == this) return;
+            var bild = UnityEngine.Time.frameCount;
+            if (_stufe == Stufe.Pruefen)
+            {
+                if (bild - _seit < 3) return;
+                var ok = Pruefe(out var text);
+                Beende(ok, text);
+                return;
+            }
+            if (!_lief && bild - _seit < 10) return;
+            Beende(false, _lief ? "Werkzeug gewechselt, Tausch verworfen" : "Werkzeug wurde nicht aktiv, Tausch verworfen");
+        }
+
+        /** Beim Laden: alles vergessen, ohne Rueckmeldung (der Sync startet neu). */
+        internal void Zuruecksetzen()
+        {
+            _definitionen.Clear();
+            _plan.Clear();
+            _stufe = Stufe.Frei;
+            _lot = Entity.Null;
+            _lief = false;
         }
 
         [Preserve]
@@ -77,14 +110,11 @@ namespace ParkingLotTool.Tools
         {
             applyMode = ApplyMode.None;
             var bild = UnityEngine.Time.frameCount;
-            // Letztes Update nach einem Werkzeugwechsel durch den Nutzer:
-            // eigene Vorschau verwerfen, nichts wurde uebernommen.
-            if (m_ToolSystem.activeTool != this)
-            {
-                if (_stufe == Stufe.Warten || _stufe == Stufe.Uebernehmen) applyMode = ApplyMode.Clear;
-                if (_stufe != Stufe.Frei && _stufe != Stufe.Pruefen) Beende(false, "Werkzeug gewechselt, Tausch verworfen");
-                return inputDeps;
-            }
+            // Nur noch der Fall "im selben Bild umgeschaltet"; den Wechsel
+            // davor faengt PflegeOhneWerkzeug ab (abgeschaltete Systeme
+            // bekommen kein OnUpdate).
+            if (m_ToolSystem.activeTool != this) return inputDeps;
+            if (_stufe != Stufe.Frei) _lief = true;
             switch (_stufe)
             {
                 case Stufe.Anlegen:
@@ -126,6 +156,14 @@ namespace ParkingLotTool.Tools
 
         private void LegeDefinitionenAn()
         {
+            // Bis zu 600 Bilder liegen zwischen Plan und Anlegen; was der
+            // Spieler inzwischen abgerissen hat, faellt raus (sonst Ausnahme
+            // in jedem Bild und ein haengender Sync).
+            var vorher = _plan.Count;
+            _plan.RemoveAll(p => !EntityManager.Exists(p.Kante) || EntityManager.HasComponent<Deleted>(p.Kante)
+                || !EntityManager.HasComponent<Edge>(p.Kante) || !EntityManager.HasComponent<Curve>(p.Kante));
+            if (_plan.Count < vorher)
+                Mod.log.Info($"PLT-Fahrwegtausch: Lot {_lot.Index}: {vorher - _plan.Count} Wege inzwischen entfernt, uebersprungen.");
             for (var i = 0; i < _plan.Count; i++)
             {
                 var (kante, ziel, besitzer) = _plan[i];

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.6 — October 6, 2026
+
+- Improvement: while parking lots are being updated or repaired, the panel and Edit stay closed and the progress message pulses instead.
+- Fix: updating parking lots could stop at "1/3" for good, for example after switching tools during the update; it now finishes, and anything left over starts fresh after loading (thanks MakaPakaUK and Tylerps2).
+- Fix: lots that needed the 25 km/h paths and lanterns at the same time no longer block each other while updating.
+- Fix: the progress counter counted a lot as done while it was still being updated.
+- Fix: lanterns could be placed twice when "Synchronize all" was clicked again during an update.
+- Fix: possible crash when editing a lot that has a road connected to one of its paths.
+
 ## 1.0.5 — October 5, 2026
 
 - Addition: street lanterns along the rows, lit at night; street, commercial and industrial sets or your own, spacing 20–40 m; "Synchronize" adds them to existing lots.

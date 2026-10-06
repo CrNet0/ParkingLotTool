@@ -215,18 +215,69 @@ namespace ParkingLotTool.Tools
                 EntityManager.AddComponent<Deleted>(teil);
                 entfernt++;
             }
+            /*
+             * KEIN KNOTEN FAELLT, AN DEM NOCH EINE KANTE HAENGT (1.0.6).
+             *
+             * Ein eigener Knoten kann Endpunkt einer Kante sein, die stehen
+             * bleibt: eine Strasse, die der Spieler an unseren Weg gebaut
+             * hat, oder eine erhaltene Zoningkante. Sync-Schritt 9 macht
+             * ausserdem die Endknoten der getauschten Wege zu unseren
+             * (GenerateNodesSystem uebernimmt den Besitzer der Ersetzung,
+             * ApplyNet schreibt ihn auf den Knoten). Geloescht zeigte die
+             * Kante auf eine tote Entity - nativer Absturz in
+             * ReferencesSystem/GeometrySystem.
+             *
+             * Wie Vanilla (Game.Objects.SubElementDeleteSystem): der Knoten
+             * bleibt; gehoert die Kante nicht zu diesem Parkplatz, verliert
+             * er nur unseren Besitzer.
+             */
+            var behalten = 0;
             foreach (var knoten in spaeteKnoten)
             {
                 if (!EntityManager.Exists(knoten) || EntityManager.HasComponent<Deleted>(knoten)) continue;
+                if (HaengtNochKanteDran(knoten, out var fremd))
+                {
+                    behalten++;
+                    if (fremd && EntityManager.HasComponent<Owner>(knoten))
+                    {
+                        EntityManager.RemoveComponent<Owner>(knoten);
+                        if (!EntityManager.HasComponent<Updated>(knoten)) EntityManager.AddComponent<Updated>(knoten);
+                    }
+                    continue;
+                }
                 EntityManager.AddComponent<Deleted>(knoten);
                 entfernt++;
             }
+            if (behalten > 0)
+                Mod.log.Info("PLT-Bearbeiten: " + behalten + " Knoten behalten, weil noch eine Kante an ihnen haengt.");
 
             FrischeTeilungsknotenAuf(fremdeKnoten);
 
             _editNetRemovalTick = System.Diagnostics.Stopwatch.GetTimestamp();
             MerkeAbrissFuerGelaende();
             MeldeAbriss(entfernt, besessen, teile.Length);
+        }
+
+        /** Haengt an diesem Knoten noch eine Kante, die NICHT geloescht wird? `fremd`: eine davon gehoert nicht zu diesem Parkplatz. */
+        private bool HaengtNochKanteDran(Entity knoten, out bool fremd)
+        {
+            fremd = false;
+            var haengt = false;
+            if (!EntityManager.HasBuffer<Game.Net.ConnectedEdge>(knoten)) return false;
+            var kanten = EntityManager.GetBuffer<Game.Net.ConnectedEdge>(knoten, true);
+            for (var i = 0; i < kanten.Length; i++)
+            {
+                var kante = kanten[i].m_Edge;
+                if (!EntityManager.Exists(kante) || EntityManager.HasComponent<Deleted>(kante)
+                    || !EntityManager.HasComponent<Game.Net.Edge>(kante)) continue;
+                var e = EntityManager.GetComponentData<Game.Net.Edge>(kante);
+                if (e.m_Start != knoten && e.m_End != knoten) continue;
+                haengt = true;
+                if (!EntityManager.HasComponent<Owner>(kante)
+                    || !ParkingLotBesitz.GehoertZu(EntityManager, EntityManager.GetComponentData<Owner>(kante).m_Owner, _editLot))
+                    fremd = true;
+            }
+            return haengt;
         }
 
         /**

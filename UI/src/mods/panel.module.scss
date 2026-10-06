@@ -3070,6 +3070,22 @@ $eck-reiter: 9rem;
   color: $text-1;
 }
 
+/*
+ * PULS, WENN WAEHREND SYNC/REPARATUR GEKLICKT WURDE (1.0.6).
+ * Zwei kurze Schlaege in Gelb ($hinweis = "es wartet etwas"). Das
+ * translateX muss in jedem Schluessel stehen, sonst springt die Meldung
+ * aus der Mitte.
+ */
+@keyframes syncPulsSchlag {
+  0%   { transform: translateX(-50%) scale(1);    border-color: $hinweis; }
+  35%  { transform: translateX(-50%) scale(1.08); border-color: $hinweis; }
+  100% { transform: translateX(-50%) scale(1);    border-color: $hinweis; }
+}
+.syncPuls.syncPuls {
+  border: 2rem solid $hinweis;
+  animation: syncPulsSchlag 0.6s ease-in-out 2;
+}
+
 /* "Parking Lot Tool:" - gleiche Groesse wie die Meldung, fett und in der
    Akzentfarbe: eine Kopfzeile, kein Kleingedrucktes. */
 .syncMod {

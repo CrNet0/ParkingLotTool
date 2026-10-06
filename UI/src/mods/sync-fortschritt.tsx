@@ -1,6 +1,7 @@
+import { useEffect, useRef, useState } from "react";
 import { useValue } from "cs2/api";
 import {
-  syncErgebnis$, syncErgebnisSchliessen, syncLaeuft$, oeffneListe,
+  syncErgebnis$, syncErgebnisSchliessen, syncLaeuft$, syncPuls$, oeffneListe,
 } from "./bindings";
 import { TooltipKnopf } from "./controls";
 import { useTexte } from "./texte";
@@ -8,6 +9,34 @@ import styles from "./panel.module.scss";
 
 /** Steht in jeder Meldung vorn: der Nutzer soll sehen, von welcher Mod sie kommt. */
 const MODNAME = "Parking Lot Tool";
+
+/** So lange pulsiert die Meldung nach einem gesperrten Klick (zwei Schlaege). */
+const PULS_MS = 1300;
+
+/**
+ * "ICH ARBEITE NOCH" OHNE WORTE (Nutzer 2026-10-06).
+ *
+ * Solange Sync oder Reparatur laufen, oeffnet C# das PLT-Werkzeug nicht
+ * und zaehlt stattdessen `SyncPuls` hoch. Jede neue Zahl laesst die
+ * Fortschrittsmeldung kurz gelb pulsieren - gelb heisst bei uns "es wartet
+ * etwas". Der erste Wert nach dem Einhaengen pulsiert nicht.
+ */
+const usePuls = () => {
+  const puls = useValue(syncPuls$);
+  const zuletzt = useRef(puls);
+  const [aktiv, setAktiv] = useState(false);
+  useEffect(() => {
+    if (puls === zuletzt.current) return;
+    zuletzt.current = puls;
+    setAktiv(false);
+    // Ein Bild aus, dann wieder an: so startet die Animation auch bei
+    // schnell aufeinanderfolgenden Klicks von vorn.
+    const an = setTimeout(() => setAktiv(true), 16);
+    const aus = setTimeout(() => setAktiv(false), PULS_MS);
+    return () => { clearTimeout(an); clearTimeout(aus); };
+  }, [puls]);
+  return aktiv;
+};
 
 /**
  * Kleine Meldung unten mittig.
@@ -23,6 +52,7 @@ const MODNAME = "Parking Lot Tool";
 export const SyncFortschritt = () => {
   const lauf = useValue(syncLaeuft$);
   const ergebnis = useValue(syncErgebnis$);
+  const pulsiert = usePuls();
   const t = useTexte();
 
   // Auch beim Sync von Hand: der Neubau laeuft im Hintergrund und dauert
@@ -34,7 +64,7 @@ export const SyncFortschritt = () => {
     if (felder.length !== 3 || !Number.isInteger(erledigt)
         || !Number.isInteger(gesamt) || gesamt <= 0) return null;
     const anteil = Math.min(1, Math.max(0, erledigt / gesamt));
-    return <div className={styles.syncFortschritt} role="status">
+    return <div className={`${styles.syncFortschritt} ${pulsiert ? styles.syncPuls : ""}`} role="status">
       <div className={styles.syncMod}>{`${MODNAME}:`}</div>
       <div className={styles.syncTitel}>{t.syncFortschritt(erledigt, gesamt)}</div>
       {felder[2] && <div className={styles.syncTitel}>{felder[2]}</div>}

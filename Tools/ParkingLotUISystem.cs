@@ -2367,6 +2367,7 @@ namespace ParkingLotTool.Tools
          */
         private void OeffneListe()
         {
+            if (World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().SperrtWegenArbeit("Liste oeffnen")) return;
             SetTab("liste");
             var toolSystem = World.GetOrCreateSystemManaged<Game.Tools.ToolSystem>();
             var parkingTool = World.GetOrCreateSystemManaged<ParkingLotToolSystem>();
@@ -2399,6 +2400,7 @@ namespace ParkingLotTool.Tools
                     World.GetOrCreateSystemManaged<Game.Tools.DefaultToolSystem>();
                 return;
             }
+            if (World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().SperrtWegenArbeit("Panel oeffnen")) return;
             toolSystem.activeTool = parkingTool;
         }
 
