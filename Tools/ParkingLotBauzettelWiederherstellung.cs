@@ -169,6 +169,7 @@ namespace ParkingLotTool.Tools
                         || vegetation.Type == JTokenType.Null
                         ? JsonConvert.SerializeObject(new VegetationOptions())
                         : vegetation.ToString(Formatting.None),
+                    OhneLaternenzettel = true,
                 };
                 return true;
             }
@@ -287,6 +288,8 @@ namespace ParkingLotTool.Tools
                 + (quelle.Settings.Entrances?.Length ?? 0) + " Zufahrt(en), "
                 + quelle.Zoningflaechen.Count + " Zoningflaeche(n), "
                 + (quelle.Settings.BusStops?.Length ?? 0) + " Bushalt(e).");
+            // Jetzt ist der Parkplatz synchronisierbar; die Parkplatzzahl aendert sich nicht.
+            World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().NeuAufnehmen();
             return true;
         }
 

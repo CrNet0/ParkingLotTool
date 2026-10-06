@@ -2,11 +2,14 @@
 
 ## 1.0.6 — October 6, 2026
 
-- Improvement: while parking lots are being updated or repaired, the panel and Edit stay closed and the progress message pulses instead.
-- Fix: updating parking lots could stop at "1/3" for good, for example after switching tools during the update; it now finishes, and anything left over starts fresh after loading (thanks MakaPakaUK and Tylerps2).
-- Fix: lots that needed the 25 km/h paths and lanterns at the same time no longer block each other while updating.
-- Fix: the progress counter counted a lot as done while it was still being updated.
+- Improvement: while parking lots are being updated or repaired, the panel and Edit stay closed and the progress message pulses instead; the panel opens again when the work is done.
+- Improvement: "Repair" and "Synchronize" can be used in any order: lots that need a repair are updated after it.
+- Possible fix: updating parking lots could stop at "1/3" for good, for example after switching tools during the update or when lots needed the 25 km/h paths and lanterns at the same time (thanks MakaPakaUK and Tylerps2).
+- Fix: with an unfinished drawing open, updating took long and added no lanterns.
+- Fix: lots whose build plan was restored got no lanterns; "Synchronize" adds them now.
 - Fix: lanterns could be placed twice when "Synchronize all" was clicked again during an update.
+- Fix: the progress counter counted a lot as done while it was still being updated.
+- Fix: "Parking lots can be updated" showed up again right after the update.
 - Fix: possible crash when editing a lot that has a road connected to one of its paths.
 
 ## 1.0.5 — October 5, 2026

@@ -143,6 +143,13 @@ namespace ParkingLotTool.Tools
             if (Mod.Optionen?.WaisenAutomatischReparieren == true) RepariereAutomatisch();
         }
 
+        /** Fuer die Sync-Aufnahme: jetzt erfassen, nicht erst im naechsten Takt. */
+        internal void ErfasseJetzt()
+        {
+            Erfasse();
+            _bilder = 0;
+        }
+
         private void Erfasse()
         {
             var flaechen = VerfuegbareFlaechen();
@@ -214,11 +221,17 @@ namespace ParkingLotTool.Tools
 
         internal void ReparierenAlle()
         {
+            // Nie waehrend eines Sync-Durchgangs: der Neubau reisst den Parkplatz ab,
+            // den ein Tausch vielleicht gerade anfasst (1.0.6). Die Meldung pulsiert.
+            var sync = World.GetOrCreateSystemManaged<ParkingLotSyncSystem>();
+            if (sync.SyncLaeuft) { sync.SperrtWegenArbeit("Reparieren"); return; }
             foreach (var lot in _befunde.Keys.ToArray()) Reparieren(lot);
         }
 
         private void RepariereAutomatisch()
         {
+            // Laeuft ein Sync-Durchgang, wartet die Automatik - nichts als "versucht" merken.
+            if (World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().SyncLaeuft) return;
             foreach (var lot in _befunde.Keys.ToArray())
                 if (_automatischVersucht.Add(lot)) Reparieren(lot);
         }
@@ -233,6 +246,8 @@ namespace ParkingLotTool.Tools
             if (!_befunde.TryGetValue(lot, out var befund)) return;
             var hintergrund = World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>();
             if (hintergrund.Gesperrt(lot)) return;
+            var sync = World.GetOrCreateSystemManaged<ParkingLotSyncSystem>();
+            if (sync.SyncLaeuft) { sync.SperrtWegenArbeit("Reparieren"); return; }
             if (!ParkingLotBaukontextLeser.TryRead(EntityManager, lot, out var kontext, out var grund, melden: false))
             {
                 Mod.log.Warn("PLT-Fehlende Assets: Lot " + lot.Index + " nicht reparierbar, Bauzettel unlesbar: " + grund);

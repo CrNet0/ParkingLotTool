@@ -40,6 +40,13 @@ namespace ParkingLotTool.Tools
 
         /** Nur bei der Wiederherstellung: die Vegetationswahl als JSON. */
         internal string VegetationAusProtokoll;
+        /**
+         * Aus dem Bauprotokoll wiederhergestellt: KEIN Laternenzettel (1.0.6).
+         * Das Protokoll kennt die Laternenwahl nicht; geschrieben wurde sonst
+         * die gerade eingestellte Panelwahl - "Laternen an" an einem Parkplatz
+         * ohne eine einzige Laterne, und Sync-Schritt 11 hielt sich fuer erledigt.
+         */
+        internal bool OhneLaternenzettel;
     }
 
 }

@@ -153,6 +153,21 @@ namespace ParkingLotTool.Tools
                 + _meldungBauplaene + "\t" + _meldungOffen);
         }
 
+        /*
+         * "N PARKPLAETZE KOENNEN AKTUALISIERT WERDEN" IST VERALTET, SOBALD
+         * SYNCHRONISIERT WIRD (1.0.6). Die Meldung steht 30 s; der
+         * Fortschrittsbalken ueberdeckte sie nur und gab sie nach dem
+         * Durchgang wieder frei - "5 koennen aktualisiert werden" direkt
+         * nachdem alle 5 aktualisiert waren (Nutzer 2026-10-06).
+         */
+        private void VergissOffenMeldung()
+        {
+            if (_meldungOffen == 0) return;
+            _meldungOffen = 0;
+            if (_meldungSync + _meldungWaisen + _meldungBauplaene == 0) LeereMeldung();
+            else VeroeffentlicheMeldung();
+        }
+
         private void LeereMeldung()
         {
             _ergebnisUhr.Reset();
@@ -348,12 +363,27 @@ namespace ParkingLotTool.Tools
             _offenMenge.Clear();
             var index = TeileJeLot();
             var still = 0;
+            var fehlend = World.GetOrCreateSystemManaged<ParkingLotFehlendeAssetsSystem>();
+            // Frisch, nicht vom letzten Takt: nach dem Laden kann die Aufnahme sonst vor der Erkennung laufen.
+            fehlend.ErfasseJetzt();
+            var erstReparieren = 0;
             using var lots = _lots.ToEntityArray(Allocator.Temp);
             for (var i = 0; i < lots.Length; i++)
             {
                 var lot = lots[i];
                 var hintergrund = World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>();
                 if (hintergrund.IstErsatz(lot)) continue;
+                /*
+                 * ERST REPARIEREN, DANN SYNCHRONISIEREN (1.0.6, Nutzer 2026-10-06).
+                 * Ohne Bauplan scheitern die Schritte 10/11 an "Bauzettel
+                 * unlesbar", mit fehlenden Assets Schritt 10 an der Artenliste;
+                 * und eine Asset-Reparatur reisst den Parkplatz ab, waehrend ein
+                 * Tausch ihn noch anfasst. Solche Parkplaetze zeigt die Liste
+                 * nur mit "Reparieren"; danach kommen sie von selbst hierher.
+                 * Damit ist die Reihenfolge der Knoepfe egal.
+                 */
+                if (!ParkingLotBaukontextLeser.Vollstaendig(EntityManager, lot) || fehlend.Betrifft(lot))
+                { erstReparieren++; continue; }
                 // Wird gerade wegen fehlender Assets neu gebaut: das ist keine
                 // offene Synchronisation (sonst "1 Parkplatz kann aktualisiert
                 // werden" nach jedem Reparieren, Nutzer 2026-10-05).
@@ -389,7 +419,8 @@ namespace ParkingLotTool.Tools
             Mod.log.Info("PLT-Sync: Aufnahme in " + uhr.ElapsedMilliseconds + " ms: "
                 + lots.Length + " Parkplatz/Parkplaetze, " + _offen.Count
                 + " brauchen eine Synchronisation, " + still + " still auf Stand "
-                + Migrationskatalog.Aktuell + " gesetzt (nichts zu tun).");
+                + Migrationskatalog.Aktuell + " gesetzt (nichts zu tun)"
+                + (erstReparieren > 0 ? ", " + erstReparieren + " erst nach der Reparatur" : "") + ".");
         }
 
         /** Index des ersten Schritts ab `stand`, der hier etwas zu tun hat, sonst -1. */
@@ -421,6 +452,7 @@ namespace ParkingLotTool.Tools
                 _gesamt = _erledigt = _syncErfolge = 0;
             _warteschlange.Add(lot);
             _gesamt++;
+            VergissOffenMeldung();
         }
 
         private void AlleEinreihen()
@@ -463,6 +495,10 @@ namespace ParkingLotTool.Tools
             _offenMenge.Remove(lot);
             if (!EntityManager.Exists(lot) || EntityManager.HasComponent<Deleted>(lot)
                 || !EntityManager.HasComponent<ParkingLotCarrierReference>(lot))
+                return false;
+            // Zwischen Aufnahme und Abarbeiten koennen Assets verschwunden sein.
+            if (!ParkingLotBaukontextLeser.Vollstaendig(EntityManager, lot)
+                || World.GetOrCreateSystemManaged<ParkingLotFehlendeAssetsSystem>().Betrifft(lot))
                 return false;
             var traeger = EntityManager.GetComponentData<
                 ParkingLotCarrierReference>(lot).Carrier;
@@ -628,6 +664,7 @@ namespace ParkingLotTool.Tools
                 ? fortschritt.Fertig + "\t" + fortschritt.Gesamt + "\t" + arbeit.Fortschrittshinweis
                 : string.Empty;
             if (_syncLaeuft.value != laeuft) _syncLaeuft.Update(laeuft);
+            World.GetOrCreateSystemManaged<ParkingLotUISystem>().PflegeWiederOeffnen(ArbeitLaeuft);
         }
 
         /*
@@ -641,6 +678,19 @@ namespace ParkingLotTool.Tools
         internal bool ArbeitLaeuft
             => _warteschlange.Count > 0
                || World.GetOrCreateSystemManaged<ParkingLotHintergrundSystem>().Laeuft
+               || World.GetOrCreateSystemManaged<ParkingLotFahrwegTauschSystem>().Offen > 0
+               || World.GetOrCreateSystemManaged<ParkingLotBestandsTauschSystem>().Offen > 0;
+
+        /** Bestand neu aufnehmen - nach einer Reparatur, die keine Parkplatzzahl aendert (Bauplan zurueck). */
+        internal void NeuAufnehmen()
+        {
+            _neuAufnehmen = true;
+            _index = null;
+        }
+
+        /** Nur der Sync selbst (Warteschlange und beide Tausche), ohne Reparatur-Neubauten. */
+        internal bool SyncLaeuft
+            => _warteschlange.Count > 0
                || World.GetOrCreateSystemManaged<ParkingLotFahrwegTauschSystem>().Offen > 0
                || World.GetOrCreateSystemManaged<ParkingLotBestandsTauschSystem>().Offen > 0;
 

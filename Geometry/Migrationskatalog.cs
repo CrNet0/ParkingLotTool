@@ -80,6 +80,11 @@ namespace ParkingLotTool.Geometry
                 "Parkplaetze ohne Laternen und ohne Laternenzettel bekommen Laternen nach dem "
                 + "Standard des Spielers. Pflanzen im Freiraum einer Laterne weichen (Nutzer: die "
                 + "Laterne ist wichtiger); Abgleich der Buchtaufkleber gegen geaenderte Geometrie."),
+            new Schritt(12, "LaternenNachZettel",
+                "Parkplaetze, deren Laternenzettel Laternen verlangt, die aber keine einzige haben, "
+                + "bekommen sie nach diesem Zettel. Grund (2026-10-06): das Wiederherstellen des "
+                + "Bauplans schrieb bis 1.0.5 die Panelwahl als Zettel, ohne Laternen zu bauen - "
+                + "Schritt 11 hielt sich dann fuer erledigt."),
         };
 
         /** Der Stand, den ein heute gebauter Parkplatz hat. */

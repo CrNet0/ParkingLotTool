@@ -418,8 +418,8 @@ namespace ParkingLotTool.Tools
         private readonly List<Entity> _definitionen = new();
         private int _geplant, _seit;
         /** Lief OnUpdate seit dem Start schon einmal? Sonst ist das Werkzeug nie aktiv geworden. */
-        private bool _lief;
-        private EntityQuery _fremdeDefinitionen, _temps, _teile;
+        private bool _lief, _befundGemeldet;
+        private EntityQuery _fremdeDefinitionen, _alteDefinitionen, _temps, _teile;
         private ParkingLotToolSystem _plt;
         private TerrainSystem _terrain;
         internal Action<Entity, bool, string> Fertig;
@@ -431,6 +431,8 @@ namespace ParkingLotTool.Tools
         {
             base.OnCreate();
             _fremdeDefinitionen = GetEntityQuery(ComponentType.ReadOnly<CreationDefinition>());
+            _alteDefinitionen = GetEntityQuery(ComponentType.ReadOnly<CreationDefinition>(),
+                ComponentType.Exclude<Updated>(), ComponentType.Exclude<ParkingLotAuftragsdefinition>());
             _temps = GetEntityQuery(ComponentType.ReadOnly<Temp>());
             _teile = GetEntityQuery(new EntityQueryDesc
             {
@@ -449,6 +451,7 @@ namespace ParkingLotTool.Tools
             _stufe = Stufe.Anlegen;
             _seit = UnityEngine.Time.frameCount;
             _lief = false;
+            _befundGemeldet = false;
         }
 
         /*
@@ -522,6 +525,15 @@ namespace ParkingLotTool.Tools
                     // nie mit einer anderen gemeinsam uebernommen werden.
                     if (_fremdeDefinitionen.CalculateEntityCount() > 0 || _temps.CalculateEntityCount() > 0)
                     {
+                        RaeumeFremdeEntwuerfe();
+                        applyMode = ApplyMode.Clear;
+                        // Einmal je Tausch: was haelt ihn auf (ParkingLotEntwurfsbefund).
+                        if (bild - _seit > 60 && !_befundGemeldet)
+                        {
+                            _befundGemeldet = true;
+                            Mod.log.Warn("PLT-Bestandstausch: wartet seit " + (bild - _seit) + " Bildern auf fremde Entwuerfe - "
+                                + ParkingLotEntwurfsbefund.Beschreibe(EntityManager, World.GetOrCreateSystemManaged<PrefabSystem>()));
+                        }
                         if (bild - _seit > 600) Beende(false, "fremde Entwuerfe blieben 600 Bilder");
                         break;
                     }
@@ -553,6 +565,29 @@ namespace ParkingLotTool.Tools
                     break;
             }
             return inputDeps;
+        }
+
+/*
+         * LIEGENGEBLIEBENE FREMDE ENTWUERFE WEGRAEUMEN (1.0.6).
+         *
+         * Wird von einem PLT-Entwurf direkt auf dieses Werkzeug umgeschaltet,
+         * laeuft das Standardwerkzeug nie - und genau das raeumt sonst die
+         * Vorschau-Definitionen des vorigen Werkzeugs weg (Vanilla
+         * `ToolBaseSystem.DestroyDefinitions`: alle Definitionen ohne
+         * `Updated`). Gewartet wurde darauf vergeblich; nach 600 Bildern
+         * brach der Tausch ab und der Sync lief ohne Wirkung durch (Nutzer
+         * 2026-10-06: kein Fahrwegtausch, keine Laternen).
+         *
+         * Jetzt wie jedes Vanilla-Werkzeug: Definitionen ohne `Updated`
+         * zerstoeren, deren Temps mit `ApplyMode.Clear` raeumen lassen.
+         * Unsere eigenen Hintergrund-Definitionen (Auftragsmarke) bleiben.
+         */
+        private void RaeumeFremdeEntwuerfe()
+        {
+            using var alte = _alteDefinitionen.ToEntityArray(Allocator.Temp);
+            if (alte.Length == 0) return;
+            foreach (var d in alte) EntityManager.DestroyEntity(d);
+            Mod.log.Info("PLT-Bestandstausch: " + alte.Length + " liegengebliebene fremde Vorschau-Definition(en) entfernt.");
         }
 
         private void LegeDefinitionenAn()

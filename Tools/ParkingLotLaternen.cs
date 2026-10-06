@@ -78,6 +78,20 @@ namespace ParkingLotTool.Tools
             return true;
         }
 
+        /**
+         * Sync-Schritt 12: der Zettel will Laternen, gebaut ist keine. Am
+         * Bestand geprueft, nicht an der Version - ein Parkplatz, den der
+         * Spieler mit Laternen gebaut hat, hat welche und braucht nichts.
+         */
+        internal bool BrauchtLaternenNachZettel(Entity lot, List<Entity> teile)
+        {
+            var zettel = LaternenVon(lot);
+            if (zettel == null || !zettel.Enabled) return false;
+            foreach (var t in teile)
+                if (EntityManager.Exists(t) && EntityManager.HasComponent<StreetLight>(t)) return false;
+            return true;
+        }
+
         /** Beim Bearbeiten: die Wahl des Parkplatzes ins Fenster, ohne Zettel der Standard. */
         private void LoadLaternen(Entity lot)
         {

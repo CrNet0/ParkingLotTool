@@ -2386,8 +2386,32 @@ namespace ParkingLotTool.Tools
         internal void SchliesseWerkzeug()
         {
             var toolSystem = World.GetOrCreateSystemManaged<Game.Tools.ToolSystem>();
-            if (toolSystem.activeTool == World.GetOrCreateSystemManaged<ParkingLotToolSystem>())
-                toolSystem.activeTool = World.GetOrCreateSystemManaged<Game.Tools.DefaultToolSystem>();
+            if (toolSystem.activeTool != World.GetOrCreateSystemManaged<ParkingLotToolSystem>()) return;
+            toolSystem.activeTool = World.GetOrCreateSystemManaged<Game.Tools.DefaultToolSystem>();
+            _nachArbeitOeffnen = true;
+        }
+
+        /*
+         * NACH DEM DURCHGANG GEHT DAS PANEL WIEDER AUF (Nutzer 2026-10-06:
+         * "Die duerfen nur nicht aufgehen, waehrend der Durchgang laeuft").
+         * Nur wenn WIR es geschlossen haben und der Spieler inzwischen kein
+         * anderes Werkzeug genommen hat - wer gerade baut oder bulldozt,
+         * bekommt das Panel nicht dazwischen. Aufgerufen vom Sync jedes Bild.
+         */
+        private bool _nachArbeitOeffnen;
+
+        internal void PflegeWiederOeffnen(bool arbeitLaeuft)
+        {
+            if (!_nachArbeitOeffnen || arbeitLaeuft) return;
+            _nachArbeitOeffnen = false;
+            var toolSystem = World.GetOrCreateSystemManaged<Game.Tools.ToolSystem>();
+            var aktiv = toolSystem.activeTool;
+            if (aktiv != null && aktiv != World.GetOrCreateSystemManaged<Game.Tools.DefaultToolSystem>()
+                && !(aktiv is ParkingLotBestandsTauschWerkzeug) && !(aktiv is ParkingLotFahrwegTauschWerkzeug))
+                return;
+            Mod.log.Info("PLT-Sync: Durchgang fertig, Panel wieder geoeffnet.");
+            SetTab("liste");
+            toolSystem.activeTool = World.GetOrCreateSystemManaged<ParkingLotToolSystem>();
         }
 
         private void ToggleTool()
