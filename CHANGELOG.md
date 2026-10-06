@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.7 — October 6, 2026
 
 - Improvement: improved language system for further additions; all texts now live in language files in the mod folder.
 - Fix: some texts in the status bar, tooltips and panel stayed in the other language.
