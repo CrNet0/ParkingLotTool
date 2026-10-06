@@ -465,9 +465,10 @@ namespace ParkingLotTool
                     ?? "?";
                 var gebaut = Mod.Bauzeit();
                 return gebaut.HasValue
-                    ? nummer + "  ·  Build "
-                      + gebaut.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm",
-                          System.Globalization.CultureInfo.InvariantCulture)
+                    ? Geometry.Sprachtexte.Text("settings.Version.wert",
+                        ("nummer", nummer),
+                        ("gebaut", gebaut.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm",
+                            System.Globalization.CultureInfo.InvariantCulture)))
                     : nummer;
             }
         }
@@ -475,20 +476,28 @@ namespace ParkingLotTool
         [SettingsUISection(ReiterAllgemein, GruppeSprache)]
         public Sprachwahl Sprache { get; set; } = Sprachwahl.English;
 
-        /** "en" oder "de" - das, woran die Oberflaeche haengt. */
-        internal string SprachKuerzel()
+        /**
+         * Die Sprachdatei, aus der angezeigt wird ("en-US", "de-DE", ...).
+         *
+         * "Automatisch" folgt der Spielsprache, sofern es dafuer eine Datei
+         * gibt - sonst Englisch. Die Spielsprache kommt als Kennung des
+         * Spiels ("zh-HANS"), und genau so heissen die Dateien in `Lang/`.
+         */
+        internal string SprachId()
         {
-            if (Sprache == Sprachwahl.Deutsch) return "de";
-            if (Sprache == Sprachwahl.English) return "en";
+            if (Sprache == Sprachwahl.Deutsch) return "de-DE";
+            if (Sprache == Sprachwahl.English) return Geometry.Sprachtexte.Rueckfall;
             try
             {
                 var aktiv = Game.SceneFlow.GameManager.instance?.localizationManager
                     ?.activeLocaleId;
-                return aktiv != null && aktiv.StartsWith("de") ? "de" : "en";
+                return aktiv != null && Geometry.Sprachtexte.Sprachen.ContainsKey(aktiv)
+                    ? aktiv
+                    : Geometry.Sprachtexte.Rueckfall;
             }
             catch
             {
-                return "en";
+                return Geometry.Sprachtexte.Rueckfall;
             }
         }
 
@@ -769,7 +778,10 @@ namespace ParkingLotTool
     public class Beschriftungen : IDictionarySource
     {
         private readonly Setting _setting;
-        private readonly bool _deutsch;
+        private string _sprache = Geometry.Sprachtexte.Rueckfall;
+
+        private string S(string schluessel, params (string Name, object Wert)[] werte)
+            => Geometry.Sprachtexte.TextIn(_sprache, schluessel, werte);
 
         /**
          * Die Aufschrift des Aufraeumknopfs - sie traegt den Zustand.
@@ -785,9 +797,7 @@ namespace ParkingLotTool
                         .Knopfzustand.Laeuft:
                     var uebrig = Tools.ParkingLotStadtreinigungSystem
                         .StandUebrig;
-                    return _deutsch
-                        ? "Abriss läuft… noch " + uebrig + " Teile"
-                        : "Teardown running… " + uebrig + " parts left";
+                    return S("settings.Entfernen.knopf.laeuft", ("uebrig", uebrig));
                 case Tools.ParkingLotStadtreinigungSystem
                         .Knopfzustand.Fertig:
                     var weg = Tools.ParkingLotStadtreinigungSystem
@@ -795,61 +805,40 @@ namespace ParkingLotTool
                     var stehen = Tools.ParkingLotStadtreinigungSystem
                         .StandStehen;
                     if (stehen > 0)
-                        return _deutsch
-                            ? "Fertig: " + weg + " entfernt, " + stehen
-                              + " blieben stehen — siehe Log"
-                            : "Done: " + weg + " removed, " + stehen
-                              + " remained — see the log";
-                    return _deutsch
-                        ? "Fertig: " + weg + " entfernt — jetzt speichern"
-                        : "Done: " + weg + " removed — save now";
+                        return S("settings.Entfernen.knopf.fertigMitResten", ("weg", weg), ("stehen", stehen));
+                    return S("settings.Entfernen.knopf.fertig", ("weg", weg));
                 case Tools.ParkingLotStadtreinigungSystem
                         .Knopfzustand.Haengt:
-                    return _deutsch
-                        ? "Kommt nicht voran — siehe Log"
-                        : "Not progressing — see the log";
+                    return S("settings.Entfernen.knopf.haengt");
                 case Tools.ParkingLotStadtreinigungSystem
                         .Knopfzustand.Nichts:
-                    return _deutsch
-                        ? "Nichts zu entfernen"
-                        : "Nothing to remove";
+                    return S("settings.Entfernen.knopf.nichts");
                 default:
-                    return _deutsch
-                        ? "Alle PLT-Parkplätze entfernen"
-                        : "Remove all PLT parking lots";
+                    return S("settings.Entfernen.knopf.bereit");
             }
         }
 
-        public Beschriftungen(Setting setting, bool deutsch)
+        public Beschriftungen(Setting setting)
         {
             _setting = setting;
-            /**
-             * DIE EINSTELLUNGSSEITE FOLGT DER GEWAEHLTEN SPRACHE - ERST NACH
-             * EINEM NEUSTART.
-             *
-             * CS2 liest die Textquellen einer Optionsseite beim Laden ein und
-             * fragt sie danach nicht erneut; ein Umschalten im laufenden Spiel
-             * kommt dort nicht an. Deshalb wird hier EINMAL beim Laden
-             * entschieden. Der Nutzer am 2026-08-21 dazu: *"dann hat halt der
-             * User erst nach nem Neustart die Aenderung. Ich denke besser als
-             * nix."*
-             *
-             * Der Parameter `deutsch` sagt, fuer welche SPIELsprache diese
-             * Quelle registriert ist - das interessiert hier nicht mehr:
-             * beide registrierten Quellen liefern die Sprache, die der Nutzer
-             * im Mod eingestellt hat. Nur so gilt seine Wahl auch dann, wenn
-             * das Spiel in einer dritten Sprache laeuft.
-             */
-            _ = deutsch;
-            var gewaehlt = "en";
-            try { gewaehlt = setting?.SprachKuerzel() ?? "en"; }
-            catch { /* Vor dem ersten Laden gibt es noch keine Wahl. */ }
-            _deutsch = gewaehlt == "de";
         }
 
         public IEnumerable<KeyValuePair<string, string>> ReadEntries(
             IList<IDictionaryEntryError> errors, Dictionary<string, int> indexCounts)
         {
+            /**
+             * DIE SPRACHE WIRD BEI JEDEM LESEN BESTIMMT.
+             *
+             * Bis 1.0.6 stand sie einmal im Konstruktor fest - und der lief vor
+             * `LoadSettings`, kannte also nur den Werksstand. Jetzt liest das
+             * Spiel diese Quelle nach jedem Sprachwechsel neu
+             * (`ParkingLotSprachdateien.Pflege`), und sie antwortet in der
+             * Sprache, die gerade gilt. Dieselbe Quelle steht unter jeder
+             * Spielsprache; so gilt die Wahl im Mod auch dann, wenn das Spiel
+             * anders eingestellt ist.
+             */
+            try { _sprache = _setting?.SprachId() ?? Geometry.Sprachtexte.Rueckfall; }
+            catch { _sprache = Geometry.Sprachtexte.Rueckfall; }
             var seite = _setting.id;
             var pfad = seite + "." + nameof(Setting) + "."
                        + nameof(Setting.FensterZuruecksetzen);
@@ -883,15 +872,13 @@ namespace ParkingLotTool
             return new Dictionary<string, string>
             {
                 { "Options.OPTION[" + pfadVersion + "]",
-                    _deutsch ? "Version" : "Version" },
+                    S("settings.Version.label")},
                 { "Options.OPTION_DESCRIPTION[" + pfadVersion + "]",
-                    _deutsch ? "Die geladene Fassung und wann ihre DLL geschrieben wurde. Bei einer Fehlermeldung gehört beides dazu; die Bauzeit sagt, ob im Spiel wirklich der neue Stand liegt."
-                        : "The loaded version and when its DLL was written. Both belong in a bug report; the build time tells you whether the game is really running the newer build." },
+                    S("settings.Version.desc")},
                 { "Options.OPTION[" + pfadLoeschen + "]",
-                    _deutsch ? "Löschen von Parkplätzen bestätigen" : "Confirm parking lot demolition" },
+                    S("settings.Loeschen.label")},
                 { "Options.OPTION_DESCRIPTION[" + pfadLoeschen + "]",
-                    _deutsch ? "Vor dem Bulldozen eines PLT-Parkplatzes nachfragen. Standard: an. Gilt sofort; Bestätigungen anderer Gebäude bleiben unverändert."
-                        : "Ask before bulldozing a PLT parking lot. Default: on. Takes effect immediately; confirmations for other buildings remain unchanged." },
+                    S("settings.Loeschen.desc")},
                 /*
                  * DER KNOPF SAGT SELBST, WAS LOS IST.
                  *
@@ -903,320 +890,128 @@ namespace ParkingLotTool
                  */
                 { "Options.OPTION[" + pfadEntfernen + "]", Entfernenknopf() },
                 { "Options.OPTION_DESCRIPTION[" + pfadEntfernen + "]",
-                    _deutsch ? "Reißt die mit diesem Mod gebauten Parkplätze in der geladenen Stadt ab. Gedacht für den Schritt VOR dem Deinstallieren: danach kann der Mod nichts mehr aufräumen, und ein ohne ihn gespeicherter Stand verliert die Daten seiner Parkplätze endgültig. Gewachsene Zoning-Häuser bleiben stehen — die gehören dir, nicht dem Mod; ihre Straßen- und Versorgungsanbindung kann allerdings mit abgerissen werden. Warte ab, bis auf dem Knopf „Fertig“ steht, und speichere dann. Im Hauptmenü ausgegraut, weil es dort keine Stadt gibt."
-                        : "Demolishes the parking lots this mod built in the loaded city. Meant for the step BEFORE uninstalling: afterwards the mod can no longer clean anything up, and a save written without it loses its parking lot data for good. Grown zoning buildings stay — those are yours, not the mod's; their road and utility connections may go with the teardown, though. Wait until the button says “Done”, then save. Greyed out in the main menu, where there is no city." },
+                    S("settings.Entfernen.desc")},
                 { "Options.WARNING[" + pfadEntfernen + "]",
-                    _deutsch ? "Alle mit diesem Mod gebauten Parkplätze in dieser Stadt abreißen? Das lässt sich im Werkzeug nicht rückgängig machen — sichere vorher deinen Spielstand."
-                        : "Demolish every parking lot this mod built in this city? The tool's undo cannot take this back — back up your save first." },
+                    S("settings.Entfernen.warning")},
                 { "Options.OPTION[" + pfadAbsturzspur + "]",
-                    _deutsch ? "Absturzspur mitschreiben (kann mit der Zeit ruckeln, nur bei Bedarf)"
-                        : "Record a crash trace (may become laggy after time, only use when needed)" },
+                    S("settings.Absturzspur.label")},
                 { "Options.OPTION_DESCRIPTION[" + pfadAbsturzspur + "]",
-                    _deutsch ? "Schreibt bei JEDEM Bild mit, welches System des Mods gerade läuft, und zwingt es sofort auf die Platte — damit nach einem Absturz dort steht, wo es passiert ist. Kostet spürbar Leistung. Nur einschalten, wenn du einen Absturz wiederholen kannst. Schaltet sich beim nächsten Spielstart von selbst wieder aus."
-                        : "Records which of the mod's systems is running on EVERY frame and forces it straight to disk, so after a crash the trace says where it happened. Costs noticeable performance. Only turn it on if you can reproduce a crash. Turns itself off the next time you start the game." },
-                { "Options.SECTION[" + seite + "]", "Parking Lot Tool" },
+                    S("settings.Absturzspur.desc")},
+                { "Options.SECTION[" + seite + "]", S("settings.section") },
                 {
                     "Options.TAB[" + seite + "." + Setting.ReiterAllgemein + "]",
-                    _deutsch ? "Allgemein" : "General"
-                },
+                    S("settings.tab.Allgemein")},
                 {
                     "Options.GROUP[" + seite + "." + Setting.GruppeUeber + "]",
-                    _deutsch ? "Über diesen Mod" : "About this mod"
-                },
+                    S("settings.group.Ueber")},
                 {
                     "Options.GROUP[" + seite + "." + Setting.GruppeFenster + "]",
-                    _deutsch ? "Fenster" : "Window"
-                },
+                    S("settings.group.Fenster")},
                 {
                     "Options.OPTION[" + seite + "." + nameof(Setting) + "."
                         + nameof(Setting.Fensterstil) + "]",
-                    _deutsch ? "Aufbau des Panels" : "Panel layout"
-                },
+                    S("settings.Fensterstil.label")},
                 {
                     "Options.OPTION_DESCRIPTION[" + seite + "." + nameof(Setting)
                         + "." + nameof(Setting.Fensterstil) + "]",
-                    _deutsch
-                        ? "Horizontal ist die breite Leiste mit den Spalten "
-                          + "nebeneinander. Hochkant ist die schmale Spalte "
-                          + "links unten, dort wo auch das Spiel seine "
-                          + "Werkzeugeinstellungen zeigt - sie verdeckt am "
-                          + "wenigsten. Die Einstellungen sind in beiden "
-                          + "dieselben."
-                        : "Horizontal is the wide bar with its columns side "
-                          + "by side. Upright is the narrow column at the "
-                          + "bottom left, where the game shows its own tool "
-                          + "options - it covers the least. Both hold the "
-                          + "same settings."
-                },
+                    S("settings.Fensterstil.desc")},
                 {
                     _setting.GetEnumValueLocaleID(
                         Setting.Fensterstilwahl.Horizontal),
-                    _deutsch ? "Horizontal" : "Horizontal"
-                },
+                    S("settings.enum.Fensterstilwahl.Horizontal")},
                 {
                     _setting.GetEnumValueLocaleID(
                         Setting.Fensterstilwahl.Hochkant),
-                    _deutsch ? "Hochkant" : "Upright"
-                },
+                    S("settings.enum.Fensterstilwahl.Hochkant")},
                 {
                     "Options.GROUP[" + seite + "." + Setting.GruppeZufahrt + "]",
-                    _deutsch ? "Zufahrten" : "Entrances"
-                },
+                    S("settings.group.Zufahrt")},
                 {
                     "Options.GROUP[" + seite + "." + Setting.GruppeHinweise + "]",
-                    _deutsch ? "Hinweise" : "Prompts"
-                },
+                    S("settings.group.Hinweise")},
                 {
                     "Options.GROUP[" + seite + "." + Setting.GruppeSpielstand + "]",
-                    _deutsch ? "Spielstand" : "Saved games"
-                },
+                    S("settings.group.Spielstand")},
                 {
                     "Options.OPTION[" + seite + "." + nameof(Setting) + "."
                         + nameof(Setting.AutomatischSynchronisieren) + "]",
-                    _deutsch ? "Parkplätze automatisch synchronisieren"
-                        : "Synchronize parking lots automatically"
-                },
+                    S("settings.AutomatischSynchronisieren.label")},
                 {
                     "Options.OPTION_DESCRIPTION[" + seite + "." + nameof(Setting) + "."
                         + nameof(Setting.AutomatischSynchronisieren) + "]",
-                    _deutsch
-                        ? "Neue Versionen der Mod müssen bestehende Parkplätze "
-                          + "manchmal nachrüsten. Ist dieser Schalter an, passiert "
-                          + "das nach dem Laden von selbst, verteilt über mehrere "
-                          + "Bilder, mit einer kleinen Fortschrittsmeldung unten. "
-                          + "Aus: ein Hinweis im Kopf des Parkplatz-Fensters führt "
-                          + "zur Liste, dort geht es je Parkplatz oder für alle. "
-                          + "Form und Einstellungen der Parkplätze bleiben."
-                        : "New versions of the mod sometimes need to update existing "
-                          + "parking lots. With this on, that happens after loading, "
-                          + "spread over several frames, with a small progress note "
-                          + "at the bottom. Off: a note in the parking lot window "
-                          + "leads to the list, where you update one lot or all. "
-                          + "Shape and settings of the lots stay as they are."
-                },
+                    S("settings.AutomatischSynchronisieren.desc")},
                 {
                     "Options.OPTION[" + seite + "." + nameof(Setting) + "."
                         + nameof(Setting.WaisenAutomatischReparieren) + "]",
-                    _deutsch ? "Parkplätze automatisch reparieren"
-                        : "Repair parking lots automatically"
-                },
+                    S("settings.WaisenAutomatischReparieren.label")},
                 {
                     "Options.OPTION_DESCRIPTION[" + seite + "." + nameof(Setting) + "."
                         + nameof(Setting.WaisenAutomatischReparieren) + "]",
-                    _deutsch
-                        ? "Wurde ein Spielstand ohne Parking Lot Tool gespeichert, "
-                          + "verlieren die Parkplätze darin ihre Verbindung zur Mod: "
-                          + "sie fehlen in der Liste und lassen sich nicht sauber "
-                          + "abreißen. Ist dieser Schalter an, verbindet die Mod sie "
-                          + "nach dem Laden selbst wieder, einen nach dem anderen. "
-                          + "Dasselbe gilt für Parkplätze mit Flächen oder Pflanzen aus "
-                          + "einem Mod, der nicht mehr geladen ist: sie bekommen deine "
-                          + "gespeicherte Standardfläche und -pflanzen. "
-                          + "Aus: Liste und Infofenster bieten dafür einen Knopf an."
-                        : "If a save was stored without Parking Lot Tool, its parking "
-                          + "lots lose their link to the mod: they are missing from "
-                          + "the list and cannot be removed cleanly. With this on, "
-                          + "the mod reconnects them after loading, one at a time. "
-                          + "The same goes for lots with surfaces or plants from a mod "
-                          + "that is no longer loaded: they get your saved default "
-                          + "surface and plants. "
-                          + "Off: the list and the info panel offer a button instead."
-                },
+                    S("settings.WaisenAutomatischReparieren.desc")},
                 {
                     "Options.GROUP[" + seite + "."
                         + Setting.GruppeDeinstallation + "]",
-                    _deutsch ? "Deinstallation" : "Uninstall"
-                },
+                    S("settings.group.Deinstallation")},
                 {
                     "Options.GROUP[" + seite + "." + Setting.GruppeWirtschaft + "]",
-                    _deutsch ? "Wirtschaft" : "Economy"
-                },
+                    S("settings.group.Wirtschaft")},
                 {
                     "Options.GROUP[" + seite + "." + Setting.GruppeZoning + "]",
-                    _deutsch ? "Zoning" : "Zoning"
-                },
+                    S("settings.group.Zoning")},
                 {
                     "Options.GROUP[" + seite + "." + Setting.GruppeVegetation + "]",
-                    _deutsch ? "Vegetation" : "Vegetation"
-                },
+                    S("settings.group.Vegetation")},
                 {
                     "Options.GROUP[" + seite + "." + Setting.GruppeZuruecksetzen + "]",
-                    _deutsch ? "Zurücksetzen" : "Reset"
-                },
+                    S("settings.group.Zuruecksetzen")},
                 {
                     "Options.OPTION[" + pfadZuruecksetzen + "]",
-                    _deutsch ? "Alle Einstellungen zurücksetzen"
-                        : "Reset all settings"
-                },
+                    S("settings.Zuruecksetzen.label")},
                 {
                     "Options.OPTION_DESCRIPTION[" + pfadZuruecksetzen + "]",
-                    _deutsch
-                        ? "Setzt diese Seite UND die im Panel gemerkten Standards "
-                          + "auf den Auslieferungszustand zurück. Die Sprache geht "
-                          + "dabei auf Englisch." + "\n\n"
-                          + "Gebaute Parkplätze bleiben unberührt - zurückgesetzt "
-                          + "wird nur, womit der nächste gebaut wird."
-                        : "Resets this page AND the defaults remembered in the "
-                          + "panel back to how the mod ships. The language goes "
-                          + "back to English." + "\n\n"
-                          + "Parking lots you already built are untouched - only "
-                          + "the values the next one is built with are reset."
-                },
+                    S("settings.Zuruecksetzen.desc")},
                 {
                     "Options.WARNING[" + pfadZuruecksetzen + "]",
-                    _deutsch
-                        ? "Alle Einstellungen des Mods auf Werkszustand "
-                          + "zurücksetzen?"
-                        : "Reset every setting of this mod to factory values?"
-                },
+                    S("settings.Zuruecksetzen.warning")},
                 {
                     "Options.OPTION[" + pfadVegetation + "]",
-                    _deutsch ? "Pflanzdichte" : "Planting density"
-                },
+                    S("settings.Vegetation.label")},
                 {
                     "Options.OPTION_DESCRIPTION[" + pfadVegetation + "]",
-                    _deutsch
-                        ? "Wieviele Pflanzen je Quadratmeter gesetzt werden, im "
-                          + "Verhältnis zu 1,0." + "\n\n"
-                          + "Bei 1,0 hält jede Pflanze genau den Abstand ein, ab "
-                          + "dem das Spiel selbst anfängt, sich überschneidende "
-                          + "Pflanzen unsichtbar zu machen - alles, was gesetzt "
-                          + "wird, steht also auch da. Darüber wird es luftiger. "
-                          + "Darunter wird es dichter, und das Spiel blendet "
-                          + "einen Teil wieder weg; für Dickicht ist das der "
-                          + "Preis." + "\n\n"
-                          + "Der Regler im Panel bleibt davon unberührt: er sagt, "
-                          + "wieviel vom Möglichen gepflanzt wird. Vorhandene "
-                          + "Parkplätze behalten ihre Pflanzen, bis sie neu "
-                          + "gebaut werden."
-                        : "How many plants per square metre are placed, relative "
-                          + "to 1.0." + "\n\n"
-                          + "At 1.0 every plant keeps exactly the distance at "
-                          + "which the game itself starts hiding overlapping "
-                          + "plants - so everything placed is also visible. "
-                          + "Above that it gets airier. Below it gets denser and "
-                          + "the game hides some again; that is the price of a "
-                          + "thicket." + "\n\n"
-                          + "The slider in the panel is unaffected: it says how "
-                          + "much of the possible is planted. Existing lots keep "
-                          + "their plants until they are rebuilt."
-                },
+                    S("settings.Vegetation.desc")},
                 {
                     "Options.GROUP[" + seite + "." + Setting.GruppeEntwickler + "]",
-                    _deutsch ? "Entwicklung" : "Development"
-                },
+                    S("settings.group.Entwickler")},
                 {
                     "Options.OPTION[" + pfadEntwickler + "]",
-                    _deutsch ? "Entwickler-Reiter anzeigen"
-                        : "Show developer tab"
-                },
+                    S("settings.Entwickler.label")},
                 {
                     "Options.OPTION_DESCRIPTION[" + pfadEntwickler + "]",
-                    _deutsch
-                        ? "Blendet im Panel den Reiter \"dev-Debug\" ein. "
-                          + "Dort liegen Messwerkzeuge aus der Entwicklung: "
-                          + "Zoning-Sonde, Prefab-Zerlegung, Trägertest, "
-                          + "Überlappungsmessung, Prefab-Vergleich und das "
-                          + "Live-Log." + "\n\n" + "Zum Melden eines Fehlers "
-                          + "brauchst du das nicht - dafür ist der Reiter "
-                          + "\"Debug\" da, der immer sichtbar ist. Einige "
-                          + "dieser Werkzeuge bauen und löschen etwas in "
-                          + "deiner Stadt."
-                        : "Shows the \"dev-Debug\" tab in the panel. It holds "
-                          + "measuring tools from development: zoning probe, "
-                          + "prefab dissection, carrier test, overlap scan, "
-                          + "prefab comparison and the live log."
-                          + "\n\n" + "You do not need this to report a "
-                          + "problem - the always-visible \"Debug\" tab is "
-                          + "for that. Some of these tools build and delete "
-                          + "things in your city."
-                },
+                    S("settings.Entwickler.desc")},
                 {
                     "Options.OPTION[" + pfadZonBreite + "]",
-                    _deutsch ? "Zoningfläche: größte Breite"
-                        : "Zoning area: maximum width"
-                },
+                    S("settings.ZonBreite.label")},
                 {
                     "Options.OPTION_DESCRIPTION[" + pfadZonBreite + "]",
-                    _deutsch
-                        ? "Wieviele Parzellen eine gezogene Zoningfläche "
-                          + "höchstens breit sein darf. Eine Parzelle ist "
-                          + "8 m. Standard 25." + "\n\n" + "Beachte: gezont wird von "
-                          + "den Straßen rundherum, und CS2 bebaut je "
-                          + "Straße höchstens 6 Parzellen tief. Ab etwa 12 "
-                          + "Parzellen bleibt in der Mitte ein Streifen ohne "
-                          + "Häuser - dorthin reicht keine Straße mehr."
-                        : "How many parcels wide a zoning area may be at "
-                          + "most. One parcel is 8 m. Default 25." + "\n\n" + "Note: "
-                          + "zoning grows from the surrounding roads, and CS2 "
-                          + "builds at most 6 parcels deep per road. Beyond "
-                          + "roughly 12 parcels a strip in the middle stays "
-                          + "empty - no road reaches it."
-                },
+                    S("settings.ZonBreite.desc")},
                 {
                     "Options.OPTION[" + pfadZonTiefe + "]",
-                    _deutsch ? "Zoningfläche: größte Tiefe"
-                        : "Zoning area: maximum depth"
-                },
+                    S("settings.ZonTiefe.label")},
                 {
                     "Options.OPTION_DESCRIPTION[" + pfadZonTiefe + "]",
-                    _deutsch
-                        ? "Wieviele Parzellen eine gezogene Zoningfläche "
-                          + "höchstens tief sein darf. Eine Parzelle ist "
-                          + "8 m. Standard 25. Derselbe Hinweis wie bei der "
-                          + "Breite gilt auch hier."
-                        : "How many parcels deep a zoning area may be at "
-                          + "most. One parcel is 8 m. Default 25. The same "
-                          + "note as for the width applies here."
-                },
+                    S("settings.ZonTiefe.desc")},
                 {
                     "Options.OPTION[" + pfadWirtschaft + "]",
-                    _deutsch ? "Wirtschaft simulieren" : "Simulate economy"
-                },
+                    S("settings.Wirtschaft.label")},
                 {
                     "Options.OPTION_DESCRIPTION[" + pfadWirtschaft + "]",
-                    _deutsch
-                        ? "Hauptschalter. AN heißt: Unterhaltskosten nach "
-                          + "Größe, Parkgebühr, Lärmbelastung, Angestellte "
-                          + "und der Komfort, mit dem der Parkplatz um Autos "
-                          + "wirbt. AUS heißt: der Parkplatz steht rein "
-                          + "baulich da und kostet nichts. "
-                          + "Umschalten geht jederzeit und gilt sofort für "
-                          + "alle vorhandenen Parkplätze. Eingestellte "
-                          + "Gebühren bleiben erhalten und kommen beim "
-                          + "Wiedereinschalten zurück. Parkplätze, die im "
-                          + "ausgeschalteten Zustand gebaut wurden, bekommen "
-                          + "beim Einschalten die Standardgebühr von unten. "
-                          + "Strom braucht der Parkplatz in keinem Fall."
-                        : "Master switch. ON means: upkeep scaled by size, "
-                          + "parking fee, noise pollution, workers, and the "
-                          + "comfort that makes the lot attractive to drivers. "
-                          + "OFF means: the lot is purely a structure and "
-                          + "costs nothing. "
-                          + "You can toggle it at any time; it applies at once "
-                          + "to every existing lot. Fees you have set are kept "
-                          + "and come back when you switch it on again. Lots "
-                          + "built while it was off get the default fee below "
-                          + "when you switch it on. "
-                          + "The lot never needs power."
-                },
+                    S("settings.Wirtschaft.desc")},
                 {
                     "Options.OPTION[" + pfadGebuehr + "]",
-                    _deutsch ? "Standardgebühr für neue Parkplätze"
-                             : "Default fee for new parking lots"
-                },
+                    S("settings.Gebuehr.label")},
                 {
                     "Options.OPTION_DESCRIPTION[" + pfadGebuehr + "]",
-                    _deutsch
-                        ? "Wird beim Bau in den neuen Parkplatz kopiert. "
-                          + "Bestehende Parkplätze werden danach einzeln in "
-                          + "ihrem Auswahlfenster eingestellt. 0 heisst "
-                          + "kostenlos; Einnahmen erscheinen unter 'Parken'."
-                        : "Copied into each new parking lot when it is built. "
-                          + "Existing lots are then adjusted individually in "
-                          + "their selection panel. 0 means free; revenue "
-                          + "appears under 'Parking'."
-                },
+                    S("settings.Gebuehr.desc")},
                 /**
                  * DEN SCHLUESSEL BAUT DAS SPIEL SELBST.
                  *
@@ -1228,127 +1023,65 @@ namespace ParkingLotTool
                  */
                 {
                     _setting.GetEnumValueLocaleID(Setting.Sprachwahl.Automatic),
-                    _deutsch ? "Automatisch" : "Automatic"
-                },
+                    S("settings.enum.Sprachwahl.Automatic")},
                 {
                     _setting.GetEnumValueLocaleID(Setting.Sprachwahl.English),
-                    "English"
-                },
+                    S("settings.enum.Sprachwahl.English")},
                 {
                     _setting.GetEnumValueLocaleID(Setting.Sprachwahl.Deutsch),
-                    "Deutsch"
-                },
+                    S("settings.enum.Sprachwahl.Deutsch")},
                 {
                     "Options.GROUP[" + seite + "." + Setting.GruppeTasten + "]",
-                    _deutsch ? "Tasten" : "Keyboard"
-                },
+                    S("settings.group.Tasten")},
                 {
                     "Options.OPTION[" + seite + "." + nameof(Setting) + "."
                         + nameof(Setting.WerkzeugTaste) + "]",
-                    _deutsch ? "Werkzeug öffnen und schließen"
-                             : "Open and close the tool"
-                },
+                    S("settings.WerkzeugTaste.label")},
                 {
                     "Options.OPTION_DESCRIPTION[" + seite + "." + nameof(Setting)
                         + "." + nameof(Setting.WerkzeugTaste) + "]",
-                    _deutsch
-                        ? "Vorgabe ist Strg+Umschalt+P. Früher war es Strg+P - "
-                          + "die Kombination gehört aber auch Find It, und dessen "
-                          + "Werkzeug behielt die Oberhand. Ändere die Taste hier, "
-                          + "wenn sie mit einem anderen Mod kollidiert."
-                        : "Default is Ctrl+Shift+P. It used to be Ctrl+P, but Find "
-                          + "It uses that combination too and its tool won. Change "
-                          + "the key here if it clashes with another mod."
-                },
+                    S("settings.WerkzeugTaste.desc")},
+                /*
+                 * DIE TASTENBELEGUNGS-SEITE DES SPIELS. CS2 listet die Aktion
+                 * dort unter dem Namen des Mods; ohne diese drei Eintraege
+                 * stand der rohe Schluessel da.
+                 */
+                { _setting.GetBindingMapLocaleID(), S("settings.section") },
+                {
+                    _setting.GetBindingKeyLocaleID(Setting.AktionWerkzeug),
+                    S("settings.WerkzeugTaste.label")},
+                {
+                    _setting.GetBindingKeyHintLocaleID(Setting.AktionWerkzeug),
+                    S("settings.WerkzeugTaste.label")},
                 {
                     "Options.GROUP[" + seite + "." + Setting.GruppeSprache + "]",
-                    _deutsch ? "Sprache" : "Language"
-                },
+                    S("settings.group.Sprache")},
                 {
                     "Options.OPTION[" + seite + "." + nameof(Setting) + "."
                         + nameof(Setting.Sprache) + "]",
-                    _deutsch ? "Sprache der Oberfläche" : "Interface language"
-                },
+                    S("settings.Sprache.label")},
                 {
                     "Options.OPTION_DESCRIPTION[" + seite + "." + nameof(Setting) + "."
                         + nameof(Setting.Sprache) + "]",
-                    _deutsch
-                        ? "Aus: Englisch. Gilt für das Parkplatz-Fenster sofort, für "
-                          + "diese Seite nach dem nächsten Start."
-                        : "Applies to the parking lot window and its messages. "
-                          + "Automatic follows the game language."
-                },
+                    S("settings.Sprache.desc")},
                 {
                     "Options.OPTION[" + pfadVersorgung + "]",
-                    _deutsch
-                        ? "Strom und Wasser automatisch anschließen"
-                        : "Connect power and water automatically"
-                },
+                    S("settings.Versorgung.label")},
                 {
                     "Options.OPTION_DESCRIPTION[" + pfadVersorgung + "]",
-                    _deutsch
-                        ? "Legt beim Bauen selbst eine Stromleitung und ein "
-                          + "Doppelrohr bis zum Parkplatz. Gebaut wird immer "
-                          + "die kürzeste Verbindung zwischen zwei Teilen, "
-                          + "die noch nicht zusammenhängen - liegen mehrere "
-                          + "Zoningflächen weit auseinander, hängen sie sich "
-                          + "auch aneinander. Mindestens eine Leitung geht "
-                          + "dabei immer an eine Stadtstraße, sonst käme kein "
-                          + "Strom herein." + "\n\n"
-                          + "Umfahren werden unsere eigenen Straßen und "
-                          + "fremde Erdleitungen; weist CS2 einen Weg ab, "
-                          + "wird ein anderer versucht." + "\n\n"
-                          + "Aus: es entstehen keine neuen Leitungen. Bereits "
-                          + "von dir gelegte Anschlüsse bleiben beim "
-                          + "Bearbeiten trotzdem erhalten - das ist ein "
-                          + "eigener Vorgang und hängt nicht an diesem "
-                          + "Schalter."
-                        : "Lays a power line and a combined pipe to the "
-                          + "parking lot while building. It always builds the "
-                          + "shortest link between two parts that are not "
-                          + "connected yet - several zoning patches far apart "
-                          + "may hook up to each other. At least one line "
-                          + "always reaches a city road, otherwise no power "
-                          + "comes in." + "\n\n"
-                          + "It routes around our own roads and around "
-                          + "existing buried lines; if CS2 rejects one route, "
-                          + "another is tried." + "\n\n"
-                          + "Off: no new lines are created. Connections you "
-                          + "laid yourself are still preserved when editing - "
-                          + "that is a separate mechanism and does not depend "
-                          + "on this switch."
-                },
+                    S("settings.Versorgung.desc")},
                 {
                     "Options.OPTION[" + pfadAuto + "]",
-                    _deutsch
-                        ? "Automatisch in den Zufahrt-Modus wechseln"
-                        : "Switch to entrance mode automatically"
-                },
+                    S("settings.Auto.label")},
                 {
                     "Options.OPTION_DESCRIPTION[" + pfadAuto + "]",
-                    _deutsch
-                        ? "Wechselt direkt nach dem Schließen des Polygons in "
-                          + "den Zufahrt-Modus. Aus: das Polygon bleibt zuerst "
-                          + "bearbeitbar, und du wechselst selbst, wenn du so "
-                          + "weit bist."
-                        : "Switches to entrance mode right after the polygon is "
-                          + "closed. Off: the polygon stays editable first and "
-                          + "you switch over yourself when you are ready."
-                },
+                    S("settings.Auto.desc")},
                 {
                     "Options.OPTION[" + pfad + "]",
-                    _deutsch ? "Fensterposition zurücksetzen" : "Reset window position"
-                },
+                    S("settings.FensterZuruecksetzen.label")},
                 {
                     "Options.OPTION_DESCRIPTION[" + pfad + "]",
-                    _deutsch
-                        ? "Stellt das Parkplatz-Fenster wieder oben an den "
-                          + "Rand, waagerecht mittig. Hilft, wenn es aus dem "
-                          + "Bild geschoben wurde und nicht mehr zu greifen ist."
-                        : "Puts the parking lot window back to the top edge, "
-                          + "horizontally centred. Use this if it was dragged "
-                          + "off screen and can no longer be grabbed."
-                },
+                    S("settings.FensterZuruecksetzen.desc")},
             };
         }
 

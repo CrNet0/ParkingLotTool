@@ -62,10 +62,8 @@ namespace ParkingLotTool.Tools
             _meldeLotUnterZeiger = Entity.Null;
             _uiSystem?.SetMeldeLotWahl(an);
             _uiSystem?.SetStatus(an
-                ? ParkingLotTexte.T(
-                    "Einen gebauten Parkplatz anklicken. Rechtsklick bricht ab.",
-                    "Click a parking lot you built. Right-click to cancel.")
-                : ParkingLotTexte.T("Abgebrochen.", "Cancelled."));
+                ? ParkingLotTexte.T("meldewahl.clickAParkingLotYouBuilt")
+                : ParkingLotTexte.T("meldewahl.cancelled"));
         }
 
         /**
@@ -137,9 +135,7 @@ namespace ParkingLotTool.Tools
                 return true;
             if (_meldeLotUnterZeiger == Entity.Null)
             {
-                _uiSystem?.SetStatus(ParkingLotTexte.T(
-                    "Kein Parkplatz unter dem Zeiger.",
-                    "No parking lot under the cursor."));
+                _uiSystem?.SetStatus(ParkingLotTexte.T("meldewahl.noParkingLotUnderTheCursor"));
                 return true;
             }
             var lot = _meldeLotUnterZeiger;

@@ -77,9 +77,7 @@ namespace ParkingLotTool.Tools
                 + "Wirkt NUR auf den nächsten neu gebauten Parkplatz - jetzt "
                 + "Polygon ziehen und Enter. Schon stehende Parkplätze ändern "
                 + "sich dadurch nicht.");
-            _debugTooltipSystem?.Show(T(
-                $"Lot-Fläche als Besitzer: {state} - gilt für den nächsten Parkplatz",
-                $"Lot area as owner: {state} - applies to the next parking lot"));
+            _debugTooltipSystem?.Show(T(UseLotAreaOwner ? "lotArea.anNaechsterParkplatz" : "lotArea.ausNaechsterParkplatz"));
             if (!UseLotAreaOwner) return;
             var missing = LotOwnerPrefabState(_lotOwnerPrefab);
             if (missing != null)

@@ -137,19 +137,23 @@ export const panelY$ = bindValue<number>(MOD, "PanelY", 60 / 1080);
 
 export const stalls$ = bindValue<number>(MOD, "Stalls", 0);
 export const perimeterStalls$ = bindValue<number>(MOD, "PerimeterStalls", 0);
-export const areaPerStall$ = bindValue<string>(MOD, "AreaPerStall", "-");
+export const areaPerStall$ = bindValue<string>(MOD, "AreaPerStall", "");
 export const aisles$ = bindValue<number>(MOD, "Aisles", 0);
-export const rowAngleResult$ = bindValue<string>(MOD, "RowAngleResult", "-");
-export const siteArea$ = bindValue<string>(MOD, "SiteArea", "-");
+export const rowAngleResult$ = bindValue<string>(MOD, "RowAngleResult", "");
+export const siteArea$ = bindValue<string>(MOD, "SiteArea", "");
 export const status$ = bindValue<string>(MOD, "Status", "");
 
 /**
- * Sprache der Oberflaeche, "en" oder "de".
- *
- * Standard "en", auch bevor die Einstellungen geladen sind - sonst blitzt das
- * Panel beim Start kurz deutsch auf.
+ * Angezeigte Sprache als Kennung des Spiels ("en-US", "de-DE", ...).
  */
-export const sprache$ = bindValue<string>(MOD, "Sprache", "en");
+export const sprache$ = bindValue<string>(MOD, "Sprache", "en-US");
+
+/**
+ * Alle Oberflaechentexte der angezeigten Sprache als JSON - Schluessel ohne
+ * "ui."-Praefix, Luecken schon mit Englisch gefuellt. Quelle: Lang/*.json.
+ * Leer, bis C# geantwortet hat; dann zeigt das Panel kurz [schluessel].
+ */
+export const sprachtexte$ = bindValue<string>(MOD, "Sprachtexte", "{}");
 
 /**
  * Zaehler, der bei "Fensterposition zuruecksetzen" steigt.
@@ -292,11 +296,12 @@ export const placeEntrance = () => trigger(MOD, "PlaceEntrance");
 /**
  * Der Sondenlauf im Debug-Reiter.
  *
- * `probeState$` ist leer, solange nichts laeuft - das ist zugleich das
- * Merkmal, an dem die Oberflaeche "laeuft gerade" erkennt.
+ * `probeState$` traegt nur die Anzeige; ob er laeuft, sagt `probeRunning$`.
  */
 export const probeState$ = bindValue<string>(MOD, "ProbeState", "");
 export const probeResults$ = bindValue<string>(MOD, "ProbeResults", "");
+/** Laeuft der Sondenlauf? Eigene Bindung - nie am uebersetzten Text ablesen. */
+export const probeRunning$ = bindValue<boolean>(MOD, "ProbeRunning", false);
 export const startProbe = () => trigger(MOD, "StartProbe");
 export const cancelProbe = () => trigger(MOD, "CancelProbe");
 export const buildZoningProbe = (road: string) =>

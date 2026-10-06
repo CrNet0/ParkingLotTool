@@ -130,10 +130,7 @@ namespace ParkingLotTool.Tools
         internal string Traegerstand()
         {
             if (TraegertestLaeuft())
-                return T("Läuft. Jetzt hovern, eine Straße daneben bauen, "
-                         + "speichern, neu laden - dann abschließen.",
-                         "Running. Now hover, build a road next to it, save, "
-                         + "reload - then finish.");
+                return T("carrierProbe.runningNowHoverBuildARoad");
             if (!System.IO.File.Exists(TraegerAkte)) return string.Empty;
             var letzte = System.IO.File.ReadAllLines(TraegerAkte)
                 .LastOrDefault(z => z.Contains("URTEIL:"));
@@ -147,16 +144,12 @@ namespace ParkingLotTool.Tools
                 var bericht = LegeTraegerAn();
                 SchreibeTraegerdatei(bericht);
                 _uiSystem?.SetReportPath(TraegerAkte);
-                _debugTooltipSystem?.Show(T(
-                    "Trägertest angelegt - siehe Logs-Ordner.",
-                    "Carrier test created - see the Logs folder."));
+                _debugTooltipSystem?.Show(T("carrierProbe.carrierTestCreatedSeeTheLogs"));
             }
             catch (Exception ausnahme)
             {
                 Mod.log.Warn("PLT-Traegertest fehlgeschlagen: " + ausnahme);
-                _debugTooltipSystem?.Show(T(
-                    "Trägertest fehlgeschlagen - siehe Log.",
-                    "Carrier test failed - see the log."));
+                _debugTooltipSystem?.Show(T("carrierProbe.carrierTestFailedSeeTheLog"));
             }
         }
 
@@ -172,16 +165,12 @@ namespace ParkingLotTool.Tools
                     + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
                     + Environment.NewLine, anhaengen: true);
                 _uiSystem?.SetReportPath(TraegerAkte);
-                _debugTooltipSystem?.Show(T(
-                    "Trägertest geprüft - siehe Logs-Ordner.",
-                    "Carrier test checked - see the Logs folder."));
+                _debugTooltipSystem?.Show(T("carrierProbe.carrierTestCheckedSeeTheLogs"));
             }
             catch (Exception ausnahme)
             {
                 Mod.log.Warn("PLT-Traegerpruefung fehlgeschlagen: " + ausnahme);
-                _debugTooltipSystem?.Show(T(
-                    "Prüfung fehlgeschlagen - siehe Log.",
-                    "Check failed - see the log."));
+                _debugTooltipSystem?.Show(T("carrierProbe.checkFailedSeeTheLog"));
             }
         }
 

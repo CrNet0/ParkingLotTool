@@ -135,6 +135,13 @@ namespace ParkingLotTool
              * Werksstand: so beschreibt das Spiel selbst, was
              * "zuruecksetzen" auf dieser Seite bedeutet.
              */
+            /*
+             * DIE SPRACHDATEIEN VOR ALLEM, WAS TEXT ERZEUGT.
+             *
+             * Sie liegen in `Lang/` neben der DLL; ohne sie erscheint jeder
+             * Text als [schluessel]. Siehe `ParkingLotSprachdateien`.
+             */
+            ParkingLotSprachdateien.Lade(assetPfad);
             _setting = new Setting(this);
             Optionen = _setting;
             /*
@@ -153,12 +160,18 @@ namespace ParkingLotTool
                 = () => Optionen?.ZoningMaxTiefe
                     ?? ParkingGeometry.ZoningMaxStandard;
             _setting.RegisterInOptionsUI();
-            GameManager.instance.localizationManager.AddSource(
-                "en-US", new Beschriftungen(_setting, deutsch: false));
-            GameManager.instance.localizationManager.AddSource(
-                "de-DE", new Beschriftungen(_setting, deutsch: true));
             AssetDatabase.global.LoadSettings(
                 nameof(ParkingLotTool), _setting, new Setting(this));
+            /*
+             * TEXTE ERST NACH DEN GESPEICHERTEN EINSTELLUNGEN ANMELDEN.
+             *
+             * `AddSource` liest die Quelle sofort, wenn ihre Sprache gerade
+             * aktiv ist. Vorher angemeldet, haette sie die Sprachwahl des
+             * Werksstands gesehen statt der des Spielers.
+             */
+            ParkingLotSprachdateien.MeldeEinstellungenAn(_setting);
+            ParkingLotSprachdateien.MeldeAn();
+            _setting.onSettingsApplied += _ => ParkingLotSprachdateien.Pflege();
 
             /*
              * DEN GELESENEN WERT EINMAL DURCHREICHEN.

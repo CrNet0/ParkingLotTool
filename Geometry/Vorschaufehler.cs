@@ -62,43 +62,19 @@ namespace ParkingLotTool.Geometry
             return Ursache.Unbekannt;
         }
 
-        /** Statuszeile deutsch und englisch; der Aufrufer waehlt die Sprache. */
-        public static (string De, string En) Text(Ursache ursache, bool randstrassen)
+        /** Schluessel der Statuszeile in `Lang/*.json`; der Aufrufer holt den Text. */
+        public static string Text(Ursache ursache, bool randstrassen)
         {
             switch (ursache)
             {
                 case Ursache.ZuKlein:
                     return randstrassen
-                        ? ("Keine Vorschau: In diese Form passt keine Parkreihe. "
-                            + "Form vergrößern oder Randstraßen ausschalten.",
-                           "No preview: no parking row fits into this shape. "
-                            + "Make the shape larger, or switch off the perimeter roads.")
-                        : ("Keine Vorschau: In diese Form passt keine Parkreihe. "
-                            + "Form vergrößern oder breiter ziehen.",
-                           "No preview: no parking row fits into this shape. "
-                            + "Make the shape larger or wider.");
-                case Ursache.UmrissUngueltig:
-                    return ("Keine Vorschau: Der Umriss kreuzt oder faltet sich. "
-                            + "Eine Ecke so verschieben, dass er eine Fläche umschließt.",
-                            "No preview: the outline crosses or folds back on itself. "
-                            + "Move a corner so it encloses an area.");
-                case Ursache.Zufahrt:
-                    return ("Keine Vorschau: Eine Zufahrt passt nicht mehr an ihre Kante. "
-                            + "Zufahrt verschieben oder entfernen.",
-                            "No preview: an entrance no longer fits on its edge. "
-                            + "Move or remove the entrance.");
-                case Ursache.Zeitgrenze:
-                    return ("Keine Vorschau: Die Flächen dieser Form brauchen zu lange. "
-                            + "Bitte über „Report a problem“ einen Vorschau-Bericht schicken.",
-                            "No preview: the surfaces of this shape take too long to "
-                            + "calculate. Please send a preview report via Report a problem.");
-                default:
-                    return ("Keine Vorschau: Diese Form ließ sich nicht berechnen. "
-                            + "Eine Ecke leicht verschieben; klappt es weiter nicht, "
-                            + "bitte einen Vorschau-Bericht schicken.",
-                            "No preview: this shape could not be calculated. Move a "
-                            + "corner slightly; if it keeps failing, please send a "
-                            + "preview report via Report a problem.");
+                        ? "vorschaufehler.zuKleinRandstrassen"
+                        : "vorschaufehler.zuKlein";
+                case Ursache.UmrissUngueltig: return "vorschaufehler.umrissUngueltig";
+                case Ursache.Zufahrt: return "vorschaufehler.zufahrt";
+                case Ursache.Zeitgrenze: return "vorschaufehler.zeitgrenze";
+                default: return "vorschaufehler.unbekannt";
             }
         }
     }

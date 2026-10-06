@@ -196,11 +196,7 @@ namespace ParkingLotTool.Tools
             }
 
             if (verloren > 0)
-                _uiSystem?.SetStatus(T(
-                    verloren + " Randzoning-Linie(n) entfallen: die Kante gibt "
-                        + "es nicht mehr.",
-                    verloren + " edge zoning line(s) dropped: their edge is "
-                        + "gone."));
+                _uiSystem?.SetStatus(TN("randzoning.linienEntfallen", verloren));
         }
 
         /** Ist an dieser Umrisslinie schon Randzoning? */
@@ -271,7 +267,7 @@ namespace ParkingLotTool.Tools
             if (vorhanden >= 0)
             {
                 _randzoning.RemoveAt(vorhanden);
-                NachZoningaenderung(vorher, T("Randzoning entfernt", "edge zoning removed"));
+                NachZoningaenderung(vorher, () => T("randzoning.edgeZoningRemoved"));
                 return;
             }
 
@@ -279,21 +275,13 @@ namespace ParkingLotTool.Tools
             // Bauland entstehen, und verschieben laesst sie sich nicht.
             if (ZufahrtAufLinie(kante))
             {
-                _uiSystem?.SetStatus(T(
-                    "Hier liegt eine Zufahrt oder ein Fußweg — erst "
-                        + "verschieben oder entfernen.",
-                    "An entrance or footpath sits here — move or remove it "
-                        + "first."));
+                _uiSystem?.SetStatus(T("randzoning.anEntranceOrFootpathSitsHere"));
                 return;
             }
 
             if (!RaeumeFuerRandzoning(a, b))
             {
-                _uiSystem?.SetStatus(T(
-                    "Hier ist kein Platz: eine Zoning-Fläche steht an der "
-                        + "Kante und kann nicht ausweichen.",
-                    "No room here: a zoning patch sits on this edge and "
-                        + "cannot move aside."));
+                _uiSystem?.SetStatus(T("randzoning.noRoomHereAZoningPatch"));
                 return;
             }
 
@@ -302,7 +290,7 @@ namespace ParkingLotTool.Tools
                 ParkingGeometry.Live("  randzoning gesetzt | kante " + kante
                     + " | jetzt " + _randzoning.Count + " Linie(n) | flaechen "
                     + _zoningflaechen.Count);
-            NachZoningaenderung(vorher, T("Randzoning gesetzt", "edge zoning placed"));
+            NachZoningaenderung(vorher, () => T("randzoning.edgeZoningPlaced"));
         }
 
         /**

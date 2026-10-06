@@ -117,8 +117,7 @@ namespace ParkingLotTool.Tools
                     Application.persistentDataPath, "Logs");
                 if (!Directory.Exists(ordner))
                 {
-                    grund = ParkingLotTexte.T("Der Logs-Ordner wurde nicht gefunden.",
-                        "The game's Logs folder was not found.");
+                    grund = ParkingLotTexte.T("meldepaket.theGameSLogsFolderWas");
                     return null;
                 }
 
@@ -150,14 +149,8 @@ namespace ParkingLotTool.Tools
                     && anlass != Anlass.Leistung)
                 {
                     grund = nurVorschau
-                        ? ParkingLotTexte.T(
-                            "Es gibt noch keinen Vorschau-Abzug. Zeichne einen "
-                                + "Parkplatz und versuch es noch einmal.",
-                            "There is no preview to report yet. Draw a parking "
-                                + "lot and try again.")
-                        : ParkingLotTexte.T(
-                            "Es gibt noch keinen Abzug zu diesem Parkplatz.",
-                            "There is no record of this parking lot yet.");
+                        ? ParkingLotTexte.T("meldepaket.thereIsNoPreviewToReport")
+                        : ParkingLotTexte.T("meldepaket.thereIsNoRecordOfThis");
                     return null;
                 }
 
@@ -282,11 +275,7 @@ namespace ParkingLotTool.Tools
             {
                 // Der Ausnahmetext bleibt im Log; der Spieler braucht nur,
                 // DASS es scheiterte und was er tun kann.
-                grund = ParkingLotTexte.T(
-                    "Die Meldung konnte nicht erstellt werden. Details stehen "
-                        + "in ParkingLotTool.Mod.log.",
-                    "The report could not be created. Details are in "
-                        + "ParkingLotTool.Mod.log.");
+                grund = ParkingLotTexte.T("meldepaket.theReportCouldNotBeCreated");
                 Mod.log.Warn("PLT-Meldepaket fehlgeschlagen: " + ausnahme);
                 return null;
             }

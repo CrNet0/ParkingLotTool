@@ -95,6 +95,21 @@
 		      DestinationFiles="$(DeployDir)\README.txt" />
 	</Target>
 
+	<!--
+		DIE SPRACHDATEIEN NEBEN DIE DLL.
+
+		Ohne `Lang/*.json` im Modordner zeigt der Mod jeden Text als
+		[schluessel]. Die Dateien sind absichtlich lose: wer uebersetzt,
+		legt eine Datei dazu oder bessert eine aus, ohne zu bauen.
+	-->
+	<ItemGroup>
+		<Sprachdatei Include="Lang\*.json" />
+	</ItemGroup>
+	<Target Name="SprachdateienMitliefern" AfterTargets="DeployWIP">
+		<Copy SourceFiles="@(Sprachdatei)"
+		      DestinationFolder="$(DeployDir)\Lang" />
+	</Target>
+
 	<ItemGroup>
 		<!--
 			Fest versionierte MIT-Abhaengigkeit fuer den fruehen Raycast-Hook.

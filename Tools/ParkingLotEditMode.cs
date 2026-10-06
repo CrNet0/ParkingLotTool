@@ -125,18 +125,14 @@ namespace ParkingLotTool.Tools
             {
                 ParkingLotSchrittmarke.Setze("Bearbeiten-Anfrage " + lot
                     + " abgelehnt: " + Ablehnungsgrund(lot));
-                _uiSystem?.SetStatus(ParkingLotTexte.T(
-                    "Dieser Parkplatz hat keinen vollständigen Bauzettel.",
-                    "This parking lot has no complete build receipt."));
+                _uiSystem?.SetStatus(ParkingLotTexte.T("editMode.thisParkingLotHasNoComplete"));
                 return;
             }
             if (IsEditing)
             {
                 ParkingLotSchrittmarke.Setze("Bearbeiten-Anfrage " + lot
                     + " abgelehnt: es laeuft bereits " + _editLot);
-                _uiSystem?.SetStatus(ParkingLotTexte.T(
-                    "Es wird bereits ein Parkplatz bearbeitet.",
-                    "A parking lot is already being edited."));
+                _uiSystem?.SetStatus(ParkingLotTexte.T("editMode.aParkingLotIsAlreadyBeing"));
                 return;
             }
             /*
@@ -200,9 +196,7 @@ namespace ParkingLotTool.Tools
             {
                 ParkingLotSchrittmarke.Setze("Bearbeiten Lot " + lot
                     + " abgebrochen: " + reason);
-                _uiSystem?.SetStatus(ParkingLotTexte.T(
-                    "Bearbeiten nicht möglich: " + reason,
-                    "Cannot edit: " + reason));
+                _uiSystem?.SetStatus(ParkingLotTexte.T("editMode.cannotEdit", ("reason", reason)));
                 ResetSelection();
                 return true;
             }
@@ -268,9 +262,7 @@ namespace ParkingLotTool.Tools
             {
                 var hidden = HideVisibleParts(lot);
                 PublishEntranceState();
-                _uiSystem?.SetStatus(ParkingLotTexte.T(
-                    "Parkplatz bearbeiten. Abbrechen stellt den alten Stand wieder her.",
-                    "Editing parking lot. Cancel restores the old version."));
+                _uiSystem?.SetStatus(ParkingLotTexte.T("editMode.editingParkingLotCancelRestoresThe"));
                 Mod.log.Info("PLT-Bearbeiten: Einstieg Lot " + lot.Index
                     + " über Infofenster; " + hidden.Areas + " Flächen und "
                     + hidden.Objects + " sichtbare Objekte ausgeblendet, Netze "
@@ -284,9 +276,7 @@ namespace ParkingLotTool.Tools
                 ResetSelection();
                 Mod.log.Error(exception,
                     "PLT konnte die sichtbaren Teile zum Bearbeiten nicht ausblenden.");
-                _uiSystem?.SetStatus(ParkingLotTexte.T(
-                    "Bearbeiten abgebrochen: sichtbare Teile konnten nicht ausgeblendet werden.",
-                    "Edit cancelled: visible parts could not be hidden."));
+                _uiSystem?.SetStatus(ParkingLotTexte.T("editMode.editCancelledVisiblePartsCouldNot"));
             }
             return true;
         }
@@ -299,9 +289,7 @@ namespace ParkingLotTool.Tools
             {
                 ExitEdit("Abbruch: altes Lot existiert nicht mehr", false,
                     resetSelection: true);
-                _uiSystem?.SetStatus(ParkingLotTexte.T(
-                    "Bearbeitung beendet: der alte Parkplatz existiert nicht mehr.",
-                    "Edit ended: the old parking lot no longer exists."));
+                _uiSystem?.SetStatus(ParkingLotTexte.T("editMode.editEndedTheOldParkingLot"));
                 return true;
             }
             // Bulldozer-Hover ist Deleted + Temp. Erst Deleted OHNE Temp ist
@@ -311,9 +299,7 @@ namespace ParkingLotTool.Tools
             {
                 ExitEdit("Abbruch: altes Lot wurde während der Bearbeitung gelöscht",
                     false, resetSelection: true);
-                _uiSystem?.SetStatus(ParkingLotTexte.T(
-                    "Bearbeitung beendet: der alte Parkplatz wurde gelöscht.",
-                    "Edit ended: the old parking lot was deleted."));
+                _uiSystem?.SetStatus(ParkingLotTexte.T("editMode.editEndedTheOldParkingLot2"));
                 return true;
             }
             if (_replacementNewLot == Entity.Null) return false;
@@ -327,25 +313,20 @@ namespace ParkingLotTool.Tools
                 || EntityManager.HasComponent<Deleted>(_replacementNewLot))
             {
                 AbortEdit("Neubau ist vor der Übernahme verschwunden",
-                    "Umbau fehlgeschlagen; der alte Parkplatz wurde wiederhergestellt.",
-                    "Rebuild failed; the old parking lot was restored.");
+                    "editAbbruch.rebuildFailedTheOldParkingLot");
                 return true;
             }
             if (EntityManager.HasComponent<Temp>(_replacementNewLot))
             {
                 if (elapsed <= MaterializationTimeoutFrames) return false;
-                AbortEdit("Neubau blieb temporär", "Umbau fehlgeschlagen; "
-                    + "der alte Parkplatz wurde wiederhergestellt.",
-                    "Rebuild failed; the old parking lot was restored.");
+                AbortEdit("Neubau blieb temporär", "editAbbruch.rebuildFailedTheOldParkingLot");
                 return true;
             }
             if (!EntityManager.HasComponent<ParkingLotCarrierReference>(
                     _replacementNewLot)
                 || !HasCompleteBuildReceipt(_replacementNewLot))
             {
-                AbortEdit("Neubau ist unvollständig", "Umbau fehlgeschlagen; "
-                    + "der alte Parkplatz wurde wiederhergestellt.",
-                    "Rebuild failed; the old parking lot was restored.");
+                AbortEdit("Neubau ist unvollständig", "editAbbruch.rebuildFailedTheOldParkingLot");
                 return true;
             }
             var carrier = EntityManager.GetComponentData<
@@ -356,8 +337,7 @@ namespace ParkingLotTool.Tools
                 || EntityManager.HasComponent<Temp>(carrier))
             {
                 AbortEdit("Träger des Neubaus ist unvollständig",
-                    "Umbau fehlgeschlagen; der alte Parkplatz wurde wiederhergestellt.",
-                    "Rebuild failed; the old parking lot was restored.");
+                    "editAbbruch.rebuildFailedTheOldParkingLot");
                 return true;
             }
 
@@ -367,9 +347,7 @@ namespace ParkingLotTool.Tools
             {
                 if (elapsed <= MaterializationTimeoutFrames) return false;
                 AbortEdit("Wirtschaft des Neubaus konnte nicht geeicht werden",
-                    "Umbau fehlgeschlagen; Parkgebühr oder Kapazität konnten "
-                    + "nicht übernommen werden.",
-                    "Rebuild failed; the parking fee or capacity could not be transferred.");
+                    "editAbbruch.rebuildFailedTheParkingFeeOr");
                 return true;
             }
             if (_editParkingFeeKnown) _replacementEconomyTransferred = true;
@@ -378,8 +356,7 @@ namespace ParkingLotTool.Tools
             {
                 if (elapsed <= MaterializationTimeoutFrames) return false;
                 AbortEdit("Wirtschaftsbegleiter des Neubaus fehlt",
-                    "Umbau fehlgeschlagen; der alte Parkplatz wurde wiederhergestellt.",
-                    "Rebuild failed; the old parking lot was restored.");
+                    "editAbbruch.rebuildFailedTheOldParkingLot");
                 return true;
             }
 
@@ -464,8 +441,7 @@ namespace ParkingLotTool.Tools
             Mod.log.Info("PLT-Bearbeiten: Ausstieg durch Übernehmen; neues Lot "
                 + next.Index + " steht vollständig, altes Lot " + old.Index
                 + " dem PLT-Aufräumer übergeben.");
-            _uiSystem?.SetStatus(ParkingLotTexte.T(
-                "Änderungen übernommen.", "Changes applied."));
+            _uiSystem?.SetStatus(ParkingLotTexte.T("editMode.changesApplied"));
             return true;
         }
 
@@ -519,13 +495,11 @@ namespace ParkingLotTool.Tools
             ResetSelection();
             Mod.log.Info("PLT-Bearbeiten: Ausstieg durch Übernehmen ohne Änderungen; "
                 + "Lot " + lot.Index + " unverändert wieder eingeblendet, nichts gebaut.");
-            _uiSystem?.SetStatus(ParkingLotTexte.T(
-                "Keine Änderungen; nichts neu gebaut.",
-                "No changes; nothing was rebuilt."));
+            _uiSystem?.SetStatus(ParkingLotTexte.T("editMode.noChangesNothingWasRebuilt"));
             return true;
         }
 
-        private void AbortEdit(string reason, string statusDe, string statusEn)
+        private void AbortEdit(string reason, string statusSchluessel)
         {
             if (!IsEditing) return;
             ParkingLotSchrittmarke.Setze("Bearbeiten Abbruch: " + reason);
@@ -540,9 +514,7 @@ namespace ParkingLotTool.Tools
             ResetSelection();
             Mod.log.Info("PLT-Bearbeiten: Ausstieg durch Abbruch (" + reason
                 + "); altes Lot " + lot.Index + (rueckweg ? ": Rueckweg eingereiht, Nachpruefung ausstehend." : " wieder eingeblendet."));
-            _uiSystem?.SetStatus(rueckweg ? ParkingLotTexte.T(
-                "Bearbeitung abgebrochen. Die alten Wege werden wiederhergestellt; nach Abschluss erneut versuchen.",
-                "Edit cancelled. The old paths are being restored; try again after completion.") : ParkingLotTexte.T(statusDe, statusEn));
+            _uiSystem?.SetStatus(rueckweg ? ParkingLotTexte.T("editMode.editCancelledTheOldPathsAre") : ParkingLotTexte.T(statusSchluessel));
         }
 
         private void ExitEdit(string reason, bool restoreOld, bool resetSelection)
@@ -706,7 +678,7 @@ namespace ParkingLotTool.Tools
             _speicherLaeuft = false;
             if (IsEditing)
                 AbortEdit("Mod oder Spiel wird beendet",
-                    "Bearbeitung abgebrochen.", "Edit cancelled.");
+                    "editAbbruch.editCancelled");
         }
 
         private void OnEditGameSaveLoad(string saveName, string previewUri,
@@ -719,8 +691,7 @@ namespace ParkingLotTool.Tools
                 if (!IsEditing) return;
                 _editNachSpeichern = _editLot;
                 AbortEdit("Speichern von " + saveName,
-                    "Bearbeitung vor dem Speichern automatisch abgebrochen.",
-                    "Edit was automatically cancelled before saving.");
+                    "editAbbruch.editWasAutomaticallyCancelledBeforeSaving");
                 return;
             }
 
@@ -759,8 +730,7 @@ namespace ParkingLotTool.Tools
             _editNachSpeichern = Entity.Null;
             _speicherLaeuft = false;
             if (IsEditing)
-                AbortEdit("Spielstandwechsel", "Bearbeitung abgebrochen.",
-                    "Edit cancelled.");
+                AbortEdit("Spielstandwechsel", "editAbbruch.editCancelled");
         }
 
         [Preserve]

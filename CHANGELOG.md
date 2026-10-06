@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Improvement: improved language system for further additions; all texts now live in language files in the mod folder.
+- Fix: some texts in the status bar, tooltips and panel stayed in the other language.
+
 ## 1.0.6 — October 6, 2026
 
 - Improvement: while parking lots are being updated or repaired, the panel and Edit stay closed and the progress message pulses instead; the panel opens again when the work is done.

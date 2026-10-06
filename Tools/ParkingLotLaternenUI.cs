@@ -92,7 +92,7 @@ namespace ParkingLotTool.Tools
             {
                 var o = Lies(json);
                 if (o == null) return;
-                SetzeLaternen(Ordne(o), ParkingLotTexte.T("Laternen geändert", "lanterns changed"));
+                SetzeLaternen(Ordne(o), () => ParkingLotTexte.T("laternenUI.lanternsChanged"));
             }));
             AddBinding(new TriggerBinding<string>(Group, "SaveLaternenSet", json =>
             {
@@ -120,16 +120,17 @@ namespace ParkingLotTool.Tools
         }
 
         private static IEnumerable<LaternenSetEintrag> FesteLaternenSets()
-        {
-            var namen = new Dictionary<string, (string De, string En)>
-            {
-                ["strasse"] = ("Straße", "Street"), ["gewerbe"] = ("Gewerbe", "Commercial"), ["industrie"] = ("Industrie", "Industrial"),
-            };
-            return LaternenKatalog.Sets.Select(s => new LaternenSetEintrag
+            => LaternenKatalog.Sets.Select(s => new LaternenSetEintrag
             {
                 Id = s.Id, Einzeln = s.Einzeln, Doppelt = s.Doppelt, Custom = false,
-                Name = namen.TryGetValue(s.Id, out var n) ? ParkingLotTexte.T(n.De, n.En) : s.Name,
+                Name = ParkingLotTexte.T("laternenSet." + s.Id),
             });
+
+        /** Feste Sets nach einem Sprachwechsel neu beschriften; eigene behalten ihren Namen. */
+        private void BenenneFesteLaternenSets()
+        {
+            foreach (var s in _laternenSets)
+                if (!s.Custom) s.Name = ParkingLotTexte.T("laternenSet." + s.Id);
         }
 
         private static bool Gueltig(string modell) => LaternenKatalog.Modell(modell) != null;
@@ -145,7 +146,7 @@ namespace ParkingLotTool.Tools
             return o;
         }
 
-        private void SetzeLaternen(LaternenOptionen o, string rueckgaengig)
+        private void SetzeLaternen(LaternenOptionen o, Func<string> rueckgaengig)
         {
             var tool = Tool();
             var vorher = rueckgaengig != null ? tool?.CaptureUndoState() : null;
@@ -167,13 +168,13 @@ namespace ParkingLotTool.Tools
             if (!TryWriteDefaults(next)) return;
             _defaults = next;
             _laternenDefault.Update(LaternenStandard());
-            SetStatus(ParkingLotTexte.T("Laternen als Standard gespeichert.", "Lanterns saved as default."));
+            SetStatus(ParkingLotTexte.T("laternenUI.lanternsSavedAsDefault"));
         }
 
         private void SetzeLaternenZurueck()
         {
-            SetzeLaternen(LaternenStandardOptionen, ParkingLotTexte.T("Laternen zurückgesetzt", "lanterns reset"));
-            SetStatus(ParkingLotTexte.T("Laternen auf den Standard zurückgesetzt.", "Lanterns reset to your default."));
+            SetzeLaternen(LaternenStandardOptionen, () => ParkingLotTexte.T("laternenUI.lanternsReset"));
+            SetStatus(ParkingLotTexte.T("laternenUI.lanternsResetToYourDefault"));
         }
 
         private void SpeichereLaternenSets()

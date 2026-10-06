@@ -49,7 +49,8 @@ namespace ParkingLotTool.Tools
         private sealed class UndoEntry
         {
             internal ParkingLotUndoSnapshot Snapshot;
-            internal string Action;
+            /** Erzeugt die Beschriftung erst beim Anzeigen - so folgt sie einem Sprachwechsel. */
+            internal Func<string> Action;
         }
 
         private readonly UndoEntry[] _undoEntries = new UndoEntry[UndoCapacity];
@@ -125,7 +126,7 @@ namespace ParkingLotTool.Tools
             };
         }
 
-        internal void CommitUndoState(ParkingLotUndoSnapshot snapshot, string action)
+        internal void CommitUndoState(ParkingLotUndoSnapshot snapshot, Func<string> action)
         {
             if (snapshot == null) return;
             Lege(_undoEntries, ref _undoStart, ref _undoCount, snapshot, action);
@@ -135,7 +136,7 @@ namespace ParkingLotTool.Tools
         }
 
         private static void Lege(UndoEntry[] eintraege, ref int start,
-            ref int anzahl, ParkingLotUndoSnapshot snapshot, string action)
+            ref int anzahl, ParkingLotUndoSnapshot snapshot, Func<string> action)
         {
             if (anzahl == UndoCapacity)
             {
@@ -147,8 +148,7 @@ namespace ParkingLotTool.Tools
             eintraege[index] = new UndoEntry
             {
                 Snapshot = snapshot,
-                Action = string.IsNullOrEmpty(action)
-                    ? T("Schritt", "step") : action,
+                Action = action ?? (() => T("undo.step")),
             };
             anzahl++;
         }
@@ -223,8 +223,7 @@ namespace ParkingLotTool.Tools
                 || _buildStage != BuildStage.Idle) return;
             if (_redoCount == 0)
             {
-                _uiSystem?.SetStatus(T("Nichts zum Wiederherstellen.",
-                    "Nothing to redo."));
+                _uiSystem?.SetStatus(T("undo.nothingToRedo"));
                 _uiSystem?.SetRedoAvailable(false);
                 return;
             }
@@ -239,9 +238,8 @@ namespace ParkingLotTool.Tools
             }
             RestoreUndoState(eintrag.Snapshot);
             _uiSystem?.SetRedoAvailable(_redoCount > 0);
-            _uiSystem?.SetStatus(T("Wiederhergestellt: " + eintrag.Action + ".",
-                "Restored: " + eintrag.Action + "."));
-            Mod.log.Info("PLT-Wiederherstellen: " + eintrag.Action
+            _uiSystem?.SetStatus(T("undo.restored", ("aktion", eintrag.Action())));
+            Mod.log.Info("PLT-Wiederherstellen: " + eintrag.Action()
                 + "; verbleibende Tiefe " + _redoCount + ".");
         }
 
@@ -253,8 +251,7 @@ namespace ParkingLotTool.Tools
                 || _buildStage != BuildStage.Idle) return;
             if (_undoCount == 0)
             {
-                _uiSystem?.SetStatus(T("Nichts zum Rückgängigmachen.",
-                    "Nothing to undo."));
+                _uiSystem?.SetStatus(T("undo.nothingToUndo"));
                 _uiSystem?.SetUndoAvailable(false);
                 return;
             }
@@ -270,9 +267,8 @@ namespace ParkingLotTool.Tools
             }
             RestoreUndoState(entry.Snapshot);
             _uiSystem?.SetUndoAvailable(_undoCount > 0);
-            _uiSystem?.SetStatus(T("Rückgängig: " + entry.Action + ".",
-                "Undone: " + entry.Action + "."));
-            Mod.log.Info("PLT-Rueckgaengig: " + entry.Action
+            _uiSystem?.SetStatus(T("undo.undone", ("aktion", entry.Action())));
+            Mod.log.Info("PLT-Rueckgaengig: " + entry.Action()
                 + "; verbleibende Tiefe " + _undoCount + ".");
         }
 

@@ -61,6 +61,8 @@ namespace ParkingLotTool.Tools
         private sealed class Sondenfrage
         {
             internal string Name;
+            /** Anzeige im Panel (`probe.frage.*`); `Name` bleibt fuers Log. */
+            internal string Schluessel;
             internal string Einheit;
             internal double Gut;
             internal double Schlecht;
@@ -123,6 +125,8 @@ namespace ParkingLotTool.Tools
         private int _sondeRunde;
         private Entity _sondeFlaeche = Entity.Null;
         private readonly List<string> _sondeErgebnisse = new List<string>();
+        /** Dieselben Zeilen fuers Panel, mit uebersetztem Fragenamen. */
+        private readonly List<string> _sondeAnzeige = new List<string>();
 
         internal bool SondeLaeuft => _sondeSchritt != Sondenschritt.Aus
             && _sondeSchritt != Sondenschritt.Fertig;
@@ -138,7 +142,7 @@ namespace ParkingLotTool.Tools
         {
             new Sondenfrage
             {
-                Name = "Kuerzeste Kante",
+                Name = "Kuerzeste Kante", Schluessel = "probe.frage.kuerzesteKante",
                 Einheit = "m",
                 Gut = 5.0,
                 Schlecht = 0.0005,
@@ -175,7 +179,7 @@ namespace ParkingLotTool.Tools
                  *   Grenze steigt auf 0,283   ->  es ist ein WINKEL (halbiert
                  *                                 sich bei doppelter Hoehe)
                  */
-                Name = "Kuerzeste Kante bei doppelter Hoehe",
+                Name = "Kuerzeste Kante bei doppelter Hoehe", Schluessel = "probe.frage.kuerzesteKanteDoppelt",
                 Einheit = "m",
                 Gut = 5.0,
                 Schlecht = 0.0005,
@@ -189,7 +193,7 @@ namespace ParkingLotTool.Tools
             },
             new Sondenfrage
             {
-                Name = "Engster Hals",
+                Name = "Engster Hals", Schluessel = "probe.frage.engsterHals",
                 Einheit = "m",
                 Gut = 5.0,
                 Schlecht = 0.0005,
@@ -213,7 +217,7 @@ namespace ParkingLotTool.Tools
             },
             new Sondenfrage
             {
-                Name = "Spitzester Winkel",
+                Name = "Spitzester Winkel", Schluessel = "probe.frage.spitzesterWinkel",
                 Einheit = "Grad",
                 Gut = 60.0,
                 Schlecht = 0.05,
@@ -237,7 +241,7 @@ namespace ParkingLotTool.Tools
             },
             new Sondenfrage
             {
-                Name = "Umlaufrichtung im Uhrzeigersinn",
+                Name = "Umlaufrichtung im Uhrzeigersinn", Schluessel = "probe.frage.uhrzeigersinn",
                 Einheit = "",
                 Einzelprobe = true,
                 // Ein einfaches Quadrat, aber andersherum umlaufend als sonst.
@@ -252,7 +256,7 @@ namespace ParkingLotTool.Tools
             },
             new Sondenfrage
             {
-                Name = "Viele Punkte (Kreis mit 200)",
+                Name = "Viele Punkte (Kreis mit 200)", Schluessel = "probe.frage.vielePunkte",
                 Einheit = "",
                 Einzelprobe = true,
                 // 173 Punkte laufen nachweislich. Wo die Grenze liegt, weiss
@@ -291,16 +295,12 @@ namespace ParkingLotTool.Tools
               */
             if (SondeLaeuft)
             {
-                Melde(ParkingLotTexte.T(
-                    "Der Sondenlauf läuft bereits.",
-                    "The probe run is already in progress."));
+                Melde(ParkingLotTexte.T("probe.theProbeRunIsAlreadyIn"));
                 return;
             }
             if (!ResolveSurfacePrefabs())
             {
-                Melde(ParkingLotTexte.T(
-                    "Sondenlauf nicht möglich: die Flächen-Prefabs sind nicht auflösbar.",
-                    "Probe run not possible: the surface prefabs cannot be resolved."));
+                Melde(ParkingLotTexte.T("probe.probeRunNotPossibleTheSurface"));
                 return;
             }
             /*
@@ -313,11 +313,7 @@ namespace ParkingLotTool.Tools
             if (!_letzteWeltpositionGueltig
                 || !math.all(math.isfinite(_letzteWeltposition)))
             {
-                Melde(ParkingLotTexte.T(
-                    "Sondenlauf nicht möglich: fahre einmal mit der Maus über das "
-                    + "Gelände, damit eine Stelle bekannt ist.",
-                    "Probe run not possible: move the mouse over the terrain once "
-                    + "so a spot is known."));
+                Melde(ParkingLotTexte.T("probe.probeRunNotPossibleMoveThe"));
                 return;
             }
             _sondeMitte = _letzteWeltposition;
@@ -325,6 +321,7 @@ namespace ParkingLotTool.Tools
             _sondeFragen = SondenfragenBauen();
             _sondeFrageIndex = 0;
             _sondeErgebnisse.Clear();
+            _sondeAnzeige.Clear();
             BeginneFrage();
             Mod.log.Info($"PLT-Sondenlauf gestartet bei "
                 + $"{_sondeMitte.x:F1} / {_sondeMitte.z:F1}, "
@@ -522,11 +519,7 @@ namespace ParkingLotTool.Tools
                         + $"{_sondeWert.ToString("G6", CultureInfo.InvariantCulture)}: "
                         + "KEINE Flaeche gefunden - nicht auswertbar, "
                         + "Lauf abgebrochen.");
-                    Melde(ParkingLotTexte.T(
-                        "Sondenlauf abgebrochen: die gesetzte Fläche war nicht "
-                        + "auffindbar. Die Messung wäre wertlos.",
-                        "Probe run aborted: the placed surface could not be "
-                        + "found. The measurement would be worthless."));
+                    Melde(ParkingLotTexte.T("probe.probeRunAbortedThePlacedSurface"));
                     _sondeSchritt = Sondenschritt.Aus;
                     return;
                 }
@@ -600,8 +593,7 @@ namespace ParkingLotTool.Tools
                 _sondeSchritt = Sondenschritt.Fertig;
                 Mod.log.Info("PLT-Sondenlauf fertig:\n  "
                     + string.Join("\n  ", _sondeErgebnisse));
-                _uiSystem?.SetStatus(ParkingLotTexte.T(
-                    "Sondenlauf fertig.", "Probe run finished."));
+                _uiSystem?.SetStatus(ParkingLotTexte.T("probe.probeRunFinished"));
                 VeroeffentlicheSondenstand();
                 return;
             }
@@ -613,6 +605,8 @@ namespace ParkingLotTool.Tools
         {
             var zeile = frage.Name + ": " + ergebnis;
             _sondeErgebnisse.Add(zeile);
+            _sondeAnzeige.Add(ParkingLotTexte.T("probe.ergebniszeile",
+                ("frage", ParkingLotTexte.T(frage.Schluessel)), ("ergebnis", ergebnis)));
             Mod.log.Info("PLT-Sondenergebnis " + zeile);
         }
 
@@ -621,15 +615,11 @@ namespace ParkingLotTool.Tools
         {
             if (_uiSystem == null) return;
             var kopf = _sondeSchritt == Sondenschritt.Fertig
-                ? ParkingLotTexte.T("Fertig.", "Finished.")
+                ? ParkingLotTexte.T("probe.finished")
                 : SondeLaeuft
-                    ? ParkingLotTexte.T(
-                        $"Frage {_sondeFrageIndex + 1} von {_sondeFragen.Count}: "
-                        + $"{_sondeFragen[_sondeFrageIndex].Name}, Runde {_sondeRunde + 1}",
-                        $"Question {_sondeFrageIndex + 1} of {_sondeFragen.Count}: "
-                        + $"{_sondeFragen[_sondeFrageIndex].Name}, round {_sondeRunde + 1}")
+                    ? ParkingLotTexte.T("probe.questionOfRound", ("nummer", _sondeFrageIndex + 1), ("anzahl", _sondeFragen.Count), ("frage", ParkingLotTexte.T(_sondeFragen[_sondeFrageIndex].Schluessel)), ("runde", _sondeRunde + 1))
                     : "";
-            _uiSystem.SetzeSondenstand(kopf, _sondeErgebnisse);
+            _uiSystem.SetzeSondenstand(kopf, _sondeAnzeige, SondeLaeuft);
         }
     }
 }

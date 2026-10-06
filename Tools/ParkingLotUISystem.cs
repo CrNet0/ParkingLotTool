@@ -411,17 +411,21 @@ namespace ParkingLotTool.Tools
         }
         private ValueBinding<string> _sondeStand;
         private ValueBinding<string> _sondeErgebnis;
+        private ValueBinding<bool> _sondeLaeuft;
 
         /** Fortschritt und Ergebnisse des Sondenlaufs ins Panel. */
         internal void SetzeSondenstand(string stand,
-                                       System.Collections.Generic.List<string> zeilen)
+                                       System.Collections.Generic.List<string> zeilen,
+                                       bool laeuft)
         {
+            if (_sondeLaeuft != null && _sondeLaeuft.value != laeuft) _sondeLaeuft.Update(laeuft);
             _sondeStand?.Update(stand ?? string.Empty);
             _sondeErgebnis?.Update(zeilen == null || zeilen.Count == 0
                 ? string.Empty : string.Join(Environment.NewLine, zeilen));
         }
 
         private ValueBinding<string> _sprache;
+        private ValueBinding<string> _sprachtexte;
 
         /**
          * Der Reiter "Fehler melden".
@@ -469,7 +473,7 @@ namespace ParkingLotTool.Tools
                 Group, "AbsturzErkannt",
                 ParkingLotAbsturzwache.LetzteSitzungAbgestuerzt));
             AddBinding(_absturzBefund = new ValueBinding<string>(
-                Group, "AbsturzBefund", ParkingLotAbsturzwache.Befund));
+                Group, "AbsturzBefund", ParkingLotAbsturzwache.Befund()));
             /*
              * DER FERTIGE BERICHT STEHT SCHON DA.
              *
@@ -706,11 +710,11 @@ namespace ParkingLotTool.Tools
             AddBinding(_perimeterStalls =
                 new ValueBinding<int>(Group, "PerimeterStalls", 0));
             AddBinding(_areaPerStall =
-                new ValueBinding<string>(Group, "AreaPerStall", "-"));
+                new ValueBinding<string>(Group, "AreaPerStall", string.Empty));
             AddBinding(_aisles = new ValueBinding<int>(Group, "Aisles", 0));
             AddBinding(_rowAngleResult =
-                new ValueBinding<string>(Group, "RowAngleResult", "-"));
-            AddBinding(_siteArea = new ValueBinding<string>(Group, "SiteArea", "-"));
+                new ValueBinding<string>(Group, "RowAngleResult", string.Empty));
+            AddBinding(_siteArea = new ValueBinding<string>(Group, "SiteArea", string.Empty));
             /**
              * STARTWERTE LAUFEN NICHT DURCH `SetStatus`.
              *
@@ -721,7 +725,7 @@ namespace ParkingLotTool.Tools
              * also schon hier stehen.
              */
             AddBinding(_status = new ValueBinding<string>(
-                Group, "Status", T("Bereit.", "Ready.")));
+                Group, "Status", T("uISystem.ready")));
             AddBinding(_hinweis = new ValueBinding<string>(Group, "Hinweis", ""));
             AddBinding(_fensterHeim = new ValueBinding<int>(Group, "PanelHome", 0));
             /**
@@ -763,7 +767,7 @@ namespace ParkingLotTool.Tools
             AddBinding(_flaecheZoning = new ValueBinding<string>(
                 Group, "SurfaceZoning", string.Empty));
             AddBinding(new TriggerBinding<string>(Group, "SetSurfaceZoning",
-                wert => ChangeDraftSetting(Geaendert("SurfaceZoning"), () =>
+                wert => ChangeDraftSetting(() => Geaendert("SurfaceZoning"), () =>
                     Neu(_flaecheZoning, wert))));
             AddBinding(_flaecheStrasseStd = new ValueBinding<string>(
                 Group, "SurfaceRoadDefault",
@@ -820,28 +824,31 @@ namespace ParkingLotTool.Tools
             AddBinding(_vorflaecheAnStd = new ValueBinding<bool>(
                 Group, "SurfaceApronOnDefault", _defaults.SurfaceApronOn ?? true));
             AddBinding(new TriggerBinding<bool>(Group, "SetSurfaceApronOn",
-                wert => ChangeDraftSetting(Geaendert("SurfaceApronOn"), () =>
+                wert => ChangeDraftSetting(() => Geaendert("SurfaceApronOn"), () =>
                     UpdateValue(_vorflaecheAn, wert))));
             AddBinding(new TriggerBinding<bool>(Group, "SetSurfaceRoadOn",
-                wert => ChangeDraftSetting(Geaendert("SurfaceRoadOn"), () =>
+                wert => ChangeDraftSetting(() => Geaendert("SurfaceRoadOn"), () =>
                     UpdateValue(_flaecheStrasseAn, wert))));
             AddBinding(new TriggerBinding<bool>(Group, "SetSurfaceDecorationOn",
-                wert => ChangeDraftSetting(Geaendert("SurfaceDecorationOn"), () =>
+                wert => ChangeDraftSetting(() => Geaendert("SurfaceDecorationOn"), () =>
                     UpdateValue(_flaecheDekoAn, wert))));
             AddBinding(new TriggerBinding<string>(Group, "SetSurfaceRoad",
-                wert => ChangeDraftSetting(Geaendert("SurfaceRoad"), () =>
+                wert => ChangeDraftSetting(() => Geaendert("SurfaceRoad"), () =>
                     Neu(_flaecheStrasse, wert))));
             AddBinding(new TriggerBinding<string>(Group, "SetSurfaceDecoration",
-                wert => ChangeDraftSetting(Geaendert("SurfaceDecoration"), () =>
+                wert => ChangeDraftSetting(() => Geaendert("SurfaceDecoration"), () =>
                     Neu(_flaecheDeko, wert))));
             AddBinding(new TriggerBinding<bool>(Group, "SetBayIcons",
-                wert => ChangeDraftSetting(Geaendert("BayIcons"), () =>
+                wert => ChangeDraftSetting(() => Geaendert("BayIcons"), () =>
                     UpdateValue(_buchtsymbole, wert))));
             // Die Oberflaeche haengt an dieser einen Bindung. Standard "en" -
             // auch wenn die Einstellungen noch nicht geladen sind, soll das
             // Panel englisch starten und nicht kurz deutsch aufblitzen.
             AddBinding(_sprache = new ValueBinding<string>(
-                Group, "Sprache", Mod.Optionen?.SprachKuerzel() ?? "en"));
+                Group, "Sprache", Sprachtexte.Aktiv));
+            // Alle Oberflaechentexte der angezeigten Sprache (ui.* ohne Praefix).
+            AddBinding(_sprachtexte = new ValueBinding<string>(
+                Group, "Sprachtexte", ParkingLotSprachdateien.OberflaechenJson()));
             AddBinding(_tab = new ValueBinding<string>(Group, "Tab", "layout"));
             /**
              * DER SONDENLAUF misst, was CS2 von Flaechen annimmt.
@@ -855,6 +862,11 @@ namespace ParkingLotTool.Tools
                 Group, "ProbeState", ""));
             AddBinding(_sondeErgebnis = new ValueBinding<string>(
                 Group, "ProbeResults", ""));
+            // Der Zustand als eigene Bindung: die Oberflaeche verglich vorher
+            // den uebersetzten Text mit "Fertig." - nach einem Sprachwechsel
+            // galt ein beendeter Lauf dadurch als laufend.
+            AddBinding(_sondeLaeuft = new ValueBinding<bool>(
+                Group, "ProbeRunning", false));
             AddBinding(new TriggerBinding(Group, "StartProbe",
                 () => Tool()?.StarteSondenlauf()));
             AddBinding(new TriggerBinding(Group, "CancelProbe",
@@ -907,16 +919,16 @@ namespace ParkingLotTool.Tools
             Bind(_crossBays, "SetCrossBays");
             Bind(_rowAngle, "SetRowAngle");
             AddBinding(new TriggerBinding<bool>(Group, "SetGreenMedian",
-                value => ChangeDraftSetting(Geaendert("GreenMedian"), () =>
+                value => ChangeDraftSetting(() => Geaendert("GreenMedian"), () =>
                     UpdateValue(_greenMedian, value))));
             AddBinding(new TriggerBinding<bool>(Group, "SetCrossCaps",
-                value => ChangeDraftSetting(Geaendert("CrossCaps"), () =>
+                value => ChangeDraftSetting(() => Geaendert("CrossCaps"), () =>
                     UpdateValue(_crossCaps, value))));
             AddBinding(new TriggerBinding<bool>(Group, "SetRandstrassen",
-                value => ChangeDraftSetting(Geaendert("Randstrassen"), () =>
+                value => ChangeDraftSetting(() => Geaendert("Randstrassen"), () =>
                     UpdateValue(_randstrassen, value))));
             AddBinding(new TriggerBinding<string>(Group, "SetAngleMode",
-                value => ChangeDraftSetting(Geaendert("AngleMode"), () =>
+                value => ChangeDraftSetting(() => Geaendert("AngleMode"), () =>
                 {
                     var geaendert = UpdateValue(_angleMode, value);
                     /*
@@ -950,7 +962,7 @@ namespace ParkingLotTool.Tools
                     return geaendert;
                 })));
             AddBinding(new TriggerBinding<string>(Group, "SetEngine",
-                value => ChangeDraftSetting(Geaendert("Engine"), () =>
+                value => ChangeDraftSetting(() => Geaendert("Engine"), () =>
                     UpdateValue(_engine, value))));
             /**
              * Der Haken aus dem Nachfrage-Dialog. Er wandert in die Optionen,
@@ -1260,7 +1272,7 @@ namespace ParkingLotTool.Tools
                 if (!ValidDefaults(values, out var reason))
                 {
                     Mod.log.Warn("PLT-Einstellungen nicht gespeichert: " + reason + ".");
-                    SetStatus(T("Standard konnte nicht gespeichert werden.", "Could not save the default."));
+                    SetStatus(T("uISystem.couldNotSaveTheDefault"));
                     return false;
                 }
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
@@ -1273,7 +1285,7 @@ namespace ParkingLotTool.Tools
             {
                 Mod.log.Warn("PLT-Einstellungen konnten nicht gespeichert werden: "
                     + path + " (" + exception.Message + ")");
-                SetStatus(T("Standard konnte nicht gespeichert werden.", "Could not save the default."));
+                SetStatus(T("uISystem.couldNotSaveTheDefault"));
                 return false;
             }
         }
@@ -1468,7 +1480,7 @@ namespace ParkingLotTool.Tools
         internal void ResetPanelPosition()
         {
             _fensterHeim?.Update(_fensterHeim.value + 1);
-            SetStatus(T("Fensterposition zurückgesetzt.", "Window position reset."));
+            SetStatus(T("uISystem.windowPositionReset"));
             Mod.log.Info("PLT: Fensterposition zurueckgesetzt - das Panel "
                 + "rechnet sie aus Leistenbreite und Aufloesung selbst.");
         }
@@ -1523,43 +1535,26 @@ namespace ParkingLotTool.Tools
          * erschien dann "Undone: Randstrassen geaendert.". Die Namen folgen
          * den Panelbeschriftungen in UI/src/mods/texte.ts.
          */
-        private static (string De, string En) Einstellungsname(string key)
+        private static readonly System.Collections.Generic.HashSet<string> BekannteEinstellungen = new System.Collections.Generic.HashSet<string>
+        {
+            "EdgeSetback", "AisleWidth", "CrossWidth", "MedianWidth", "CrossBays", "RowAngle", "AngleMode", "GreenMedian", "CrossCaps", "Randstrassen", "SurfaceRoad", "SurfaceDecoration", "SurfaceZoning", "SurfaceRoadOn", "SurfaceDecorationOn", "SurfaceApronOn", "BayIcons", "Engine"
+        };
+
+        private static string Einstellungsname(string key)
         {
             if (key != null && key.StartsWith("Set")) key = key.Substring(3);
-            switch (key)
-            {
-                case "EdgeSetback": return ("Randabstand", "edge setback");
-                case "AisleWidth": return ("Fahrgassenbreite", "aisle width");
-                case "CrossWidth": return ("Querstraßenbreite", "cross road width");
-                case "MedianWidth": return ("Grünstreifentiefe", "median depth");
-                case "CrossBays": return ("Verbindung alle", "cross road every");
-                case "RowAngle": return ("Reihenwinkel", "row angle");
-                case "AngleMode": return ("Winkelmodus", "angle mode");
-                case "GreenMedian": return ("Mittelgrün", "median");
-                case "CrossCaps": return ("Kappen an Querstraßen", "caps at cross roads");
-                case "Randstrassen": return ("Randstraßen", "perimeter roads");
-                case "SurfaceRoad": return ("Fahrfläche", "road surface");
-                case "SurfaceDecoration": return ("Zwischenfläche", "decoration surface");
-                case "SurfaceZoning": return ("Baulandfläche", "zoning surface");
-                case "SurfaceRoadOn": return ("Fahrfläche setzen", "place road surface");
-                case "SurfaceDecorationOn": return ("Zwischenfläche setzen", "place decoration surface");
-                case "SurfaceApronOn": return ("Belag bis zur Straße", "surface to road");
-                case "BayIcons": return ("Buchtmarkierung", "bay markings");
-                case "Engine": return ("Rechenweg", "calculation method");
-                default: return (key ?? "Einstellung", key ?? "setting");
-            }
+            return key != null && BekannteEinstellungen.Contains(key)
+                ? T("einstellung." + key)
+                : T("einstellung.unbekannt", ("key", key ?? "?"));
         }
 
         private static string Geaendert(string key)
-        {
-            var name = Einstellungsname(key);
-            return T(name.De + " geändert", name.En + " changed");
-        }
+            => T("einstellung.geaendert", ("name", Einstellungsname(key)));
 
         private void Bind(ValueBinding<float> binding, string trigger)
         {
             AddBinding(new TriggerBinding<float>(Group, trigger, value =>
-                ChangeDraftSetting(Geaendert(trigger), () =>
+                ChangeDraftSetting(() => Geaendert(trigger), () =>
                     UpdateValue(binding, value))));
         }
 
@@ -1712,11 +1707,10 @@ namespace ParkingLotTool.Tools
             var before = tool?.CaptureUndoState();
             if (ApplyDefaults(_defaults))
             {
-                tool?.CommitUndoState(before, T("Einstellungen zurückgesetzt",
-                    "settings reset"));
+                tool?.CommitUndoState(before, () => T("uISystem.settingsReset"));
                 Revision++;
             }
-            SetStatus(T("Benutzerstandards geladen.", "Your defaults loaded."));
+            SetStatus(T("uISystem.yourDefaultsLoaded"));
         }
 
         private void ResetOne(string key)
@@ -1803,9 +1797,8 @@ namespace ParkingLotTool.Tools
                     + "den Standard nicht einig.");
                 return;
             }
-            var name = Einstellungsname(key);
-            tool?.CommitUndoState(before, T(name.De + " zurückgesetzt",
-                name.En + " reset"));
+            tool?.CommitUndoState(before, () => T("einstellung.zurueckgesetzt",
+                ("name", Einstellungsname(key))));
             Revision++;
         }
 
@@ -1844,7 +1837,7 @@ namespace ParkingLotTool.Tools
             if (!TryWriteDefaults(next)) return;
             _defaults = next;
             PublishDefaults();
-            SetStatus(T("Benutzerstandard gespeichert.", "Default saved."));
+            SetStatus(T("uISystem.defaultSaved"));
         }
 
         /**
@@ -1869,7 +1862,7 @@ namespace ParkingLotTool.Tools
             {
                 Mod.log.Warn("PLT-Einstellungen konnten nicht verworfen werden: "
                     + path + " (" + exception.Message + ")");
-                SetStatus(T("Gespeicherte Standards konnten nicht verworfen werden.", "Could not discard the saved defaults."));
+                SetStatus(T("uISystem.couldNotDiscardTheSavedDefaults"));
                 return;
             }
 
@@ -1886,12 +1879,10 @@ namespace ParkingLotTool.Tools
             _laternenDefault?.Update(LaternenStandard());
             if (ApplyDefaults(_defaults))
             {
-                tool?.CommitUndoState(before, T("Werkswerte geladen",
-                    "factory values loaded"));
+                tool?.CommitUndoState(before, () => T("uISystem.factoryValuesLoaded"));
                 Revision++;
             }
-            SetStatus(T("Werkswerte geladen; gespeicherte Standards verworfen.",
-                "Factory values loaded; saved defaults discarded."));
+            SetStatus(T("uISystem.factoryValuesLoadedSavedDefaultsDiscarded"));
             Mod.log.Info("PLT-Einstellungen verworfen; CS2-Werte aktiv: " + path);
         }
 
@@ -2014,11 +2005,11 @@ namespace ParkingLotTool.Tools
             var wege = layout.NetLine?.Length ?? 0;
             var fassung = typeof(ParkingLotUISystem).Assembly
                 .GetName().Version?.ToString() ?? "?";
-            _baukurzinfo?.Update(
-                $"{layout.Stalls} Buchten · {layout.Aisles} Gassen · "
-                + $"{flaechen} Flächen · {wege} Wege · "
-                + $"{arealflaeche:F0} m² · "
-                + DateTime.Now.ToString("HH:mm:ss") + " · PLT " + fassung);
+            _baukurzinfo?.Update(T("meldung.baukurzinfo",
+                ("buchten", layout.Stalls), ("gassen", layout.Aisles),
+                ("flaechen", flaechen), ("wege", wege),
+                ("flaeche", arealflaeche.ToString("F0")),
+                ("zeit", DateTime.Now.ToString("HH:mm:ss")), ("fassung", fassung)));
         }
 
         /**
@@ -2041,11 +2032,7 @@ namespace ParkingLotTool.Tools
             ParkingLotMessung.StarteAufzeichnung(LeistungSekunden,
                 "Knopf im Melde-Reiter");
             _leistungRest?.Update(LeistungSekunden);
-            SetStatus(ParkingLotTexte.T(
-                "Leistungsmessung läuft. Spiel normal weiter - gerade das "
-                    + "Gewöhnliche soll gemessen werden.",
-                "Performance measurement running. Just keep playing - the "
-                    + "ordinary case is what we want to see."));
+            SetStatus(ParkingLotTexte.T("uISystem.performanceMeasurementRunningJustKeepPlaying"));
             Mod.log.Info("PLT-Messung: Aufzeichnung ueber "
                 + LeistungSekunden + " s gestartet (Melde-Reiter).");
         }
@@ -2082,15 +2069,11 @@ namespace ParkingLotTool.Tools
             if (pfad == null)
             {
                 _meldungPfad?.Update(string.Empty);
-                SetStatus(grund ?? ParkingLotTexte.T(
-                    "Die Meldung konnte nicht erstellt werden.",
-                    "The report could not be created."));
+                SetStatus(grund ?? ParkingLotTexte.T("uISystem.theReportCouldNotBeCreated"));
                 return;
             }
             _meldungPfad?.Update(pfad);
-            SetStatus(ParkingLotTexte.T(
-                "Meldung erstellt. Die ZIP an ein GitHub-Issue anhängen.",
-                "Report created. Attach the ZIP to a GitHub issue."));
+            SetStatus(ParkingLotTexte.T("uISystem.reportCreatedAttachTheZipTo"));
         }
 
         /**
@@ -2308,8 +2291,7 @@ namespace ParkingLotTool.Tools
                 ?? Unity.Entities.Entity.Null;
             if (lot == Unity.Entities.Entity.Null)
             {
-                SetStatus(ParkingLotTexte.T(
-                    "Kein Parkplatz gewählt.", "No parking lot selected."));
+                SetStatus(ParkingLotTexte.T("uISystem.noParkingLotSelected"));
                 return;
             }
             MeldeParkplatz(lot);
@@ -2327,8 +2309,7 @@ namespace ParkingLotTool.Tools
             if (lot == Unity.Entities.Entity.Null) return;
             Tool()?.FordereLotAbzug(lot);
             _meldungNachAbzug = true;
-            SetStatus(ParkingLotTexte.T(
-                "Bericht wird erstellt …", "Creating report …"));
+            SetStatus(ParkingLotTexte.T("uISystem.creatingReport"));
         }
 
         /** Laeuft die Parkplatzwahl gerade? Fuer den Knopf im Reiter. */
@@ -2550,8 +2531,46 @@ namespace ParkingLotTool.Tools
          */
         internal void PflegeSprache()
         {
-            var jetzt = Mod.Optionen?.SprachKuerzel() ?? "en";
-            if (_sprache != null && _sprache.value != jetzt) _sprache.Update(jetzt);
+            ParkingLotSprachdateien.Pflege();
+            if (_sprachStand == ParkingLotSprachdateien.Stand) return;
+            _sprachStand = ParkingLotSprachdateien.Stand;
+            _sprache?.Update(Sprachtexte.Aktiv);
+            _sprachtexte?.Update(ParkingLotSprachdateien.OberflaechenJson());
+            _absturzBefund?.Update(ParkingLotAbsturzwache.Befund());
+            /*
+             * SCHON ANGEZEIGTE ZEILEN MITNEHMEN (Nutzer 2026-10-06: "Ready"
+             * blieb nach dem Wechsel auf Deutsch stehen). Diese Bindungen
+             * halten fertigen Text; `Sprachtexte.Umsetzen` fuehrt ihn auf seine
+             * Vorlage zurueck und setzt ihn in der neuen Sprache neu.
+             */
+            var von = _textSprache;
+            _textSprache = Sprachtexte.Aktiv;
+            if (von != null && !string.Equals(von, _textSprache, StringComparison.OrdinalIgnoreCase))
+            {
+                SetzeUm(_status, von);
+                SetzeUm(_zoningZug, von);
+                SetzeUm(_baukurzinfo, von);
+                SetzeUm(_ueberlappungsstand, von);
+                if (_hinweis != null && _hinweis.value.Length > 0)
+                    _hinweis.Update(string.Join("\n", System.Linq.Enumerable.Select(
+                        _hinweis.value.Split('\n'), z => Sprachtexte.Umsetzen(z, von, _textSprache))));
+            }
+            BenenneFesteVegetationSets();
+            if (_vegetationCatalog != null) PublishVegetation();
+            BenenneFesteLaternenSets();
+            if (_laternenKatalog != null) VeroeffentlicheLaternen();
+        }
+
+        private int _sprachStand = -1;
+
+        /** In dieser Sprache wurden die angezeigten Zeilen erzeugt. */
+        private string _textSprache = Sprachtexte.Aktiv;
+
+        private void SetzeUm(ValueBinding<string> bindung, string von)
+        {
+            if (bindung == null || string.IsNullOrEmpty(bindung.value)) return;
+            var neu = Sprachtexte.Umsetzen(bindung.value, von, _textSprache);
+            if (!string.Equals(neu, bindung.value, StringComparison.Ordinal)) bindung.Update(neu);
         }
 
         /** Mehrere Hinweise durch Zeilenumbruch getrennt; leer heisst: keine. */
@@ -2567,10 +2586,13 @@ namespace ParkingLotTool.Tools
             _stalls.Update(layout.Stalls);
             _perimeterStalls.Update(layout.PerimeterStalls);
             _aisles.Update(layout.Aisles);
-            _rowAngleResult.Update(layout.Angle.ToString("F0") + " Grad");
-            _siteArea.Update(siteArea.ToString("F0") + " m²");
+            // Nur Zahlen; Einheit und Satz stehen in der Sprachdatei (ui.jeBucht,
+            // ui.winkelAreal). Bis 1.0.6 kam " Grad" von hier - auch im
+            // englischen Panel. Leer heisst: noch kein Ergebnis.
+            _rowAngleResult.Update(layout.Angle.ToString("F0"));
+            _siteArea.Update(siteArea.ToString("F0"));
             _areaPerStall.Update(layout.Stalls > 0
-                ? (siteArea / layout.Stalls).ToString("F1") + " m²" : "-");
+                ? Sprachtexte.Dezimal(siteArea / layout.Stalls, 1) : string.Empty);
             var settings = CurrentSettings();
             // Die feste Bucht 3,00 x 5,90 m und der daraus berechnete
             // Modulabstand standen vorher im Panel. Im Log bleiben beide je

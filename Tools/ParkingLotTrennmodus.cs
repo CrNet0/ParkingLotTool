@@ -187,7 +187,7 @@ namespace ParkingLotTool.Tools
                 if (_trennAnfang >= 0)
                 {
                     _trennAnfang = -1;
-                    _uiSystem?.SetStatus(T("Punkt verworfen.", "Point discarded."));
+                    _uiSystem?.SetStatus(T("trennmodus.pointDiscarded"));
                     return true;
                 }
                 var unter = _hasHover
@@ -197,14 +197,14 @@ namespace ParkingLotTool.Tools
                 {
                     var before = CaptureUndoState();
                     _trennschnitte.RemoveAt(unter);
-                    NachTrennaenderung(before, T("Trennschnitt gelöscht", "cut deleted"));
+                    NachTrennaenderung(before, () => T("trennmodus.cutDeleted"));
                     return true;
                 }
                 if (_trennschnitte.Count > 0)
                 {
                     var before = CaptureUndoState();
                     _trennschnitte.RemoveAt(_trennschnitte.Count - 1);
-                    NachTrennaenderung(before, T("Letzter Trennschnitt gelöscht", "last cut deleted"));
+                    NachTrennaenderung(before, () => T("trennmodus.lastCutDeleted"));
                     return true;
                 }
                 AbortAusrichtWahl("Rechtsklick");
@@ -220,22 +220,20 @@ namespace ParkingLotTool.Tools
             var getroffen = PunktUnterZeiger();
             if (getroffen < 0)
             {
-                _uiSystem?.SetStatus(T("Kein Polygonpunkt unter dem Zeiger.",
-                    "No outline point under the cursor."));
+                _uiSystem?.SetStatus(T("trennmodus.noOutlinePointUnderTheCursor"));
                 return true;
             }
 
             if (_trennAnfang < 0)
             {
                 _trennAnfang = getroffen;
-                _uiSystem?.SetStatus(T("Jetzt den zweiten Punkt wählen.",
-                    "Now pick the second point."));
+                _uiSystem?.SetStatus(T("trennmodus.nowPickTheSecondPoint"));
                 return true;
             }
             if (getroffen == _trennAnfang)
             {
                 _trennAnfang = -1;
-                _uiSystem?.SetStatus(T("Punkt verworfen.", "Point discarded."));
+                _uiSystem?.SetStatus(T("trennmodus.pointDiscarded"));
                 return true;
             }
 
@@ -243,11 +241,7 @@ namespace ParkingLotTool.Tools
             var j = getroffen;
             if ((i + 1) % _points.Count == j || (j + 1) % _points.Count == i)
             {
-                _uiSystem?.SetStatus(T(
-                    "Die beiden Punkte liegen nebeneinander - dazwischen muss "
-                        + "mindestens ein Punkt liegen.",
-                    "Those two points are neighbours - at least one point has "
-                        + "to lie between them."));
+                _uiSystem?.SetStatus(T("trennmodus.thoseTwoPointsAreNeighboursAt"));
                 return true;
             }
             var site = new double2[_points.Count];
@@ -255,17 +249,13 @@ namespace ParkingLotTool.Tools
                 site[k] = new double2(_points[k].x, _points[k].y);
             if (!ParkingGeometry.SchnittLiegtInnen(site, i, j))
             {
-                _uiSystem?.SetStatus(T(
-                    "Dieser Schnitt liefe außerhalb des Umrisses.",
-                    "That cut would run outside the outline."));
+                _uiSystem?.SetStatus(T("trennmodus.thatCutWouldRunOutsideThe"));
                 _trennAnfang = -1;
                 return true;
             }
             if (KreuztVorhandenen(i, j))
             {
-                _uiSystem?.SetStatus(T(
-                    "Dieser Schnitt kreuzt einen vorhandenen.",
-                    "That cut crosses an existing one."));
+                _uiSystem?.SetStatus(T("trennmodus.thatCutCrossesAnExistingOne"));
                 _trennAnfang = -1;
                 return true;
             }
@@ -277,7 +267,7 @@ namespace ParkingLotTool.Tools
                 B = _points[j],
             });
             _trennAnfang = -1;
-            NachTrennaenderung(vorher, T("Trennschnitt gezogen", "cut drawn"));
+            NachTrennaenderung(vorher, () => T("trennmodus.cutDrawn"));
             return true;
         }
 
@@ -297,17 +287,13 @@ namespace ParkingLotTool.Tools
             return treffer;
         }
 
-        private void NachTrennaenderung(ParkingLotUndoSnapshot vorher, string was)
+        private void NachTrennaenderung(ParkingLotUndoSnapshot vorher, System.Func<string> was)
         {
             AktualisiereTeilflaechen();
             _geometryRevision++;
             _layoutDirty = _closed;
             CommitUndoState(vorher, was);
-            _uiSystem?.SetStatus(T(
-                _trennschnitte.Count + " Trennschnitt(e). „Trennung fertig“, "
-                    + "wenn es passt.",
-                _trennschnitte.Count + " cut(s). Press Done splitting when "
-                    + "it fits."));
+            _uiSystem?.SetStatus(TN("trennmodus.schnitte", _trennschnitte.Count));
         }
 
         /**
@@ -341,8 +327,8 @@ namespace ParkingLotTool.Tools
             Ausrichtwahl = _teilflaechen.Count > 1
                 ? Ausrichtschritt.Flaeche : Ausrichtschritt.Linie;
             _uiSystem?.SetStatus(_teilflaechen.Count > 1
-                ? T("Jetzt eine Teilfläche wählen.", "Now pick a sub-area.")
-                : T("Jetzt die Bezugslinie wählen.", "Now pick the reference line."));
+                ? T("trennmodus.nowPickASubArea")
+                : T("trennmodus.nowPickTheReferenceLine"));
             Mod.log.Info("PLT-Trennmodus: beendet mit " + _trennschnitte.Count
                 + " Schnitt(en), " + _teilflaechen.Count + " Teilflaeche(n).");
         }

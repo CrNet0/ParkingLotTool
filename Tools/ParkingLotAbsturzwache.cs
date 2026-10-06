@@ -35,8 +35,16 @@ namespace ParkingLotTool.Tools
         /** Steht nach `Pruefe` fest und wird von der UI abgefragt. */
         internal static bool LetzteSitzungAbgestuerzt { get; private set; }
 
-        /** Was im vorigen Player.log gefunden wurde - fuer die Anzeige. */
-        internal static string Befund { get; private set; } = string.Empty;
+        /**
+         * Was im vorigen Player.log gefunden wurde - fuer die Anzeige.
+         *
+         * Als Funktion, nicht als Text: `Pruefe` laeuft ganz am Anfang von
+         * `OnLoad`, noch vor den Sprachdateien, und die Anzeige soll auch einem
+         * spaeteren Sprachwechsel folgen. Erfasst werden hier nur die Fakten;
+         * uebersetzt wird beim Abfragen. Das Log bekommt seinen deutschen Text
+         * gleich in `Pruefe`.
+         */
+        internal static Func<string> Befund { get; private set; } = () => string.Empty;
 
         private static string Ordner =>
             Path.Combine(Application.persistentDataPath, "Logs");
@@ -55,12 +63,14 @@ namespace ParkingLotTool.Tools
                 {
                     LetzteSitzungAbgestuerzt = true;
                     var sitzungsstart = LiesStart(marke);
-                    Befund = LiesVorigesLog();
+                    var log = LiesVorigesLog();
                     var abbild = ParkingLotAbsturzabbild.JuengsterAbsturzSeit(sitzungsstart);
-                    if (abbild != null) Befund += " " + ParkingLotAbsturzabbild.Kurz(abbild);
+                    Befund = () => log.Anzeige()
+                        + (abbild != null ? " " + ParkingLotAbsturzabbild.Kurz(abbild) : string.Empty);
                     Rette(sitzungsstart);
                     Mod.log.Warn("PLT-Absturzwache: die vorige Sitzung hat "
-                        + "nicht ordentlich aufgehoert. " + Befund
+                        + "nicht ordentlich aufgehoert. " + log.Logtext()
+                        + (abbild != null ? " " + ParkingLotAbsturzabbild.KurzFuersLog(abbild) : string.Empty)
                         + " Im Melde-Reiter steht jetzt ein Knopf fuer den "
                         + "Absturzbericht.");
                     SchnuereVonSelbst();
@@ -155,44 +165,77 @@ namespace ParkingLotTool.Tools
          * `Player-prev.log` ist der vorige Lauf - genau der, der abgestuerzt
          * ist. Das aktuelle `Player.log` gehoert schon zu dieser Sitzung.
          */
-        private static string LiesVorigesLog()
+        /** Was im vorigen Player.log stand - Fakten, zwei Darstellungen. */
+        private sealed class VorigesLog
         {
+            internal bool Fehlt, Unlesbar, Nativ, MonoAssertion, UpdateFrame;
+            internal string Grund;
+
+            internal bool KeineMeldung => !Nativ && !MonoAssertion && !UpdateFrame;
+
+            /** Fuer den Melde-Reiter, in der Sprache des Spielers. */
+            internal string Anzeige()
+            {
+                if (Fehlt) return ParkingLotTexte.T("absturz.keinVorigesLog");
+                if (Unlesbar) return ParkingLotTexte.T("absturz.nichtLesbar");
+                if (KeineMeldung) return ParkingLotTexte.T("absturz.keineMeldung");
+                var teile = new System.Collections.Generic.List<string>();
+                if (Nativ) teile.Add(ParkingLotTexte.T("absturz.teil.nativ"));
+                if (MonoAssertion) teile.Add(ParkingLotTexte.T("absturz.teil.mono"));
+                if (UpdateFrame) teile.Add(ParkingLotTexte.T("absturz.teil.updateFrame"));
+                return ParkingLotTexte.T("absturz.steht",
+                    ("liste", string.Join(ParkingLotTexte.T("absturz.und"), teile)));
+            }
+
+            /** Fuers Log, deutsch wie alle Logzeilen. */
+            internal string Logtext()
+            {
+                if (Fehlt) return "Ein vorheriges Player.log gibt es nicht.";
+                if (Unlesbar) return "Das vorige Player.log war nicht lesbar (" + Grund + ").";
+                if (KeineMeldung)
+                    return "Im vorigen Player.log steht keine Absturzmeldung - "
+                        + "moeglicherweise wurde das Spiel nur hart beendet.";
+                var teile = new System.Collections.Generic.List<string>();
+                if (Nativ) teile.Add("nativer Absturz");
+                if (MonoAssertion) teile.Add("Mono-Assertion bei generischer Reflection");
+                if (UpdateFrame) teile.Add("\"UpdateFrame added to unsupported type\"");
+                return "Im vorigen Player.log steht: " + string.Join(" und ", teile) + ".";
+            }
+        }
+
+        /**
+         * Sucht im Player.log des vorigen Laufs nach der Absturzmeldung.
+         *
+         * `Player-prev.log` ist der vorige Lauf - genau der, der abgestuerzt
+         * ist. Das aktuelle `Player.log` gehoert schon zu dieser Sitzung.
+         */
+        private static VorigesLog LiesVorigesLog()
+        {
+            var aus = new VorigesLog();
             try
             {
                 var pfad = Path.Combine(
                     Directory.GetParent(Ordner)?.FullName ?? Ordner,
                     "Player-prev.log");
-                if (!File.Exists(pfad))
-                    return "Ein vorheriges Player.log gibt es nicht.";
+                if (!File.Exists(pfad)) { aus.Fehlt = true; return aus; }
 
                 using var strom = new FileStream(pfad, FileMode.Open,
                     FileAccess.Read, FileShare.ReadWrite);
                 using var leser = new StreamReader(strom);
                 var text = leser.ReadToEnd();
 
-                var nativ = text.Contains("Native Crash Reporting");
-                var monoAssertion = text.Contains("* Assertion at ")
+                aus.Nativ = text.Contains("Native Crash Reporting");
+                aus.MonoAssertion = text.Contains("* Assertion at ")
                     && text.Contains("reflection_bind_generic_method_parameters");
-                var updateFrame = text.Contains(
+                aus.UpdateFrame = text.Contains(
                     "UpdateFrame added to unsupported type");
-
-                if (!nativ && !updateFrame && !monoAssertion)
-                    return "Im vorigen Player.log steht keine Absturzmeldung - "
-                        + "moeglicherweise wurde das Spiel nur hart beendet.";
-
-                var teile = new System.Collections.Generic.List<string>();
-                if (nativ) teile.Add("nativer Absturz");
-                if (monoAssertion) teile.Add("Mono-Assertion bei generischer Reflection");
-                if (updateFrame)
-                    teile.Add("\"UpdateFrame added to unsupported type\"");
-                return "Im vorigen Player.log steht: "
-                    + string.Join(" und ", teile) + ".";
             }
             catch (Exception ausnahme)
             {
-                return "Das vorige Player.log war nicht lesbar ("
-                    + ausnahme.Message + ").";
+                aus.Unlesbar = true;
+                aus.Grund = ausnahme.Message;
             }
+            return aus;
         }
 
         /** Vorsilbe der geretteten Dateien. Eigene Sorte fuer die Logpflege. */

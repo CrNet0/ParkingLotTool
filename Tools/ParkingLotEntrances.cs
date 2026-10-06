@@ -256,16 +256,12 @@ namespace ParkingLotTool.Tools
             PublishEntranceState();
             UpdateEntranceHint();
             _uiSystem?.SetStatus(!_entranceMissingPrompt
-                ? T("Eine Zufahrt am Rand des Umrisses setzen.",
-                    "Place an entrance on the edge of the outline.")
+                ? T("entrances.placeAnEntranceOnTheEdge")
                 : fehlt == "ausfahrt"
-                ? T("Eine Einfahrt ohne Ausfahrt - die Autos kämen nicht heraus.",
-                    "An entry without an exit - cars could not leave.")
+                ? T("entrances.anEntryWithoutAnExitCars")
                 : fehlt == "einfahrt"
-                ? T("Eine Ausfahrt ohne Einfahrt - bitte eine Einfahrt setzen.",
-                    "An exit without an entry - place an entry.")
-                : T("Es fehlt eine Zufahrt, oder je eine Ein- und Ausfahrt.",
-                    "Needs a two-way entrance, or one entry and one exit."));
+                ? T("entrances.anExitWithoutAnEntryPlace")
+                : T("entrances.needsATwoWayEntranceOr"));
         }
 
         private void LeaveEntrancePlacement()
@@ -276,8 +272,7 @@ namespace ParkingLotTool.Tools
             _entranceOverlay.Clear();
             _debugTooltipSystem?.ClearEntranceHint();
             PublishEntranceState();
-            _uiSystem?.SetStatus(T("Umriss bearbeiten: Ecken und Kanten ziehen.",
-                "Editing the outline: drag corners and edges."));
+            _uiSystem?.SetStatus(T("entrances.editingTheOutlineDragCornersAnd"));
         }
 
         /** Enter ohne ausreichenden Zugang fuehrt ohne Panelklick hierher. */
@@ -495,7 +490,7 @@ namespace ParkingLotTool.Tools
             _entrances.Add(CopyEntrance(_entranceCandidate.Entrance));
             _entranceMissingPrompt = false;
             MarkEntrancesChanged("gesetzt");
-            CommitUndoState(before, T("Zugang gesetzt", "access placed"));
+            CommitUndoState(before, () => T("entrances.accessPlaced"));
         }
 
         /**
@@ -572,8 +567,8 @@ namespace ParkingLotTool.Tools
                     && _dragEntranceStart.Art
                         != _entrances[movedIndex].Art;
                 MarkEntrancesChanged("verschoben");
-                CommitUndoState(_entranceDragUndo, artChanged
-                    ? "Zugangsart geändert" : "Zugang verschoben");
+                CommitUndoState(_entranceDragUndo, () => T(artChanged
+                    ? "undo.zugangsartGeaendert" : "undo.zugangVerschoben"));
             }
             _dragEntranceMoved = false;
             _entranceDragUndo = null;
@@ -612,7 +607,7 @@ namespace ParkingLotTool.Tools
             // beendet den Modus also nicht, erst der Klick danach.
             MarkEntrancesChanged(wasLastPlaced ? "letzte geloescht"
                 : "unter dem Zeiger geloescht");
-            CommitUndoState(before, T("Zugang entfernt", "access removed"));
+            CommitUndoState(before, () => T("entrances.accessRemoved"));
             return true;
         }
 
@@ -629,9 +624,8 @@ namespace ParkingLotTool.Tools
 
         private string EntranceCountText()
             => _entrances.Count == 1
-                ? T("1 Zufahrt gesetzt.", "1 entrance placed.")
-                : T($"{_entrances.Count} Zufahrten gesetzt.",
-                    $"{_entrances.Count} entrances placed.");
+                ? T("entrances.1EntrancePlaced")
+                : T("entrances.entrancesPlaced", ("entrances", _entrances.Count));
 
         private bool TryBuildEntranceCandidate(float2 raw, int ignoredIndex,
             out EntranceCandidate candidate)
@@ -1183,33 +1177,25 @@ namespace ParkingLotTool.Tools
 
             string text;
             if (_entranceMissingPrompt && _entrances.Count == 0)
-                text = T("Bitte eine Zufahrt setzen",
-                    "Place an entrance");
+                text = T("entrances.placeAnEntrance");
             else if (_hasEntranceCandidate
                 && _entranceCandidate.BlockReason == EntranceBlockReason.Maximum)
-                text = T($"Höchstens {MaxEntranceCount} Zufahrten",
-                    $"At most {MaxEntranceCount} entrances");
+                text = T("entrances.atMostEntrances", ("max", MaxEntranceCount));
             else if (_hasEntranceCandidate
                 && _entranceCandidate.BlockReason == EntranceBlockReason.Spacing)
-                text = T($"Mindestens {_entranceCandidate.MinimumSpacing:F1} m Abstand",
-                    $"At least {_entranceCandidate.MinimumSpacing:F1} m apart");
+                text = T("entrances.atLeastMApart", ("abstand", ParkingLotTool.Geometry.Sprachtexte.Dezimal(_entranceCandidate.MinimumSpacing, 1)));
             else if (_hasEntranceCandidate
                 && _entranceCandidate.BlockReason == EntranceBlockReason.NoRoom)
-                text = T("Zu wenig Rand für eine Zufahrt",
-                    "Not enough edge for an entrance");
+                text = T("entrances.notEnoughEdgeForAnEntrance");
             else if (_hasEntranceCandidate
                 && _entranceCandidate.BlockReason == EntranceBlockReason.Bauland)
-                text = T("Hier liegt Bauland - Zoningfläche oder Randzoning",
-                    "Building land here - a zoning patch or edge zoning");
+                text = T("entrances.buildingLandHereAZoningPatch");
             else if (_hoverEntrance >= 0)
-                text = T("Zufahrt anklicken und am Rand verschieben",
-                    "Click the entrance and drag it along the edge");
+                text = T("entrances.clickTheEntranceAndDragIt");
             else if (_entrances.Count >= MaxEntranceCount)
-                text = T($"Höchstens {MaxEntranceCount} Zufahrten",
-                    $"At most {MaxEntranceCount} entrances");
+                text = T("entrances.atMostEntrances", ("max", MaxEntranceCount));
             else
-                text = T("Linksklick setzt eine Zufahrt auf den Umriss",
-                    "Left click places an entrance on the outline");
+                text = T("entrances.leftClickPlacesAnEntranceOn");
             _debugTooltipSystem?.SetEntranceHint(text);
         }
 

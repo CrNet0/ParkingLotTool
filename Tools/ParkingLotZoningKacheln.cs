@@ -292,11 +292,10 @@ namespace ParkingLotTool.Tools
                 // die man im Gelaende abschaetzen kann.
                 var breite = f.Spalten * ParkingGeometry.Zoningparzelle;
                 var tiefe = f.Reihen * ParkingGeometry.Zoningparzelle;
-                return T(
-                    $"{f.Spalten} × {f.Reihen} Kacheln · {f.Parzellen} Parzellen "
-                        + $"· {breite:F0} × {tiefe:F0} m",
-                    $"{f.Spalten} × {f.Reihen} tiles · {f.Parzellen} parcels "
-                        + $"· {breite:F0} × {tiefe:F0} m");
+                return TN("zoningKacheln.zeiger", f.Spalten * f.Reihen,
+                    ("spalten", f.Spalten), ("reihen", f.Reihen),
+                    ("parzellen", TN("zoning.parzellen", f.Parzellen)),
+                    ("breite", breite.ToString("F0")), ("tiefe", tiefe.ToString("F0")));
             }
         }
 

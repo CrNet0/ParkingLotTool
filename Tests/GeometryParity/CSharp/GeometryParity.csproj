@@ -14,6 +14,8 @@
     <Compile Include="Program.Formate.cs" />
     <Compile Include="Program.Migrationen.cs" />
     <Compile Include="Program.Statusmeldungen.cs" />
+    <Compile Include="Program.Sprachdateien.cs" />
+    <Compile Include="Program.Sprache.cs" />
     <Compile Include="Program.Kreuzungsmessung.cs" />
     <Compile Include="Program.Berichtsfall.cs" />
     <Compile Include="Program.Laternen.cs" />

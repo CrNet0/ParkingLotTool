@@ -410,21 +410,14 @@ namespace ParkingLotTool.Tools
                 var surfaces = CountAreaPolygons(_lastPreviewLayout.GrassSurface)
                     + CountAreaPolygons(_lastPreviewLayout.AsphaltSurface);
                 var stalls = _lastPreviewLayout.Stalls;
-                return T(
-                    $"Debug-Abzug geschrieben: {surfaces} "
-                        + (surfaces == 1 ? "Fläche" : "Flächen")
-                        + $", {stalls} " + (stalls == 1 ? "Bucht" : "Buchten"),
-                    $"Debug dump written: {surfaces} "
-                        + (surfaces == 1 ? "surface" : "surfaces")
-                        + $", {stalls} " + (stalls == 1 ? "stall" : "stalls"));
+                return T("debugDump.writtenSurfacesStalls",
+                    ("flaechen", TN("debugDump.surfaces", surfaces)),
+                    ("buchten", TN("debugDump.stalls", stalls)));
             }
 
             var points = document?.Input?.PolygonXZ?.Length ?? 0;
-            return T(
-                $"Debug-Abzug geschrieben: {points} "
-                    + (points == 1 ? "Polygonpunkt" : "Polygonpunkte"),
-                $"Debug dump written: {points} "
-                    + (points == 1 ? "polygon point" : "polygon points"));
+            return T("debugDump.writtenPoints",
+                ("punkte", TN("debugDump.polygonPoints", points)));
         }
 
         private DebugDumpDocument BuildDebugDocument(

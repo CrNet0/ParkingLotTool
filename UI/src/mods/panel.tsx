@@ -136,7 +136,7 @@ export const ParkingLotPanel = () => {
     .filter((zeile) => zeile !== "")
     .map((zeile) => {
       const teile = zeile.split("\t");
-      return { name: teile[0], bild: teile[1] || "" };
+      return { name: teile[0], bild: teile[1] || "", titel: teile[2] || teile[0] };
     });
   const bayIcons = useValue(bayIcons$);
   const surfaceApronOn = useValue(surfaceApronOn$);
@@ -1384,7 +1384,7 @@ export const ParkingLotPanel = () => {
             <img src={icon("Checkmark")} />
             <div className={styles.aktionText}>
               <div className={styles.aktionName}>{t.bauen}</div>
-              <div className={styles.aktionNebentext}>Enter</div>
+              <div className={styles.aktionNebentext}>{t.tasteEnter}</div>
             </div>
         </TooltipKnopf>
         </div>

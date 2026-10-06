@@ -48,7 +48,7 @@ export const Listengebuehr = ({ id, wert }: { id: string; wert: number }) => {
         <div ref={schiene} className={styles.listeGebuehrSchiene}
           role="slider" tabIndex={0} aria-label={t.spalteGebuehr}
           aria-valuemin={0} aria-valuemax={50} aria-valuenow={anzeige}
-          aria-valuetext={anzeige === 0 ? t.gebuehrAus : `${anzeige} ${t.waehrung}`}
+          aria-valuetext={anzeige === 0 ? t.gebuehrAus : t.betrag(anzeige)}
           onKeyDown={e => {
             const neu = e.key === "Home" ? 0 : e.key === "End" ? 50
               : e.key === "ArrowLeft" || e.key === "ArrowDown" ? Math.max(0, anzeige - 1)

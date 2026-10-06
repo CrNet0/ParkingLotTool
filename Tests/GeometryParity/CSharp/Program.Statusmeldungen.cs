@@ -17,6 +17,7 @@ internal static partial class Program
 {
     private static int PruefeStatusmeldungen()
     {
+        LadeSprachdateien();
         var fehler = 0;
         void Pruefe(bool ok, string was)
         {
@@ -41,9 +42,9 @@ internal static partial class Program
                 $"kleines Dreieck: Ursache {ursache}, erwartet ZuKlein "
                 + $"(Meldung: {geworfen.Message})");
             var text = Vorschaufehler.Text(ursache, true);
-            Pruefe(text.En.Contains("perimeter roads") && text.De.Contains("Randstraßen"),
+            Pruefe(En(text).Contains("perimeter roads") && De(text).Contains("Randstraßen"),
                 "mit Randstrassen fehlt der Rat, sie auszuschalten");
-            Pruefe(!Vorschaufehler.Text(ursache, false).En.Contains("perimeter"),
+            Pruefe(!En(Vorschaufehler.Text(ursache, false)).Contains("perimeter"),
                 "ohne Randstrassen darf der Rat sie nicht nennen");
         }
 
@@ -77,9 +78,11 @@ internal static partial class Program
         foreach (Vorschaufehler.Ursache u in Enum.GetValues(typeof(Vorschaufehler.Ursache)))
             foreach (var rand in new[] { true, false })
             {
-                var t = Vorschaufehler.Text(u, rand);
-                Pruefe(!string.IsNullOrWhiteSpace(t.De) && !string.IsNullOrWhiteSpace(t.En),
-                    $"{u}: leere Statuszeile");
+                var s = Vorschaufehler.Text(u, rand);
+                var t = (De: De(s), En: En(s));
+                Pruefe(!string.IsNullOrWhiteSpace(t.De) && !string.IsNullOrWhiteSpace(t.En)
+                    && !t.De.StartsWith("[") && !t.En.StartsWith("["),
+                    $"{u}: leere oder fehlende Statuszeile ({s})");
                 foreach (var begriff in new[] { "contour", "dump", "Teilungsgerade", "generator" })
                     Pruefe(!t.En.Contains(begriff) && !t.De.Contains(begriff),
                         $"{u}: Statuszeile enthaelt Kernbegriff '{begriff}'");
@@ -96,23 +99,36 @@ internal static partial class Program
             "Cell engine: automatic entrances are not implemented; place them by hand.",
             "Cell engine: 3 surface ring(s) with 1.20 m2 left out - CS2 would have refused them.",
             "Belagvorbereitung abgebrochen: irgendwas",
+            "Teilfläche 2 blieb leer: zu schmal für den Trennweg.",
+            "Teilfläche 3 blieb leer: No parking module fits inside the inner contour.",
         };
         foreach (var h in hinweise)
         {
-            var t = Hinweisfilter.Anzeigetext(h);
-            Pruefe(t.En != h && t.De != h, $"Hinweis bleibt roh: '{h}'");
+            var a = Hinweisfilter.Anzeigetext(h);
+            var t = (De: De(a.Schluessel, a.Werte), En: En(a.Schluessel, a.Werte));
+            Pruefe(t.En != h && t.De != h && !t.En.StartsWith("["), $"Hinweis bleibt roh: '{h}'");
             Pruefe(!t.En.Contains("Randstra") && !t.En.Contains("Cell engine"),
                 $"englischer Hinweis enthaelt Kerntext: '{t.En}'");
         }
-        Pruefe(Hinweisfilter.Anzeigetext("Zufahrt 3 trifft ein Hindernis.").En.Contains("Entrance 3"),
+        Pruefe(AnzeigeEn("Zufahrt 3 trifft ein Hindernis.").Contains("Entrance 3"),
             "Zufahrtsnummer geht verloren");
-        Pruefe(Hinweisfilter.Anzeigetext(hinweise[6]).En.StartsWith("1.2 m²"),
-            "Flaechenangabe fehlt: " + Hinweisfilter.Anzeigetext(hinweise[6]).En);
+        Pruefe(AnzeigeEn(hinweise[8]).Contains("Sub-area 2") && AnzeigeEn(hinweise[8]).Contains("narrow"),
+            "Teilflaeche zu schmal: " + AnzeigeEn(hinweise[8]));
+        Pruefe(AnzeigeEn(hinweise[9]).Contains("Sub-area 3") && !AnzeigeEn(hinweise[9]).Contains("contour"),
+            "Teilflaeche leer: " + AnzeigeEn(hinweise[9]));
+        Pruefe(AnzeigeEn(hinweise[6]).StartsWith("1.2 m²"),
+            "Flaechenangabe fehlt: " + AnzeigeEn(hinweise[6]));
         var unbekannt = "Irgendein neuer Hinweis.";
-        Pruefe(Hinweisfilter.Anzeigetext(unbekannt).En == unbekannt,
+        Pruefe(AnzeigeEn(unbekannt) == unbekannt,
             "unbekannter Hinweis darf nicht verschwinden");
         Pruefe(Hinweisfilter.IstEntwicklerbefund("Cell engine: the automatic angle search is not implemented; calculated with Angle=0."),
             "Winkelsuche-Hinweis erreicht den Spieler");
+
+        string AnzeigeEn(string h)
+        {
+            var a = Hinweisfilter.Anzeigetext(h);
+            return En(a.Schluessel, a.Werte);
+        }
 
         Console.WriteLine($"Statusmeldungen: {faelle.Count + 1 + hinweise.Length} Faelle, {fehler} Fehler.");
         return fehler == 0 ? 0 : 1;

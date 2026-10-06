@@ -266,9 +266,10 @@ interface SliderProps {
   onSetDefault?: () => void;
 }
 
-export const Slider = ({ label, tooltip, value, min, max, step, ton, unit = "m",
+export const Slider = ({ label, tooltip, value, min, max, step, ton, unit,
                          digits = 1, disabled, onChange, differsFromDefault,
                          onReset, onSetDefault }: SliderProps) => {
+  const t = useTexte();
   const track = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
   /**
@@ -352,7 +353,7 @@ export const Slider = ({ label, tooltip, value, min, max, step, ton, unit = "m",
             <div className={styles.controlHead}>
               <span className={styles.label}>{label}</span>
               <span className={`${styles.value} ${disabled ? "" : styles[`wert${ton}`]}`}>
-                {anzeige.toFixed(digits).replace(".", ",")} {unit}
+                {t.wertMitEinheit(t.dezimal(anzeige, digits), unit ?? t.einheitMeter)}
               </span>
             </div>
             <div
@@ -645,6 +646,8 @@ export const Spalte = ({ title, ton, breit, titleTooltip, bereichTooltip,
 export interface Flaeche {
   name: string;
   bild: string;
+  /** Anzeigename aus dem Woerterbuch des Spiels; sonst der Prefab-Name. */
+  titel: string;
 }
 
 interface AuswahlProps {
@@ -712,7 +715,8 @@ export const Auswahl = ({ label, tooltip, value, options, ton, onChange, differs
   const gesucht = suche.trim().toLowerCase();
   const sichtbar = gesucht === ""
     ? options
-    : options.filter((f) => f.name.toLowerCase().includes(gesucht));
+    : options.filter((f) => f.name.toLowerCase().includes(gesucht)
+        || f.titel.toLowerCase().includes(gesucht));
   const wurzel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!offen) { setSuche(""); return; }
@@ -762,7 +766,7 @@ export const Auswahl = ({ label, tooltip, value, options, ton, onChange, differs
                 ? <img className={styles.flaecheKnopfBild} src={gewaehlt.bild} />
                 : null}
               <span className={styles.flaecheKnopfName}>
-                {value ? value : (ausLabel ?? value)}
+                {value ? (gewaehlt ? gewaehlt.titel : value) : (ausLabel ?? value)}
               </span>
             </button>
           </div>
@@ -807,13 +811,13 @@ export const Auswahl = ({ label, tooltip, value, options, ton, onChange, differs
                 key={flaeche.name}
                 className={`${styles.flaecheKachel} ${
                   flaeche.name === value ? styles[`flaecheAktiv${ton}`] : ""}`}
-                title={flaeche.name}
+                title={flaeche.titel}
                 onClick={() => { onChange(flaeche.name); setOffen(false); }}
               >
                 {flaeche.bild
                   ? <img className={styles.flaecheBild} src={flaeche.bild} />
                   : <span className={styles.flaecheOhneBild} />}
-                <span className={styles.flaecheName}>{flaeche.name}</span>
+                <span className={styles.flaecheName}>{flaeche.titel}</span>
               </button>
             ))}
             {sichtbar.length === 0 ? (

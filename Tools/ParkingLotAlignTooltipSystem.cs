@@ -45,27 +45,15 @@ namespace ParkingLotTool.Tools
                 == ParkingLotToolSystem.Ausrichtschritt.Trennen)
             {
                 _hinweis.value = _tool.TrennAnfang >= 0
-                    ? ParkingLotTexte.T(
-                        "Zweiten Polygonpunkt anklicken · Rechtsklick verwirft",
-                        "Click the second outline point · right click discards")
-                    : ParkingLotTexte.T(
-                        "Zwei Polygonpunkte verbinden · Rechtsklick nimmt zurück "
-                            + "· „Trennung fertig“, wenn es passt",
-                        "Connect two outline points · right click undoes "
-                            + "· press Done splitting when it fits");
+                    ? ParkingLotTexte.T("alignTooltipSystem.clickTheSecondOutlinePointRight")
+                    : ParkingLotTexte.T("alignTooltipSystem.connectTwoOutlinePointsRightClick");
                 AddMouseTooltip(_hinweis);
                 return;
             }
             _hinweis.value = _tool.Ausrichtwahl
                     == ParkingLotToolSystem.Ausrichtschritt.Flaeche
-                ? ParkingLotTexte.T(
-                    "Eine Teilfläche anklicken · Umschalt zeigt eine schon "
-                        + "zugewiesene · „Fertig“, Rechtsklick oder Esc beendet",
-                    "Click a sub-area · Shift reveals an assigned one · "
-                        + "Done, right click or Esc finishes")
-                : ParkingLotTexte.T(
-                    "Eine Linie des Umrisses anklicken · „Fertig“, Rechtsklick oder Esc beendet",
-                    "Click a line of the outline · Done, right click or Esc finishes");
+                ? ParkingLotTexte.T("alignTooltipSystem.clickASubAreaShiftReveals")
+                : ParkingLotTexte.T("alignTooltipSystem.clickALineOfTheOutline");
             AddMouseTooltip(_hinweis);
         }
     }

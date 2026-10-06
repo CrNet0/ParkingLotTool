@@ -180,16 +180,16 @@ namespace ParkingLotTool.Tools
         private static string Stufenname(Game.Objects.TreeState zustand)
         {
             if ((zustand & Game.Objects.TreeState.Stump) != 0)
-                return ParkingLotTexte.T("Baumstumpf", "Stump");
+                return ParkingLotTexte.T("vegetationBuild.stump");
             if ((zustand & Game.Objects.TreeState.Dead) != 0)
-                return ParkingLotTexte.T("Tot", "Dead");
+                return ParkingLotTexte.T("vegetationBuild.dead");
             if ((zustand & Game.Objects.TreeState.Elderly) != 0)
-                return ParkingLotTexte.T("Alt", "Elderly");
+                return ParkingLotTexte.T("vegetationBuild.elderly");
             if ((zustand & Game.Objects.TreeState.Adult) != 0)
-                return ParkingLotTexte.T("Ausgewachsen", "Mature");
+                return ParkingLotTexte.T("vegetationBuild.mature");
             if ((zustand & Game.Objects.TreeState.Teen) != 0)
-                return ParkingLotTexte.T("Jung", "Young");
-            return ParkingLotTexte.T("Setzling", "Sapling");
+                return ParkingLotTexte.T("vegetationBuild.young");
+            return ParkingLotTexte.T("vegetationBuild.sapling");
         }
 
         /**
@@ -360,10 +360,11 @@ namespace ParkingLotTool.Tools
                     + hidden + " Overridden, " + besitzerkette + "/"
                     + baeume + " intakte Besitzerketten; siehe Bauzettel.");
             if (baeume == 0) return;
-            _uiSystem?.SetStatus(ParkingLotTexte.T("Bäume: ", "Trees: ")
-                + string.Join(", ", counts
+            _uiSystem?.SetStatus(ParkingLotTexte.T("vegetationBuild.baumliste",
+                ("liste", string.Join(ParkingLotTexte.T("allgemein.listentrenner"), counts
                     .OrderByDescending(p=>p.Value)
-                    .Select(p=>p.Value+"x "+p.Key)));
+                    .Select(p=>ParkingLotTexte.T("vegetationBuild.baumanzahl",
+                        ("anzahl", p.Value), ("name", p.Key)))))));
         }
         private bool _vegetationPreserve;
         private VegetationReceipt _vegetationReceipt;
@@ -491,7 +492,7 @@ namespace ParkingLotTool.Tools
                 + ParkingVegetation.Dichtefaktor.ToString("F1") + "; " + json + "; Kandidaten="+plan.Candidates+"; Pflanzen="+plan.Plants.Count+"; Grenze="+plan.Limited
                 + "; verworfen: Rand="+plan.RandVerworfen+", Wuerfel="+plan.WuerfelVerworfen
                 + ", Abstand="+plan.AbstandVerworfen+", ausserhalb="+plan.AussenVerworfen+", Laternen="+plan.LaternenVerworfen);
-            if(options.Enabled && assets.Length==0) _uiSystem?.SetStatus(ParkingLotTexte.T("Vegetation: keine verfügbaren Pflanzen ausgewählt.","Vegetation: no available plants selected."));
+            if(options.Enabled && assets.Length==0) _uiSystem?.SetStatus(ParkingLotTexte.T("vegetationBuild.vegetationNoAvailablePlantsSelected"));
             if(plan.Limited) Mod.log.Warn("PLT-Vegetation: Kandidatengrenze erreicht; Teilbepflanzung im Vorbauzettel.");
             var gewaehlt=new int[6];
             var erwartet=new System.Collections.Generic.Dictionary<string,int>();

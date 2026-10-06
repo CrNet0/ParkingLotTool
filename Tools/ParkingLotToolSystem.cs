@@ -249,8 +249,7 @@ namespace ParkingLotTool.Tools
             _pendingEditLot = Entity.Null;
             if (IsEditing)
                 AbortEdit("Werkzeug verlassen",
-                    "Bearbeitung abgebrochen; der alte Parkplatz wurde wiederhergestellt.",
-                    "Edit cancelled; the old parking lot was restored.");
+                    "editAbbruch.editCancelledTheOldParkingLot");
             _uiSystem?.SetToolActive(false);
             ResetSelection();
             // Ab hier schreibt nicht mehr der Nutzer am Magnet-Panel, sondern
@@ -838,11 +837,8 @@ namespace ParkingLotTool.Tools
                 // bleibt erst einmal bearbeitbar.
                 if (Mod.Optionen == null || Mod.Optionen.AutomatischZufahrtModus)
                     BeginEntrancePlacement(showMissingPrompt: false);
-                else _uiSystem?.SetStatus(T(
-                    "Umriss geschlossen. Ecken und Kanten ziehen, dann eine Zufahrt setzen.",
-                    "Outline closed. Drag corners and edges, then place an entrance."));
-                CommitUndoState(before, T("Polygon geschlossen",
-                    "outline closed"));
+                else _uiSystem?.SetStatus(T("toolSystem.outlineClosedDragCornersAndEdges"));
+                CommitUndoState(before, () => T("toolSystem.outlineClosed"));
                 Mod.log.Info($"PLT-Polygon geschlossen: {_points.Count} Punkte.");
                 return;
             }
@@ -859,7 +855,7 @@ namespace ParkingLotTool.Tools
             // rechtwinkliger Parkplatz an der Strasse.
             StoreSnapAxis(_points.Count - 1);
             _geometryRevision++;
-            CommitUndoState(pointBefore, T("Punkt gesetzt", "point placed"));
+            CommitUndoState(pointBefore, () => T("toolSystem.pointPlaced"));
         }
 
         private void UpdateDrag()
@@ -887,8 +883,7 @@ namespace ParkingLotTool.Tools
                 _geometryRevision++;
                 _layoutDirty = true;
                 _polygonTouched = true;
-                CommitUndoState(_pointDragUndo, T("Punkt verschoben",
-                    "point moved"));
+                CommitUndoState(_pointDragUndo, () => T("toolSystem.pointMoved"));
             }
             else
             {
@@ -952,9 +947,9 @@ namespace ParkingLotTool.Tools
             _worldPoints.RemoveAt(_worldPoints.Count - 1);
             _geometryRevision++;
             _hoverPoint = -1;
-            CommitUndoState(before, reopened
-                ? "Polygon geöffnet und letzter Punkt entfernt"
-                : "Punkt entfernt");
+            CommitUndoState(before, () => T(reopened
+                ? "undo.polygonGeoeffnetPunktEntfernt"
+                : "undo.punktEntfernt"));
         }
 
         /**
@@ -972,8 +967,8 @@ namespace ParkingLotTool.Tools
             _polygonTouched = true;
             if (deletedPoint) RemovePolygonPoint(_hoverPoint);
             else RemoveEdgePoints(_hoverEdge);
-            CommitUndoState(before, deletedPoint
-                ? "Polygonpunkt gelöscht" : "Polygonkante gelöscht");
+            CommitUndoState(before, () => T(deletedPoint
+                ? "undo.polygonpunktGeloescht" : "undo.polygonkanteGeloescht"));
         }
 
         /**
@@ -1041,11 +1036,8 @@ namespace ParkingLotTool.Tools
                 ClearAreaPreviewLayout("polygon unter drei Punkten");
                 _entrancePositionsBeforePointDrag = null;
                 _uiSystem?.SetStatus(_points.Count == 0
-                    ? T("Linksklick setzt Punkte.", "Left click places points.")
-                    : T("Weiter zeichnen: Linksklick setzt Punkte, Rechtsklick nimmt "
-                            + "den letzten zurück.",
-                        "Keep drawing: left click places points, right click removes "
-                            + "the last one."));
+                    ? T("toolSystem.leftClickPlacesPoints")
+                    : T("toolSystem.keepDrawingLeftClickPlacesPoints"));
                 return;
             }
 
@@ -1229,7 +1221,7 @@ namespace ParkingLotTool.Tools
             // Der Nutzer konnte bis zum 2026-08-21 nicht unterscheiden, ob
             // gerechnet wird oder ob sich der Generator weigert - im Panel
             // stand in beiden Faellen noch das Ergebnis von vorher.
-            _uiSystem?.SetStatus(T("Vorschau wird berechnet …", "Calculating preview …"));
+            _uiSystem?.SetStatus(T("toolSystem.calculatingPreview"));
         }
 
         /**
@@ -1304,17 +1296,10 @@ namespace ParkingLotTool.Tools
             if (IsEditing && _buildRequestedWhenReady)
             {
                 AbortEdit("Vorschaurechnung des Neubaus lief in die Zeitgrenze",
-                    "Umbau fehlgeschlagen; der alte Parkplatz wurde wiederhergestellt.",
-                    "Rebuild failed; the old parking lot was restored.");
+                    "editAbbruch.rebuildFailedTheOldParkingLot");
                 return;
             }
-            _uiSystem?.SetStatus(T(
-                "Keine Vorschau: Diese Form braucht zu lange. Eine Ecke "
-                + "verschieben und neu versuchen; passiert es wieder, bitte "
-                + "einen Vorschau-Bericht schicken.",
-                "No preview: this shape takes too long to calculate. Move a "
-                + "corner and try again; if it keeps happening, please send a "
-                + "preview report via Report a problem."));
+            _uiSystem?.SetStatus(T("toolSystem.noPreviewThisShapeTakesToo"));
         }
 
         private void PollCompletedBuild()
@@ -1353,8 +1338,7 @@ namespace ParkingLotTool.Tools
                 {
                     _overlay.ClearLayout();
                     ClearAreaPreviewLayout("Zufahrtsabstand nach Kernkorrektur");
-                    _uiSystem?.SetStatus(T("Zufahrten angepasst - Vorschau wird neu berechnet.",
-                        "Entrances adjusted - recalculating the preview."));
+                    _uiSystem?.SetStatus(T("toolSystem.entrancesAdjustedRecalculatingThePreview"));
                     return;
                 }
                 // Erst hier, nicht im Geometrielauf: die Vorflaeche misst die
@@ -1407,10 +1391,8 @@ namespace ParkingLotTool.Tools
                 var nachFlaechenablage = messen ? Stopwatch.GetTimestamp() : 0L;
                 _uiSystem?.ShowResult(layout, PolygonArea(site));
                 _uiSystem?.SetStatus(DarfBauen
-                    ? T($"{layout.Stalls} Stellplätze. Enter oder „Bauen“ baut den Parkplatz.",
-                        $"{layout.Stalls} stalls. Press Enter or Build to build the lot.")
-                    : T($"{layout.Stalls} Stellplätze. Zum Bauen fehlt noch eine Zufahrt.",
-                        $"{layout.Stalls} stalls. Place an entrance to build the lot."));
+                    ? T("toolSystem.stallsPressEnterOrBuildTo", ("layoutStalls", layout.Stalls))
+                    : T("toolSystem.stallsPlaceAnEntranceToBuild", ("layoutStalls", layout.Stalls)));
                 /*
                  * Nicht jede Warnung ist eine Nachricht an den Nutzer. Zwei
                  * Meldungen ueber weggelassene Nullflaechen standen am
@@ -1426,7 +1408,7 @@ namespace ParkingLotTool.Tools
                             {
                                 var text = ParkingLotTool.Geometry.Hinweisfilter
                                     .Anzeigetext(h);
-                                return T(text.De, text.En);
+                                return T(text.Schluessel, text.Werte);
                             })
                             .Distinct()
                             .ToArray(),
@@ -1506,8 +1488,7 @@ namespace ParkingLotTool.Tools
                     if (IsEditing && _buildRequestedWhenReady)
                     {
                         AbortEdit("Vorschaurechnung des Neubaus ist fehlgeschlagen",
-                            "Umbau fehlgeschlagen; der alte Parkplatz wurde wiederhergestellt.",
-                            "Rebuild failed; the old parking lot was restored.");
+                            "editAbbruch.rebuildFailedTheOldParkingLot");
                         return;
                     }
                     // Kein roher Kerntext: `Vorschaufehler` ordnet die Ausnahme
@@ -1516,7 +1497,7 @@ namespace ParkingLotTool.Tools
                     var meldung = Vorschaufehler.Text(
                         Vorschaufehler.Einordnen(exception),
                         settings?.Randstrassen ?? true);
-                    _uiSystem?.SetStatus(T(meldung.De, meldung.En));
+                    _uiSystem?.SetStatus(T(meldung));
                 }
             }
         }
@@ -1566,13 +1547,7 @@ namespace ParkingLotTool.Tools
             // die wir nicht haben.
             var sekunden = System.Math.Max(2,
                 (int)System.Math.Round(layout.Stalls * 0.0017));
-            var text = T(
-                $"Großer Parkplatz: {layout.Stalls} Buchten, {ringe} Flächen. "
-                    + $"Das Bauen dauert etwa {sekunden} Sekunden, und das "
-                    + "Spiel steht so lange still.",
-                $"Large lot: {layout.Stalls} bays, {ringe} surfaces. "
-                    + $"Building will take about {sekunden} seconds, and the "
-                    + "game will stand still for that time.");
+            var text = T("toolSystem.largeLotBaysSurfacesBuildingWill", ("layoutStalls", layout.Stalls), ("ringe", ringe), ("sekunden", sekunden));
             if (hinweise == null || hinweise.Length == 0)
                 return new[] { text };
             var alle = new string[hinweise.Length + 1];
@@ -1807,27 +1782,21 @@ namespace ParkingLotTool.Tools
             if (!WriteBuildReceipt(_lotOwner, _areaPreviewSettings,
                     _worldPoints.ToArray()))
             {
-                _uiSystem?.SetStatus(T(
-                    "Nichts gebaut: der Bauzettel konnte nicht gespeichert werden.",
-                    "Nothing built: the build receipt could not be saved."));
+                _uiSystem?.SetStatus(T("toolSystem.nothingBuiltTheBuildReceiptCould"));
                 ClearAreaPreviewGhosts("build receipt could not be stored");
                 if (IsEditing)
                     AbortEdit("Bauzettel des Neubaus fehlgeschlagen",
-                        "Umbau fehlgeschlagen; der alte Parkplatz wurde wiederhergestellt.",
-                        "Rebuild failed; the old parking lot was restored.");
+                        "editAbbruch.rebuildFailedTheOldParkingLot");
                 return false;
             }
             ProtokolliereBauschritt("CreateLotCarrier");
             if (!CreateLotCarrier())
             {
-                _uiSystem?.SetStatus(T(
-                    "Nichts gebaut: der Parkplatztraeger konnte nicht angelegt werden.",
-                    "Nothing built: the parking lot carrier could not be created."));
+                _uiSystem?.SetStatus(T("toolSystem.nothingBuiltTheParkingLotCarrier"));
                 ClearAreaPreviewGhosts("carrier could not be created");
                 if (IsEditing)
                     AbortEdit("Träger des Neubaus fehlgeschlagen",
-                        "Umbau fehlgeschlagen; der alte Parkplatz wurde wiederhergestellt.",
-                        "Rebuild failed; the old parking lot was restored.");
+                        "editAbbruch.rebuildFailedTheOldParkingLot");
                 return false;
             }
             ProtokolliereBauschritt("AttachPartsToLotOwner");
@@ -2036,11 +2005,7 @@ namespace ParkingLotTool.Tools
             // noch nichts passiert. Ein Umbau meldet sich selbst ("Aenderungen
             // uebernommen").
             if (!IsEditing)
-                _uiSystem?.SetStatus(T(
-                    $"Parkplatz mit {gebauteBuchten} Stellplätzen gebaut. Den nächsten "
-                        + "zeichnen, oder das Werkzeug schließen.",
-                    $"Parking lot built with {gebauteBuchten} stalls. Draw the next one, "
-                        + "or close the tool."));
+                _uiSystem?.SetStatus(T("toolSystem.parkingLotBuiltWithStallsDraw", ("gebauteBuchten", gebauteBuchten)));
             return true;
         }
 

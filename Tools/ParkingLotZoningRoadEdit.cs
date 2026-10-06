@@ -242,18 +242,13 @@ namespace ParkingLotTool.Tools
             var b = _points[(_randzoningZiel + 1) % _points.Count];
             if (RandzoningIndex(a, b) >= 0)
             {
-                _zoningSeitenBefund = T(
-                    "Randzoning an dieser Linie — Klick nimmt es weg",
-                    "Edge zoning on this line — click removes it");
+                _zoningSeitenBefund = T("zoningRoadEdit.edgeZoningOnThisLineClick");
                 return;
             }
             // Die Absage kommt VOR dem Klick, nicht danach.
             _zoningSeitenBefund = PruefeRandzoning(a, b, out _)
-                ? T("Umrisslinie — Klick macht Randzoning daraus",
-                    "Outline edge — click turns it into edge zoning")
-                : T("Kein Platz: eine Zoning-Fläche steht hier und kann "
-                        + "nicht ausweichen",
-                    "No room: a zoning patch sits here and cannot move aside");
+                ? T("zoningRoadEdit.outlineEdgeClickTurnsItInto")
+                : T("zoningRoadEdit.noRoomAZoningPatchSits");
         }
 
         /**
@@ -275,18 +270,14 @@ namespace ParkingLotTool.Tools
 
             if (!_letzteWeltpositionGueltig)
             {
-                _zoningSeitenBefund = T(
-                    "Kein Punkt unter dem Zeiger — auf den Boden zeigen.",
-                    "No point under the cursor — point at the ground.");
+                _zoningSeitenBefund = T("zoningRoadEdit.noPointUnderTheCursorPoint");
                 return float.PositiveInfinity;
             }
 
             var plan = _zoningStrassenAktuell;
             if (plan == null || plan.Count == 0)
             {
-                _zoningSeitenBefund = T(
-                    "Keine Zoning-Straße geplant — erst eine Fläche ziehen.",
-                    "No zoning road planned — drag an area first.");
+                _zoningSeitenBefund = T("zoningRoadEdit.noZoningRoadPlannedDragAn");
                 return float.PositiveInfinity;
             }
 
@@ -352,25 +343,17 @@ namespace ParkingLotTool.Tools
                 && (treffer < 0 || rzAbstand < bester);
             if (nurRandzoning)
             {
-                _zoningSeitenBefund = T(
-                    "Randzoning-Straße — sie zont immer nach außen, hier gibt "
-                        + "es keine Seite zu wählen.",
-                    "Edge-zoning road — it always zones outwards, there is no "
-                        + "side to choose here.");
+                _zoningSeitenBefund = T("zoningRoadEdit.edgeZoningRoadItAlwaysZones");
                 return float.PositiveInfinity;
             }
             if (treffer < 0)
             {
-                _zoningSeitenBefund = T(
-                    "Keine Zoning-Straße gefunden.",
-                    "No zoning road found.");
+                _zoningSeitenBefund = T("zoningRoadEdit.noZoningRoadFound");
                 return float.PositiveInfinity;
             }
             if (bester > ZoningSeitenreichweite)
             {
-                _zoningSeitenBefund = T(
-                    $"Nächste Zoning-Straße {bester:F0} m entfernt — näher heran.",
-                    $"Nearest zoning road is {bester:F0} m away — move closer.");
+                _zoningSeitenBefund = T("zoningRoadEdit.nearestZoningRoadIsMAway", ("bester", (bester).ToString("F0")));
                 return float.PositiveInfinity;
             }
 
@@ -382,13 +365,8 @@ namespace ParkingLotTool.Tools
             _zoningSeitenPunkt = zeiger;
             var an = trefferLinks
                 ? plan[treffer].LinksAn : plan[treffer].RechtsAn;
-            var seitenwort = trefferLinks
-                ? T("linke", "left") : T("rechte", "right");
-            _zoningSeitenBefund = an
-                ? T($"{seitenwort} Seite: Zoning AN — Klick schaltet aus",
-                    $"{seitenwort} side: zoning ON — click turns it off")
-                : T($"{seitenwort} Seite: Zoning AUS — Klick schaltet ein",
-                    $"{seitenwort} side: zoning OFF — click turns it on");
+            _zoningSeitenBefund = T("zoningRoadEdit.seite"
+                + (trefferLinks ? "Links" : "Rechts") + (an ? "An" : "Aus"));
             return bester;
         }
 
@@ -476,11 +454,8 @@ namespace ParkingLotTool.Tools
                 + ".");
             if (aussen)
                 _uiSystem?.SetStatus(tiefe > 0
-                    ? T($"Außen {tiefe} Kacheln tief — der Parkplatz hält den "
-                            + "Platz frei.",
-                        $"Outside {tiefe} tiles deep — the parking lot keeps "
-                            + "that room free.")
-                    : T("Außenband entfernt.", "Outer band removed."));
+                    ? T("zoningRoadEdit.outsideTilesDeepTheParkingLot", ("tiefe", tiefe))
+                    : T("zoningRoadEdit.outerBandRemoved"));
         }
 
         /** Legt die Umschaltung in die Merkliste oder aendert sie dort. */

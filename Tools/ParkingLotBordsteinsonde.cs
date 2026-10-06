@@ -189,7 +189,7 @@ namespace ParkingLotTool.Tools
         {
             if (_bsPhase != BsPhase.Idle)
             {
-                BsMelde("laeuft bereits.");
+                BsMelde("laeuft bereits.", ParkingLotTexte.T("bordsteinsonde.laeuftBereits"));
                 return;
             }
             /*
@@ -205,16 +205,13 @@ namespace ParkingLotTool.Tools
             {
                 BsMelde("Abbruch - es laeuft noch etwas (Vorschau, Bau, "
                     + "Versorgung oder Zoningsonde). Erst mit Rechtsklick "
-                    + "leeren, dann Alt+F.");
+                    + "leeren, dann Alt+F.", ParkingLotTexte.T("bordsteinsonde.abbruchBeschaeftigt"));
                 return;
             }
             _bsMitBau = mitBau;
             _bsFrame = 0;
             _bsPhase = BsPhase.ZeigerWarten;
-            _uiSystem?.SetStatus(ParkingLotTexte.T(
-                "Bordsteinsonde: Maus auf die freie Seite neben die Strasse "
-                    + "halten.",
-                "Curb probe: hold the mouse on the open side of the road."));
+            _uiSystem?.SetStatus(ParkingLotTexte.T("bordsteinsonde.curbProbeHoldTheMouseOn"));
             BsLog("START angefordert; warte auf eine gueltige Zeigerposition.");
         }
 
@@ -234,7 +231,7 @@ namespace ParkingLotTool.Tools
             if (++_bsFrame <= 600) return false;
             BsMelde("Abbruch - der Zeiger hat in 10 Sekunden nicht den Boden "
                 + "getroffen. Maus auf freies Gelaende halten und Alt+F "
-                + "erneut druecken.");
+                + "erneut druecken.", ParkingLotTexte.T("bordsteinsonde.abbruchKeinBoden"));
             _bsPhase = BsPhase.Idle;
             return false;
         }
@@ -246,7 +243,9 @@ namespace ParkingLotTool.Tools
             {
                 BsMelde($"Abbruch - im Umkreis von {BsStrassenreichweite:F0} m "
                     + "liegt keine Stadtstrasse. Der Zeiger muss neben einer "
-                    + "Strasse stehen, die NICHT uns gehoert.");
+                    + "Strasse stehen, die NICHT uns gehoert.",
+                    ParkingLotTexte.T("bordsteinsonde.abbruchKeineStrasse",
+                        ("meter", BsStrassenreichweite.ToString("F0"))));
                 _bsPhase = BsPhase.Idle;
                 return;
             }
@@ -276,11 +275,9 @@ namespace ParkingLotTool.Tools
             if (!mitBau)
                 BsLog("Es wird NICHTS gebaut - jeder Versuch wird als Temp "
                     + "angelegt, abgelesen und wieder verworfen.");
-            _uiSystem?.SetStatus(ParkingLotTexte.T(
-                mitBau ? "Bordsteinsonde misst und baut ..."
-                       : "Bordsteinsonde misst ...",
-                mitBau ? "Curb probe measuring and building ..."
-                       : "Curb probe measuring ..."));
+            _uiSystem?.SetStatus(ParkingLotTexte.T(mitBau
+                ? "bordsteinsonde.measuringAndBuilding"
+                : "bordsteinsonde.measuring"));
 
             _bsPhase = BsPhase.KlonWarten;
         }
@@ -362,7 +359,8 @@ namespace ParkingLotTool.Tools
             }
             if (++_bsFrame <= 300) return true;
             BsMelde("Abbruch - der unsichtbare Gassenklon war nach 300 "
-                + "Frames nicht benutzbar. Grund siehe 'PLT-Zoningstrasse'.");
+                + "Frames nicht benutzbar. Grund siehe 'PLT-Zoningstrasse'.",
+                ParkingLotTexte.T("bordsteinsonde.abbruchGassenklon"));
             _bsPhase = BsPhase.Idle;
             return false;
         }
@@ -472,11 +470,7 @@ namespace ParkingLotTool.Tools
             BsLog($"  {BsReihenname(reihe)} @ {_bsTestlaenge:F2} m: {befund}");
             // Ein Lauf dauert ein paar Sekunden. Ohne mitlaufende Zahl sieht
             // das aus wie ein Haenger.
-            _uiSystem?.SetStatus(ParkingLotTexte.T(
-                $"Bordsteinsonde: Reihe {_bsReiheIndex + 1} von "
-                    + $"{_bsReihen.Count}, {_bsMessungen} Messungen",
-                $"Curb probe: series {_bsReiheIndex + 1} of "
-                    + $"{_bsReihen.Count}, {_bsMessungen} measurements"));
+            _uiSystem?.SetStatus(ParkingLotTexte.T("bordsteinsonde.curbProbeSeriesOfMeasurements", ("bsReiheIndex", _bsReiheIndex + 1), ("bsReihen", _bsReihen.Count), ("bsMessungen", _bsMessungen)));
 
             _bsReihen[_bsReiheIndex] = BsNimmErgebnis(reihe, _bsTestlaenge,
                 erfuellt, befund);
@@ -684,7 +678,13 @@ namespace ParkingLotTool.Tools
                     + "einem Wegwerfstand druecken.");
             BsMelde($"fertig, {_bsMessungen} Messung(en)"
                 + (_bsBauIndex > 0 ? $" und {_bsBauIndex} Stummel gebaut" : "")
-                + ". Der Befund steht im Log.");
+                + ". Der Befund steht im Log.",
+                _bsBauIndex > 0
+                    ? ParkingLotTexte.T("bordsteinsonde.fertigMitBau",
+                        ("messungen", ParkingLotTexte.TN("bordsteinsonde.messungen", _bsMessungen)),
+                        ("stummel", ParkingLotTexte.TN("bordsteinsonde.stummel", _bsBauIndex)))
+                    : ParkingLotTexte.T("bordsteinsonde.fertig",
+                        ("messungen", ParkingLotTexte.TN("bordsteinsonde.messungen", _bsMessungen))));
         }
 
         /**
@@ -1021,12 +1021,11 @@ namespace ParkingLotTool.Tools
          * baut absichtlich nichts, und die Temp-Kurse flackern zu kurz, um
          * sie als Rueckmeldung zu lesen.
          */
-        private void BsMelde(string text)
+        /** Log deutsch (`logtext`), Statuszeile aus der Sprachdatei (`anzeige`). */
+        private void BsMelde(string logtext, string anzeige)
         {
-            BsLog(text);
-            _uiSystem?.SetStatus(ParkingLotTexte.T(
-                "Bordsteinsonde: " + text,
-                "Curb probe: " + text));
+            BsLog(logtext);
+            _uiSystem?.SetStatus(anzeige);
         }
     }
 }

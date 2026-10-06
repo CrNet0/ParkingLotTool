@@ -8,7 +8,6 @@ import { useTexte } from "./texte";
 import styles from "./panel.module.scss";
 
 /** Steht in jeder Meldung vorn: der Nutzer soll sehen, von welcher Mod sie kommt. */
-const MODNAME = "Parking Lot Tool";
 
 /** So lange pulsiert die Meldung nach einem gesperrten Klick (zwei Schlaege). */
 const PULS_MS = 1300;
@@ -65,7 +64,7 @@ export const SyncFortschritt = () => {
         || !Number.isInteger(gesamt) || gesamt <= 0) return null;
     const anteil = Math.min(1, Math.max(0, erledigt / gesamt));
     return <div className={`${styles.syncFortschritt} ${pulsiert ? styles.syncPuls : ""}`} role="status">
-      <div className={styles.syncMod}>{`${MODNAME}:`}</div>
+      <div className={styles.syncMod}>{t.modnameDoppelpunkt}</div>
       <div className={styles.syncTitel}>{t.syncFortschritt(erledigt, gesamt)}</div>
       {felder[2] && <div className={styles.syncTitel}>{felder[2]}</div>}
       <div className={styles.syncBalken}>
@@ -89,7 +88,7 @@ export const SyncFortschritt = () => {
     className={`${styles.syncFortschritt} ${styles.syncFertig}`}
     role="status" onClick={() => { syncErgebnisSchliessen(); oeffneListe(); }}>
     <div className={styles.syncMod}>
-      {`${MODNAME}:`}
+      {t.modnameDoppelpunkt}
     </div>
     {zeilen.map((zeile, i) =>
       <div key={i} className={styles.syncTitel}>{zeile}</div>)}

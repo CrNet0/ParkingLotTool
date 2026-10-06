@@ -70,15 +70,12 @@ namespace ParkingLotTool.Tools
                 System.IO.File.WriteAllText(path, text, new UTF8Encoding(false));
                 _uiSystem?.SetReportPath(path);
                 Mod.log.Info("PLT-Prefababzug geschrieben: " + path);
-                _debugTooltipSystem?.Show(T(
-                    "Prefababzug geschrieben.", "Prefab dump written."));
+                _debugTooltipSystem?.Show(T("prefabDissect.prefabDumpWritten"));
             }
             catch (Exception ausnahme)
             {
                 Mod.log.Warn("PLT: Prefababzug fehlgeschlagen: " + ausnahme);
-                _debugTooltipSystem?.Show(T(
-                    "Prefababzug fehlgeschlagen - siehe Log.",
-                    "Prefab dump failed - see the log."));
+                _debugTooltipSystem?.Show(T("prefabDissect.prefabDumpFailedSeeTheLog"));
             }
         }
 

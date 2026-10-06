@@ -84,14 +84,51 @@ namespace ParkingLotTool.Tools
             return null;
         }
 
-        /** Eine Zeile fuer den Melde-Reiter, auf Deutsch wie der Befund dort. */
+        /** Eine Zeile fuer den Melde-Reiter, in der Sprache des Spielers. */
         internal static string Kurz(Befund b)
+        {
+            if (b == null) return null;
+            var job = b.Jobs.FirstOrDefault() ?? b.StellenJob;
+            var zeit = b.Zeit.ToString("HH:mm:ss");
+            var art = FehlerartAnzeige(b);
+            return job != null
+                ? ParkingLotTexte.T("absturz.abbildMitJob", ("zeit", zeit), ("art", art),
+                    ("thread", b.Thread), ("job", Jobtext(job)))
+                : ParkingLotTexte.T("absturz.abbild", ("zeit", zeit), ("art", art),
+                    ("thread", b.Thread));
+        }
+
+        /** Dieselbe Zeile fuers Log, deutsch wie alle Logzeilen. */
+        internal static string KurzFuersLog(Befund b)
         {
             if (b == null) return null;
             var job = b.Jobs.FirstOrDefault() ?? b.StellenJob;
             return "Absturzabbild " + b.Zeit.ToString("HH:mm:ss") + ": "
                 + Fehlerart(b, deutsch: true) + " im Thread " + b.Thread
                 + (job != null ? ", Burst-Job " + Jobtext(job) : "") + ".";
+        }
+
+        /** Die Fehlerart aus der Sprachdatei - fuer den Melde-Reiter. */
+        private static string FehlerartAnzeige(Befund b)
+        {
+            switch (b.Code)
+            {
+                case 0xC0000005:
+                    {
+                        var art = b.Parameter.Length > 0 ? b.Parameter[0] : 0;
+                        var adresse = b.Parameter.Length > 1 ? b.Parameter[1] : 0;
+                        var zugriff = art == 1 ? "schreiben" : art == 8 ? "ausfuehren" : "lesen";
+                        return ParkingLotTexte.T("absturz.art." + zugriff
+                                + (adresse < 0x10000 ? "Null" : string.Empty),
+                            ("adresse", adresse.ToString("X")));
+                    }
+                case 0xC00000FD: return ParkingLotTexte.T("absturz.art.stapel");
+                case 0xC0000374: return ParkingLotTexte.T("absturz.art.heap");
+                case 0xC0000409: return ParkingLotTexte.T("absturz.art.failfast");
+                case 0x80000003: return ParkingLotTexte.T("absturz.art.haltepunkt");
+                case 0xE06D7363: return ParkingLotTexte.T("absturz.art.cpp");
+                default: return ParkingLotTexte.T("absturz.art.sonst", ("code", b.Code.ToString("X8")));
+            }
         }
 
         /** Der Text fuers Meldepaket, englisch wie alles im Paket. */

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { bindValue, trigger, useValue } from "cs2/api";
-import { sprache$ } from "./bindings";
+import { useTexte } from "./texte";
 import { Slider, MitTooltip, Fenster, Eingabefeld, SettingActions } from "./controls";
 import styles from "./vegetation.module.scss";
 import eigene from "./laternen.module.scss";
@@ -25,8 +25,8 @@ type LSet = {Id:string;Name:string;Einzeln:string;Doppelt:string;Custom:boolean}
  * Vorschau: ein Arm fuer Einzeln, zwei fuer Doppelt.
  */
 const useLaternen = () => {
- const de=useValue(sprache$)==="de";
- const t=(a:string,b:string)=>de?a:b;
+ const texte=useTexte();
+ const t=texte.text;
  const optionen:Optionen=JSON.parse(useValue(value$));
  const katalog:{Modelle:Modell[];Sets:LSet[]}=JSON.parse(useValue(katalog$));
  const senden=(patch:Partial<Optionen>)=>trigger("ParkingLotTool","SetLaternen",JSON.stringify({...optionen,...patch}));
@@ -56,11 +56,11 @@ export const LaternenSchalter = ({ onOeffnen }: { onOeffnen: (an: boolean) => vo
  useEffect(()=>{trigger("ParkingLotTool","RefreshLaternen");},[]);
  return <div className={styles.root}>
   <div className={base.schalterReihe}>
-   <MitTooltip text={t("Einstellungen der Laternen öffnen","Open the lantern settings")}>
-    <button className={`${base.label} ${styles.nameKnopf}`} onClick={()=>onOeffnen(true)}>{t("Laternen","Lanterns")}</button>
+   <MitTooltip text={t("laternen.openTheLanternSettings")}>
+    <button className={`${base.label} ${styles.nameKnopf}`} onClick={()=>onOeffnen(true)}>{t("laternen.lanterns")}</button>
    </MitTooltip>
-   <MitTooltip text={t("Straßenlaternen entlang der Reihen setzen; nachts an","Place street lanterns along the rows; lit at night")}>
-    <button role="switch" aria-label={t("Laternen","Lanterns")} aria-checked={optionen.Enabled}
+   <MitTooltip text={t("laternen.placeStreetLanternsAlongThe")}>
+    <button role="switch" aria-label={t("laternen.lanterns")} aria-checked={optionen.Enabled}
      className={`${base.schalter} ${optionen.Enabled?base.schalterAn:""}`}
      onClick={()=>{const an=!optionen.Enabled;senden({Enabled:an});onOeffnen(an);}}>
      <span className={`${base.schalterGriff} ${optionen.Enabled?base.schalterGriffAn:""}`}/>
@@ -89,49 +89,49 @@ export const LaternenFenster = ({ pos, onPos, onClose }: {
  const feld=(doppelt:boolean)=>{
   const gewaehlt=doppelt?optionen.Doppelt:optionen.Einzeln;
   return <div className={eigene.feld}>
-   <div className={eigene.feldKopf}><Zeichen doppelt={doppelt}/><span className={styles.label}>{doppelt?t("Doppelt","Double"):t("Einzeln","Single")}</span></div>
+   <div className={eigene.feldKopf}><Zeichen doppelt={doppelt}/><span className={styles.label}>{doppelt?t("laternen.double"):t("laternen.single")}</span></div>
    <div className={eigene.modelle}>{katalog.Modelle.map(m=><React.Fragment key={m.Id}>
     <ModellKnopf modell={m} gewaehlt={gewaehlt===m.Id} onClick={()=>senden(doppelt?{Doppelt:m.Id}:{Einzeln:m.Id})}/>
    </React.Fragment>)}</div>
   </div>;
  };
- return <Fenster titel={t("Laternen","Lanterns")}
+ return <Fenster titel={t("laternen.lanterns")}
    breite={rechts?BREITE_LINKS+BREITE_RECHTS:BREITE_LINKS}
    pos={pos} onPos={onPos} vonUnten onClose={onClose}>
   <div className={styles.zweiTeile}>
 
    <div className={styles.teilLinks}>
     <div className={styles.row}>
-     <div className={styles.label} style={{flex:"1 1 0"}}>{t("Standard für das ganze Fenster","Default for the whole window")}</div>
-     <SettingActions label={t("Laternen","Lanterns")} active={abweichend}
+     <div className={styles.label} style={{flex:"1 1 0"}}>{t("laternen.defaultForTheWholeWindow")}</div>
+     <SettingActions label={t("laternen.lanterns")} active={abweichend}
       onReset={()=>trigger("ParkingLotTool","ResetLaternen")}
       onSetDefault={()=>trigger("ParkingLotTool","SaveLaternenDefault")}/>
     </div>
-    <Slider label={t("Abstand","Spacing")} tooltip={t("Größter Abstand zwischen zwei Laternen einer Reihe","Largest gap between two lanterns along a row")}
-     value={optionen.Abstand} min={20} max={40} step={1} digits={0} unit="m" ton="Fahrwege" onChange={Abstand=>senden({Abstand})}/>
+    <Slider label={t("laternen.spacing")} tooltip={t("laternen.largestGapBetweenTwoLanterns")}
+     value={optionen.Abstand} min={20} max={40} step={1} digits={0} unit={t("einheit.meter")} ton="Fahrwege" onChange={Abstand=>senden({Abstand})}/>
     <div className={base.schalterReihe}>
-     <MitTooltip text={t("Zeigt in der Vorschau, wie weit jede Laterne leuchtet. Nur Anzeige, ändert nichts am Bau.","Shows in the preview how far each lantern lights. Display only, does not change the build.")}>
-      <span className={styles.schalterText}>{t("Leuchtreichweite zeigen","Show light range")}</span>
+     <MitTooltip text={t("laternen.showsInThePreviewHow")}>
+      <span className={styles.schalterText}>{t("laternen.showLightRange")}</span>
      </MitTooltip>
-     <button role="switch" aria-label={t("Leuchtreichweite zeigen","Show light range")} aria-checked={lichtkreise}
+     <button role="switch" aria-label={t("laternen.showLightRange")} aria-checked={lichtkreise}
       className={`${base.schalter} ${lichtkreise?base.schalterAn:""}`}
       onClick={()=>trigger("ParkingLotTool","SetLaternenLichtkreise",!lichtkreise)}>
       <span className={`${base.schalterGriff} ${lichtkreise?base.schalterGriffAn:""}`}/>
      </button>
     </div>
-    <div className={styles.label}>{t("Sets","Sets")}</div>
+    <div className={styles.label}>{t("laternen.sets")}</div>
     <div className={styles.sets}>{katalog.Sets.map(s=><div key={s.Id} className={styles.set}>
-     <MitTooltip text={`${s.Name}: ${name(s.Einzeln)} / ${name(s.Doppelt)}`}>
+     <MitTooltip text={t("laternen.setTooltip", { name: s.Name, einzeln: name(s.Einzeln), doppelt: name(s.Doppelt) })}>
       <button className={`${styles.choice} ${eigene.setKnopf} ${optionen.Set===s.Id?styles.selected:""}`} aria-pressed={optionen.Set===s.Id}
        aria-label={s.Name} onClick={()=>senden({Einzeln:s.Einzeln,Doppelt:s.Doppelt})}>
        <span className={eigene.setName}>{s.Name}</span>
       </button>
      </MitTooltip>
-     {s.Custom&&<MitTooltip text={t("Set entfernen","Remove set")}><button className={styles.remove} aria-label={t("Set entfernen","Remove set")} onClick={()=>trigger("ParkingLotTool","DeleteLaternenSet",s.Id)}>×</button></MitTooltip>}
+     {s.Custom&&<MitTooltip text={t("laternen.removeSet")}><button className={styles.remove} aria-label={t("laternen.removeSet")} onClick={()=>trigger("ParkingLotTool","DeleteLaternenSet",s.Id)}>×</button></MitTooltip>}
     </div>)}</div>
-    <MitTooltip text={t("Modelle wählen / eigenes Set","Choose models / custom set")}>
+    <MitTooltip text={t("laternen.chooseModelsCustomSet")}>
      <button className={`${styles.choice} ${eigene.breiterKnopf} ${rechts?styles.selected:""}`} aria-pressed={rechts} onClick={()=>setRechts(!rechts)}>
-      {t("Modelle wählen / eigenes Set","Choose models / custom set")}
+      {t("laternen.chooseModelsCustomSet")}
      </button>
     </MitTooltip>
     <div className={eigene.wahl}><Zeichen doppelt={false}/><span className={styles.label}>{name(optionen.Einzeln)}</span></div>
@@ -139,27 +139,27 @@ export const LaternenFenster = ({ pos, onPos, onClose }: {
     {/* Feste Hoehe, nur der Text wechselt - das Fenster springt nicht. */}
     <div className={styles.hinweisBox}>
      {!optionen.Enabled
-      ? t("Laternen sind aus - der Schalter im Panel entscheidet, ob gesetzt wird.","Lanterns are off - the switch in the panel decides whether any are placed.")
+      ? t("laternen.lanternsAreOffTheSwitch")
       : fehlt
-       ? t("Ein gewähltes Modell fehlt im Spiel und wird nicht gesetzt.","A selected model is missing in the game and will not be placed.")
+       ? t("laternen.aSelectedModelIsMissing")
        : optionen.Set===""
-        ? t("Eigene Wahl - rechts unter einem Namen als Set sichern.","Own choice - save it as a set on the right.")
+        ? t("laternen.ownChoiceSaveItAs")
         : ""}
     </div>
    </div>
 
    {rechts&&<div className={styles.teilRechts}>
     <div className={styles.teilKopf}>
-     <span className={styles.teilTitel}>{t("Modelle wählen","Choose models")}</span>
-     <MitTooltip text={t("Auswahl einklappen","Collapse the selection")}>
-      <button className={styles.einklappen} aria-label={t("Auswahl einklappen","Collapse the selection")} onClick={()=>setRechts(false)}>‹</button>
+     <span className={styles.teilTitel}>{t("laternen.chooseModels")}</span>
+     <MitTooltip text={t("laternen.collapseTheSelection")}>
+      <button className={styles.einklappen} aria-label={t("laternen.collapseTheSelection")} onClick={()=>setRechts(false)}>‹</button>
      </MitTooltip>
     </div>
     {feld(false)}
     {feld(true)}
-    <div className={styles.row}><div className={styles.setName}><Eingabefeld wert={setName} text={t("Setname","Set name")} maxLength={64} onChange={setSetName}/></div>
-     <MitTooltip text={t("Einzeln und Doppelt als eigenes Set unter diesem Namen sichern","Save single and double as your own set under this name")}>
-      <button className={styles.choice} aria-label={t("Speichern","Save")} disabled={!setName.trim()}
+    <div className={styles.row}><div className={styles.setName}><Eingabefeld wert={setName} text={t("laternen.setName")} maxLength={64} onChange={setSetName}/></div>
+     <MitTooltip text={t("laternen.saveSingleAndDoubleAs")}>
+      <button className={styles.choice} aria-label={t("laternen.save")} disabled={!setName.trim()}
        onClick={()=>{trigger("ParkingLotTool","SaveLaternenSet",JSON.stringify({Name:setName,Einzeln:optionen.Einzeln,Doppelt:optionen.Doppelt}));setSetName("");}}>
        <img alt="" src="coui://uil/Standard/DiskSave.svg"/>
       </button>

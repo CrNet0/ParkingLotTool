@@ -220,7 +220,7 @@ namespace ParkingLotTool.Tools
                 {
                     Mod.log.Warn("PLT-Bauteilliste: nichts angewählt. Erst ein Objekt "
                         + "im Spiel anklicken, dann Strg+Alt+P.");
-                    _debugTooltipSystem?.Show(T("Nichts angewählt - erst anklicken.", "Nothing selected - click something first."));
+                    _debugTooltipSystem?.Show(T("inspector.nothingSelectedClickSomethingFirst"));
                     return;
                 }
 
@@ -272,7 +272,7 @@ namespace ParkingLotTool.Tools
                     + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".txt");
                 File.WriteAllText(path, text.ToString());
                 Mod.log.Info("PLT-Bauteilliste geschrieben: " + path);
-                _debugTooltipSystem?.Show(T("Bauteilliste geschrieben.", "Component list written."));
+                _debugTooltipSystem?.Show(T("inspector.componentListWritten"));
             }
             catch (Exception exception)
             {

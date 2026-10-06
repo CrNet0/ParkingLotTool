@@ -227,8 +227,7 @@ namespace ParkingLotTool.Tools
             _geometryRevision++;
             _layoutDirty = true;
             _polygonTouched = true;
-            CommitUndoState(before, T("Punkt auf Kante eingefügt",
-                "point inserted on edge"));
+            CommitUndoState(before, () => T("edgeDrag.pointInsertedOnEdge"));
             Mod.log.Info($"PLT-Polygon: Punkt {stelle} auf einer Kante eingefuegt "
                 + $"({_insertPosition.x:F3} / {_insertPosition.z:F3}); "
                 + $"jetzt {_points.Count} Punkte.");
@@ -501,9 +500,10 @@ namespace ParkingLotTool.Tools
                 _entrancePositionsBeforePointDrag = null;
                 _dragEdge = -1;
                 _extrudeStart = -1;
-                CommitUndoState(_edgeDragUndo,
-                    _edgeDragUndo != null && _edgeDragUndo.Points.Length
-                        != _points.Count ? "Kante extrudiert" : "Kante verschoben");
+                var extrudiert = _edgeDragUndo != null
+                    && _edgeDragUndo.Points.Length != _points.Count;
+                CommitUndoState(_edgeDragUndo, () => T(extrudiert
+                    ? "undo.kanteExtrudiert" : "undo.kanteVerschoben"));
                 _edgeDragUndo = null;
             }
             else

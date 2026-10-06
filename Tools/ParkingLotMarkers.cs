@@ -163,15 +163,15 @@ namespace ParkingLotTool.Tools
                 _uiSystem?.SetReportPath(path);
                 Mod.log.Info($"PLT-Fehlerbericht geschrieben: {path} "
                     + $"({_markers.Count} Markierung(en)).");
-                _debugTooltipSystem?.Show(T(
-                    $"Bericht geschrieben ({_markers.Count} Markierungen).",
-                    $"Report written ({_markers.Count} marks)."));
+                _debugTooltipSystem?.Show(TN("markers.berichtGeschrieben", _markers.Count));
             }
             catch (Exception exception)
             {
                 Mod.log.Error(exception, "PLT-Fehlerbericht konnte nicht "
                     + "geschrieben werden.");
-                _uiSystem?.SetReportPath("ERROR: " + exception.Message);
+                // Die Einzelheiten stehen zwei Zeilen hoeher im Log; der Spieler
+                // bekommt einen Satz in seiner Sprache statt der Systemmeldung.
+                _uiSystem?.SetReportPath(ParkingLotTexte.T("meldung.berichtFehler"));
             }
         }
 

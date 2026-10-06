@@ -237,9 +237,7 @@ namespace ParkingLotTool.Tools
             SetzeZoningModus(false);
             if (!_closed || _points.Count < 3)
             {
-                _uiSystem?.SetStatus(T(
-                    "Erst das Polygon schließen, dann eine Linie wählen.",
-                    "Close the outline first, then pick a line."));
+                _uiSystem?.SetStatus(T("alignPick.closeTheOutlineFirstThenPick"));
                 return;
             }
             /*
@@ -262,11 +260,7 @@ namespace ParkingLotTool.Tools
             {
                 Ausrichtwahl = Ausrichtschritt.Trennen;
                 AusrichtFlaeche = -1;
-                _uiSystem?.SetStatus(T(
-                    "Trennmodus: zwei Polygonpunkte verbinden, oder gleich "
-                        + "„Trennung fertig“.",
-                    "Split mode: connect two outline points, or just press "
-                        + "Done splitting."));
+                _uiSystem?.SetStatus(T("alignPick.splitModeConnectTwoOutlinePoints"));
                 Mod.log.Info("PLT-Trennmodus: gestartet, " + _points.Count
                     + " Punkte, " + _trennschnitte.Count
                     + " vorhandene Schnitt(e).");
@@ -278,10 +272,8 @@ namespace ParkingLotTool.Tools
             Ausrichtwahl = _teilflaechen.Count > 1
                 ? Ausrichtschritt.Flaeche : Ausrichtschritt.Linie;
             _uiSystem?.SetStatus(_teilflaechen.Count > 1
-                ? T("Welche Teilfläche? Rechtsklick beendet.",
-                    "Which sub-area? Right-click to finish.")
-                : T("Eine Linie anklicken. Rechtsklick beendet.",
-                    "Click a line. Right-click to finish."));
+                ? T("alignPick.whichSubAreaRightClickTo")
+                : T("alignPick.clickALineRightClickTo"));
             Mod.log.Info("PLT-Ausrichten: Auswahl gestartet, "
                 + _teilflaechen.Count + " Teilflaeche(n); "
                 + (_teilflaechen.Count > 1
@@ -300,7 +292,7 @@ namespace ParkingLotTool.Tools
              * auch erst aktiv wenn ich eine Linie ausgewaehlt habe, ansonsten
              * bleibt der vorherige Modi aktiv."
              */
-            _uiSystem?.SetStatus(T("Auswahl abgebrochen.", "Selection cancelled."));
+            _uiSystem?.SetStatus(T("alignPick.selectionCancelled"));
             Mod.log.Info("PLT-Ausrichten: Auswahl abgebrochen (" + grund + ").");
         }
 
@@ -322,10 +314,8 @@ namespace ParkingLotTool.Tools
             Ausrichtwahl = Ausrichtschritt.Aus;
             AusrichtFlaeche = -1;
             _uiSystem?.SetStatus(zuweisungen == 0
-                ? T("Beendet - es war keine Linie gewählt.",
-                    "Finished - no line was picked.")
-                : T("Ausrichtung übernommen (" + zuweisungen + ").",
-                    "Alignment applied (" + zuweisungen + ")."));
+                ? T("alignPick.finishedNoLineWasPicked")
+                : T("alignPick.alignmentApplied", ("zuweisungen", zuweisungen)));
             Mod.log.Info("PLT-Ausrichten: vom Nutzer bestaetigt, "
                 + zuweisungen + " Zuweisung(en) stehen.");
         }
@@ -341,8 +331,7 @@ namespace ParkingLotTool.Tools
             VergissTrennschnitte();
             if (Ausrichtwinkel == null && hatteSchnitte == 0)
             {
-                _uiSystem?.SetStatus(T("Es war keine Linie gewählt.",
-                    "No line was picked."));
+                _uiSystem?.SetStatus(T("alignPick.noLineWasPicked"));
                 _uiSystem?.SetAusrichtwinkel(null);
                 return;
             }
@@ -354,10 +343,8 @@ namespace ParkingLotTool.Tools
             _uiSystem?.SetAusrichtwinkel(null);
             _geometryRevision++;
             _layoutDirty = _closed;
-            CommitUndoState(before, T("Ausrichtung zurückgesetzt",
-                "alignment reset"));
-            _uiSystem?.SetStatus(T("Ausrichtung zurückgesetzt: wieder längste Kante.",
-                "Alignment reset: longest edge again."));
+            CommitUndoState(before, () => T("alignPick.alignmentReset"));
+            _uiSystem?.SetStatus(T("alignPick.alignmentResetLongestEdgeAgain"));
             Mod.log.Info("PLT-Ausrichten: zurueckgesetzt, vorher "
                 + vorher.ToString("F2",
                     System.Globalization.CultureInfo.InvariantCulture)
@@ -418,10 +405,8 @@ namespace ParkingLotTool.Tools
         private string Rechenhinweis()
             => _letzteVorschaudauerMs < 1500
                 ? string.Empty
-                : T(" - Vorschau rechnet, zuletzt ",
-                    " - preview recomputing, last took ")
-                  + (_letzteVorschaudauerMs / 1000.0).ToString("F0")
-                  + T(" s", " s");
+                : T("alignPick.rechenhinweis",
+                    ("sekunden", (_letzteVorschaudauerMs / 1000.0).ToString("F0")));
 
         private bool HandleAusrichtWahl(bool secondaryPressed, bool escapePressed)
         {
@@ -453,9 +438,7 @@ namespace ParkingLotTool.Tools
                 {
                     AusrichtFlaeche = -1;
                     Ausrichtwahl = Ausrichtschritt.Flaeche;
-                    _uiSystem?.SetStatus(T(
-                        "Fläche wieder abgewählt. Welche Teilfläche?",
-                        "Sub-area deselected. Which sub-area?"));
+                    _uiSystem?.SetStatus(T("alignPick.subAreaDeselectedWhichSubArea"));
                     Mod.log.Info("PLT-Ausrichten: Flaechenwahl per Rechtsklick "
                         + "zurueckgenommen.");
                     return true;
@@ -491,19 +474,14 @@ namespace ParkingLotTool.Tools
                     new float2(_hoverPosition.x, _hoverPosition.z));
                 if (treffer < 0)
                 {
-                    _uiSystem?.SetStatus(T("Keine Teilfläche unter dem Zeiger.",
-                        "No sub-area under the cursor."));
+                    _uiSystem?.SetStatus(T("alignPick.noSubAreaUnderTheCursor"));
                     return true;
                 }
                 AusrichtFlaeche = treffer;
                 Ausrichtwahl = Ausrichtschritt.Linie;
                 // Die Statuszeile nennt beide Wege - sonst sucht man den
                 // Rueckweg und findet nur Esc.
-                _uiSystem?.SetStatus(T(
-                    "Fläche " + (treffer + 1) + " gewählt. Jetzt eine Linie "
-                    + "anklicken - Rechtsklick wählt die Fläche wieder ab.",
-                    "Sub-area " + (treffer + 1) + " selected. Now click a "
-                    + "line - right-click deselects the sub-area."));
+                _uiSystem?.SetStatus(T("alignPick.subAreaSelectedNowClickA", ("treffer", (treffer + 1))));
                 Mod.log.Info("PLT-Ausrichten: Teilflaeche " + treffer
                     + " gewaehlt, warte auf Linie.");
                 return true;
@@ -511,8 +489,7 @@ namespace ParkingLotTool.Tools
 
             if (_hoverEdge < 0 || _hoverEdge >= _points.Count)
             {
-                _uiSystem?.SetStatus(T("Keine Linie unter dem Zeiger.",
-                    "No line under the cursor."));
+                _uiSystem?.SetStatus(T("alignPick.noLineUnderTheCursor"));
                 return true;
             }
 
@@ -521,8 +498,7 @@ namespace ParkingLotTool.Tools
             var richtung = b - a;
             if (math.lengthsq(richtung) < 1e-6f)
             {
-                _uiSystem?.SetStatus(T("Diese Linie hat keine Länge.",
-                    "That line has no length."));
+                _uiSystem?.SetStatus(T("alignPick.thatLineHasNoLength"));
                 return true;
             }
 
@@ -587,8 +563,7 @@ namespace ParkingLotTool.Tools
             {
                 _geometryRevision++;
                 _layoutDirty = _closed;
-                CommitUndoState(before, T("Bezugslinie gewählt",
-                    "reference line picked"));
+                CommitUndoState(before, () => T("alignPick.referenceLinePicked"));
             }
 
             /*
@@ -610,26 +585,16 @@ namespace ParkingLotTool.Tools
                 AusrichtFlaeche = -1;
                 Ausrichtwahl = Ausrichtschritt.Flaeche;
                 _uiSystem?.SetStatus(unveraendert
-                    ? T("Dieselbe Linie - nichts geändert. Nächste Fläche "
-                        + "wählen, oder „Fertig“.",
-                        "Same line - nothing changed. Pick the next area, or "
-                        + "press Done.")
-                    : T("Übernommen" + Rechenhinweis()
-                        + ". Nächste Fläche wählen, oder „Fertig“.",
-                        "Applied" + Rechenhinweis()
-                        + ". Pick the next area, or press Done."));
+                    ? T("alignPick.sameLineNothingChangedPickThe")
+                    : T("alignPick.appliedPickTheNextAreaOr", ("rechenhinweis", Rechenhinweis())));
             }
             else
             {
                 // Eine einzige Teilflaeche: die Flaechenwahl entfaellt, die
                 // Runde beginnt gleich wieder bei der Linie.
                 _uiSystem?.SetStatus(unveraendert
-                    ? T("Dieselbe Linie - nichts geändert.",
-                        "Same line - nothing changed.")
-                    : T("Übernommen" + Rechenhinweis()
-                        + ". Andere Linie wählen, oder „Fertig“.",
-                        "Applied" + Rechenhinweis()
-                        + ". Pick a different line, or press Done."));
+                    ? T("alignPick.sameLineNothingChanged")
+                    : T("alignPick.appliedPickADifferentLineOr", ("rechenhinweis", Rechenhinweis())));
             }
             ParkingLotLiveLog.Zeile("align linie | teil " + gewaehlteFlaeche
                 + " | winkel " + ParkingLotLiveLog.Zahl(grad)

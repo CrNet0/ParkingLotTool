@@ -366,7 +366,7 @@ const Kachel = ({ platz, bloecke, slot, runde }: {
               <div className={`${styles.listeErgebnis} ${
                 platz.ergebnis >= 0 ? styles.listeGut : styles.listeSchlecht}`}
               >
-                {`${platz.ergebnis >= 0 ? "+" : "−"}${Math.abs(platz.ergebnis)} ${t.waehrung}`}
+                {(platz.ergebnis >= 0 ? "+" : "−") + t.betrag(Math.abs(platz.ergebnis))}
               </div>
               <div className={styles.listeJeMonat}>{platz.geschaetzt ? t.listeSchaetzung : t.listeNurKosten}</div>
             </div>
@@ -377,7 +377,7 @@ const Kachel = ({ platz, bloecke, slot, runde }: {
           <div className={styles.listeNotizKopf}>
             <TooltipKnopf text={t.tooltipVorigeInfo} className={styles.listeNotizPfeil}
               disabled={anzahl < 2} onClick={() => blaettern(-1)}>‹</TooltipKnopf>
-            <span>{`${thema} · ${index + 1}/${anzahl}`}</span>
+            <span>{t.listeNotizKopf(thema, index + 1, anzahl)}</span>
             <TooltipKnopf text={t.tooltipNaechsteInfo} className={styles.listeNotizPfeil}
               disabled={anzahl < 2} onClick={() => blaettern(1)}>›</TooltipKnopf>
           </div>
@@ -546,7 +546,7 @@ export const ListeTab = () => {
       }}>
       <div className={styles.listeKopf}>
         <div className={styles.listeUebersicht}>
-          <strong>{`${plaetze.length} ${t.reiterListe}`}</strong>
+          <strong>{t.listeAnzahl(plaetze.length)}</strong>
         </div>
         <div className={styles.listeKopfAktionen}>
         {(waisen > 0 || fehlende > 0) && <div className={styles.listeFilter}>
@@ -582,7 +582,7 @@ export const ListeTab = () => {
         }}>
           <TooltipKnopf text={t.listeSortieren} className={styles.listeTextknopf}
             aria-expanded={sortOffen} onClick={() => setSortOffen(!sortOffen)}>
-            {`${t.listeSortieren}: ${t.listeSortierungen[SORTIERUNG.indexOf(sortierung)]}`}
+            {t.listeSortiertNach(t.listeSortierungen[SORTIERUNG.indexOf(sortierung)])}
           </TooltipKnopf>
           {sortOffen && <div className={styles.listeSortiermenue}>
             {SORTIERUNG.map((s, i) => <button key={s} className={styles.listeTextknopf}
@@ -606,7 +606,7 @@ export const ListeTab = () => {
         <span className={styles.listeSummen}>{t.listeSummenzeile(summePlaetze, summeFrei, unterhalt, t.waehrung)}</span>
         <TooltipKnopf text={pause ? t.listeFortsetzen : t.listePause} className={styles.listeTextknopf}
           aria-pressed={pause} onClick={() => setPause(!pause)}>{pause ? "▶" : "Ⅱ"}</TooltipKnopf>
-        <span>{pausiert ? t.listePausiert : "15 s"}</span>
+        <span>{pausiert ? t.listePausiert : t.listeTakt}</span>
         <div className={styles.listeLuecke} />
         <span>{t.listeTreffer(gefiltert.length, plaetze.length)}</span>
       </div>

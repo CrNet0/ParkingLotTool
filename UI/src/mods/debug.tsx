@@ -2,7 +2,7 @@ import { useValue } from "cs2/api";
 import { useState } from "react";
 import styles from "./panel.module.scss";
 import {
-  probeState$, probeResults$, startProbe, cancelProbe, dissectPrefabs,
+  probeState$, probeResults$, probeRunning$, startProbe, cancelProbe, dissectPrefabs,
   toggleCarrierTest, carrierTestRunning$, carrierTestState$, icon,
   liveLog$, liveLogPfad$, liveLogUmschalten,
   ueberlappungsstand$, ueberlappungMessen, prefabsVergleichen,
@@ -32,7 +32,7 @@ export const DebugTab = () => {
   const ergebnisse = useValue(probeResults$)
     .split("\n")
     .filter((zeile) => zeile !== "");
-  const laeuft = stand !== "" && stand !== t.debugFertig;
+  const laeuft = useValue(probeRunning$);
   const traegerLaeuft = useValue(carrierTestRunning$);
   const traegerstand = useValue(carrierTestState$);
   const liveAn = useValue(liveLog$);

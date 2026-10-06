@@ -49,7 +49,7 @@ export const ZoningTab = () => {
     .filter((zeile) => zeile !== "")
     .map((zeile) => {
       const teile = zeile.split("\t");
-      return { name: teile[0], bild: teile[1] || "" };
+      return { name: teile[0], bild: teile[1] || "", titel: teile[2] || teile[0] };
     });
   /* Mit gewaehlter Linie heisst "Kante" nicht mehr "laengste Kante",
      sondern "entlang der Linie" - deshalb der andere Name. Genau wie beim
@@ -109,8 +109,9 @@ export const ZoningTab = () => {
         <div className={styles.explain}>
           {zug !== ""
             ? zug
-            : `${flaechen} ${t.zoningStand} · ${parzellen} ${t.zoningParzellen}`
-              + (auswahl >= 0 ? ` · ${t.zoningGewaehlt} ${auswahl + 1}` : "")}
+            : auswahl >= 0
+              ? t.zoningBestandGewaehlt(flaechen, parzellen, auswahl + 1)
+              : t.zoningBestand(flaechen, parzellen)}
         </div>
       </Spalte>
 
@@ -131,7 +132,7 @@ export const ZoningTab = () => {
           options={[1, 2, 3, 4, 5, 6].map((n) => ({
             id: String(n),
             text: String(n),
-            tooltip: `${t.tooltipZoningTiefeKnopf} ${n}`,
+            tooltip: t.tooltipZoningTiefeKnopf(n),
           }))}
           onChange={(id) => setZoningAussentiefe(Number(id))}
         />
@@ -183,7 +184,7 @@ export const ZoningTab = () => {
           min={0}
           max={180}
           step={1}
-          unit="°"
+          unit={t.einheitGradZeichen}
           ton="Zuschnitt"
           onChange={setZoningWinkel}
           disabled={winkelmodus !== "fixed"}

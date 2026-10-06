@@ -67,15 +67,11 @@ namespace ParkingLotTool.Tools
                 if (_angehalten.Count > 0) return RueckwegHinweis;
                 if (_aktiv == null && _queue.Count > 0
                     && World.GetExistingSystemManaged<ParkingLotToolSystem>()?.BearbeitetLot(_queue[0].Lot) == true)
-                    return ParkingLotTexte.T(
-                        "Synchronisation wartet: aktuelle Parkplatzbearbeitung abschliessen oder abbrechen.",
-                        "Synchronization is waiting: finish or cancel the current parking lot edit.");
+                    return ParkingLotTexte.T("hintergrundSystem.synchronizationIsWaitingFinishOrCancel");
                 return _gate.Wartehinweis;
             }
         }
-        private static string RueckwegHinweis => ParkingLotTexte.T(
-            "Wiederherstellung angehalten. Parkplatz bleibt gesperrt. Bauzettel sichern und Spielstand vor der Synchronisation laden.",
-            "Restoration stopped. The parking lot remains locked. Keep the build log and load the save from before synchronization.");
+        private static string RueckwegHinweis => ParkingLotTexte.T("hintergrundSystem.restorationStoppedTheParkingLotRemains");
         internal bool Gesperrt(Entity lot) => Gesperrt(lot,out _);
         private bool Gesperrt(Entity lot, out bool angehalten)
         {
@@ -96,9 +92,7 @@ namespace ParkingLotTool.Tools
         internal bool Sperrmeldung(Entity lot)
         {
             if (!Gesperrt(lot,out bool angehalten)) return false;
-            var text = angehalten ? RueckwegHinweis : ParkingLotTexte.T(
-                "Der Parkplatz wird im Hintergrund gebaut oder wiederhergestellt. Nach Abschluss erneut versuchen.",
-                "This parking lot is being rebuilt or restored in the background. Try again after completion.");
+            var text = angehalten ? RueckwegHinweis : ParkingLotTexte.T("hintergrundSystem.thisParkingLotIsBeingRebuilt");
             World.GetOrCreateSystemManaged<ParkingLotUISystem>().SetStatus(text);
             ParkingLotNetzRueckweg.Melde($"Lotsperre {lot.Index}: {text}; offene Auftraege {Offen}.");
             return true;
@@ -466,11 +460,7 @@ namespace ParkingLotTool.Tools
             bool wieder = !a.NurRueckweg && gesichert && _regel.Wiederholen(a.Lot,true);
             if (!a.NurRueckweg && !wieder) World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().MeldeHintergrundEnde(a.Lot,Entity.Null,false);
             if (!a.NurRueckweg && !wieder)
-                World.GetOrCreateSystemManaged<ParkingLotUISystem>().SetStatus(gesichert ? ParkingLotTexte.T(
-                    "Hintergrundbau nach drei Versuchen beendet. Die alten Wege sind geprueft wiederhergestellt. Fuer einen neuen Versuch den Spielstand neu laden und synchronisieren.",
-                    "Background rebuild stopped after three attempts. The restored old paths have been verified. Reload the save and synchronize to try again.") : ParkingLotTexte.T(
-                    "Hintergrundplanung beendet. Es wurden keine alten Wege abgerissen. Bauzettel pruefen; neuer Versuch nach dem Laden.",
-                    "Background planning stopped. No old paths were removed. Check the build receipt; retry after reloading."));
+                World.GetOrCreateSystemManaged<ParkingLotUISystem>().SetStatus(gesichert ? ParkingLotTexte.T("hintergrundSystem.backgroundRebuildStoppedAfterThreeAttempts") : ParkingLotTexte.T("hintergrundSystem.backgroundPlanningStoppedNoOldPaths"));
             Ende(a);
             if (a.NurRueckweg) World.GetOrCreateSystemManaged<ParkingLotSyncSystem>().MeldeRueckwegEnde();
             if (wieder) Einreihen(a.Lot,fruehestens:UnityEngine.Time.frameCount + HintergrundTakt.Versuchspause);

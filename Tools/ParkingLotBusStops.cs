@@ -64,8 +64,7 @@ namespace ParkingLotTool.Tools
                 SetEntranceModeFromPanel(false);
                 SetzeZoningModus(false);
                 _busStopMode = true;
-                _uiSystem?.SetStatus(T("Bushaltestelle auf eine Zoning-Strasse setzen.",
-                    "Place this on a zoning road."));
+                _uiSystem?.SetStatus(T("busStops.placeThisOnAZoningRoad"));
             }
             else
             {
@@ -102,13 +101,9 @@ namespace ParkingLotTool.Tools
             _hasBusStopCandidate = _hasHover && BusStopSnap.TryFind(
                 _areaPreviewLayout, _hoverPosition.xz, 8f, breiten.Ai, breiten.Cw,
                 out _busStopCandidate, _busStops, ShiftGehalten());
-            _debugTooltipSystem?.SetEntranceHint(T(
-                _hasBusStopCandidate
-                    ? "Linksklick setzt den Halt auf dieser Strassenseite; Rechtsklick entfernt ihn."
-                    : "Auf eine Zoning-Strasse setzen",
-                _hasBusStopCandidate
-                    ? "Left click places a stop on this side; right click removes it."
-                    : "Place this on a zoning road"));
+            _debugTooltipSystem?.SetEntranceHint(T(_hasBusStopCandidate
+                ? "busStops.leftClickPlacesRightClickRemoves"
+                : "busStops.placeOnAZoningRoad"));
             if (left && _hasBusStopCandidate)
             {
                 var neu = _busStopCandidate;

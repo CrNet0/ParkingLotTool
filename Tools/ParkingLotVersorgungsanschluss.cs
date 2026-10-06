@@ -566,11 +566,7 @@ namespace ParkingLotTool.Tools
             Mod.log.Warn("PLT-Versorgungsschutz: spaete Symbolaktualisierung "
                 + "vorsorglich ausgelassen; KEIN Updated durch PLT gesetzt. "
                 + "Warnsymbol kann veraltet bleiben. Zweite Beobachtung laeuft.");
-            _uiSystem?.SetStatus(ParkingLotTexte.T(
-                "Leitungen angeschlossen. Das Warnsymbol für fehlende Versorgung "
-                    + "kann noch eine Weile stehen bleiben.",
-                "Utilities connected. The missing-utility warning icon may stay "
-                    + "visible for a while."));
+            _uiSystem?.SetStatus(ParkingLotTexte.T("versorgungsanschluss.utilitiesConnectedTheMissingUtilityWarning"));
         }
 
         /**
@@ -661,9 +657,7 @@ namespace ParkingLotTool.Tools
                 + "dadurch weiterhin.");
             for (var i = 0; i < gesamt; i++)
                 MeldeVersorgungsnachbarn(_versorgungKnotenPruefung[i]);
-            _uiSystem?.SetStatus(ParkingLotTexte.T(
-                $"{verbunden} von {gesamt} Leitungsanschlüssen wiederhergestellt.",
-                $"{verbunden} of {gesamt} utility connections restored."));
+            _uiSystem?.SetStatus(ParkingLotTexte.T("versorgungsanschluss.ofUtilityConnectionsRestored", ("verbunden", verbunden), ("gesamt", gesamt)));
             _versorgungKnotenPruefung.Clear();
             _versorgungNeueKanten.Clear();
             _versorgungJeVerbunden.Clear();

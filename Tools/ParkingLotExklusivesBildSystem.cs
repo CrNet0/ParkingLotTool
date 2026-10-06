@@ -90,11 +90,8 @@ namespace ParkingLotTool.Tools
                 var werkzeug = World.GetExistingSystemManaged<ParkingLotToolSystem>();
                 bool pltZeichnet = World.GetExistingSystemManaged<ToolSystem>()?.activeTool == werkzeug
                     && werkzeug?.HatAktivenEntwurf == true;
-                Wartehinweis = pltZeichnet ? ParkingLotTexte.T(
-                    "Synchronisation wartet: Entwurf beenden oder Parking-Lot-Panel/Werkzeug schliessen.",
-                    "Synchronization is waiting: finish the draft or close the Parking Lot panel/tool.")
-                    : ParkingLotTexte.T("Synchronisation wartet auf einen freien Bauzyklus. Aktuellen Werkzeugentwurf beenden.",
-                        "Synchronization is waiting for a free build cycle. Finish the current tool draft.");
+                Wartehinweis = pltZeichnet ? ParkingLotTexte.T("exklusivesBildSystem.synchronizationIsWaitingFinishTheDraft")
+                    : ParkingLotTexte.T("exklusivesBildSystem.synchronizationIsWaitingForAFree");
                 var bild = UnityEngine.Time.frameCount;
                 var neuesBild = bild != _letztesWartebild;
                 if (neuesBild) _wartendeBilder++;

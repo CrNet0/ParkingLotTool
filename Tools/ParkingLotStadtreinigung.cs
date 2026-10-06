@@ -549,14 +549,8 @@ namespace ParkingLotTool.Tools
                     + "unauffaellig ist, zeigt erst das Laden ohne ihn.");
                 Schlusspruefung();
                 _uiSystem?.SetStatus(_uebergangen > 0
-                    ? ParkingLotTexte.T(
-                        "Abriss durch, aber " + _uebergangen
-                            + " Fläche(n) blieben stehen. Siehe Log.",
-                        "Teardown done, but " + _uebergangen
-                            + " patch(es) remain. See the log.")
-                    : ParkingLotTexte.T(
-                        "PLT-Parkplätze entfernt. Jetzt speichern.",
-                        "PLT parking lots removed. Save now."));
+                    ? ParkingLotTexte.TN("stadtreinigung.flaechenBlieben", _uebergangen)
+                    : ParkingLotTexte.T("stadtreinigung.pltParkingLotsRemovedSaveNow"));
                 SetzeStand(Knopfzustand.Fertig, _erwartet, 0, _uebergangen);
                 _erwartet = -1;
                 return;
@@ -604,9 +598,7 @@ namespace ParkingLotTool.Tools
                 + "Warteschlange auf, oder die Teile gehoeren zu einem anderen "
                 + "Parkplatz - die Zahl ist stadtweit. Die Ueberwachung laeuft "
                 + "weiter; wird es doch noch fertig, steht das hier.");
-            _uiSystem?.SetStatus(ParkingLotTexte.T(
-                "Abriss kommt nicht voran: noch " + uebrig + " Teile.",
-                "Teardown not progressing: " + uebrig + " parts left."));
+            _uiSystem?.SetStatus(ParkingLotTexte.T("stadtreinigung.teardownNotProgressingPartsLeft", ("uebrig", uebrig)));
             SetzeStand(Knopfzustand.Haengt, 0, uebrig, _uebergangen);
         }
 

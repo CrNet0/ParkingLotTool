@@ -73,9 +73,7 @@ namespace ParkingLotTool.Tools
             {
                 Mod.log.Warn("PLT-Prefabvergleich: kein passendes Prefab "
                     + "gefunden - weder unser Klon noch 'Alley'.");
-                _uiSystem?.SetUeberlappungsstand(T(
-                    "Prefabvergleich: nichts gefunden.",
-                    "Prefab comparison: nothing found."));
+                _uiSystem?.SetUeberlappungsstand(T("roadPrefabCompare.prefabComparisonNothingFound"));
                 return;
             }
 
@@ -115,9 +113,7 @@ namespace ParkingLotTool.Tools
                 MeldeKompositionen(name, e);
             }
 
-            _uiSystem?.SetUeberlappungsstand(T(
-                treffer.Count + " Straßenprefab(s) ins Log geschrieben.",
-                treffer.Count + " road prefab(s) written to the log."));
+            _uiSystem?.SetUeberlappungsstand(TN("roadPrefabCompare.prefabsGeschrieben", treffer.Count));
 
             Mod.log.Info("PLT-Prefabvergleich: fertig. Unterschiede zwischen "
                 + "'PLT Zoningstrasse (Alley)' und 'Alley' sind die Kandidaten "

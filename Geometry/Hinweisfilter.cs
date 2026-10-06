@@ -41,6 +41,15 @@ namespace ParkingLotTool.Geometry
             RegexOptions.Compiled);
 
         /** Die Hinweise, die der Nutzer sehen soll. */
+        /**
+         * "entartete Scherbe verworfen" - auch mit eingeschobener Eckenzahl
+         * ("entartete Scherbe mit 2 Ecken verworfen", Zerlegung.cs). Die
+         * fruehere feste Textstelle verfehlte diese Form, und die Nullflaeche
+         * stand roh in der Hinweiszeile (Codex-Audit 2026-10-06).
+         */
+        private static readonly Regex Scherbe = new Regex(
+            @"Scherbe(?: mit [0-9]+ Ecken)? verworfen", RegexOptions.Compiled);
+
         public static string[] Sichtbare(IReadOnlyList<string> warnungen)
         {
             if (warnungen == null || warnungen.Count == 0)
@@ -101,43 +110,34 @@ namespace ParkingLotTool.Geometry
          * wie beim Filter oben: lieber einmal zu viel zeigen als still eine
          * echte Warnung verschlucken.
          */
-        public static (string De, string En) Anzeigetext(string warnung)
+        public static (string Schluessel, (string Name, object Wert)[] Werte) Anzeigetext(string warnung)
         {
-            if (string.IsNullOrEmpty(warnung)) return (string.Empty, string.Empty);
+            var keine = new (string Name, object Wert)[0];
+            if (string.IsNullOrEmpty(warnung)) return ("hinweis.roh", new (string, object)[] { ("text", string.Empty) });
             var zufahrt = Regex.Match(warnung, @"Zufahrt\s+([0-9]+)");
-            var nummer = zufahrt.Success ? zufahrt.Groups[1].Value : "";
-            if (warnung.Contains("0 Autozufahrten"))
-                return ("Ohne Randstraßen braucht der Parkplatz eine Autozufahrt. Bitte eine setzen.",
-                        "Without perimeter roads the lot needs a car entrance. Please place one.");
-            if (warnung.Contains("keinen geraden Anschluss"))
-                return ($"Zufahrt {nummer} findet keinen geraden Weg zu einer Fahrgasse. Zufahrt verschieben.",
-                        $"Entrance {nummer} has no straight path to an aisle. Move the entrance.");
-            if (warnung.Contains("trifft ein Hindernis"))
-                return ($"Zufahrt {nummer} stößt auf ein Hindernis. Zufahrt verschieben.",
-                        $"Entrance {nummer} runs into an obstacle. Move the entrance.");
-            if (warnung.Contains("Endfussweg") || warnung.Contains("Endfußweg"))
-                return ("Ein Fußweg am Ende einer Reihe passt nicht hinein und fehlt.",
-                        "A footpath at the end of a row does not fit and was left out.");
-            if (warnung.Contains("automatic entrances are not implemented"))
-                return ("Automatische Zufahrten gibt es noch nicht - bitte von Hand setzen.",
-                        "Automatic entrances are not available yet - please place them by hand.");
-            if (warnung.Contains("left out") || warnung.Contains("Scherbe verworfen"))
+            var nummer = new (string Name, object Wert)[] { ("nummer", zufahrt.Success ? zufahrt.Groups[1].Value : "") };
+            if (warnung.Contains("0 Autozufahrten")) return ("hinweis.ohneRandstrassenAutozufahrt", keine);
+            if (warnung.Contains("keinen geraden Anschluss")) return ("hinweis.zufahrtKeinGeraderWeg", nummer);
+            if (warnung.Contains("trifft ein Hindernis")) return ("hinweis.zufahrtHindernis", nummer);
+            if (warnung.Contains("Endfussweg") || warnung.Contains("Endfußweg")) return ("hinweis.endfusswegFehlt", keine);
+            if (warnung.Contains("automatic entrances are not implemented")) return ("hinweis.automatischeZufahrten", keine);
+            var teilflaeche = Regex.Match(warnung, @"^Teilfl(?:ä|ae)che\s+([0-9]+)\s+blieb leer");
+            if (teilflaeche.Success)
+                return (warnung.Contains("zu schmal")
+                        ? "hinweis.teilflaecheZuSchmal" : "hinweis.teilflaecheLeer",
+                    new (string, object)[] { ("nummer", teilflaeche.Groups[1].Value) });
+            if (warnung.Contains("left out") || Scherbe.IsMatch(warnung))
             {
                 var flaeche = GroessteFlaeche(warnung);
-                var menge = flaeche > 0 ? flaeche.ToString("F1", CultureInfo.InvariantCulture) + " m²" : "";
-                return ($"{(menge == "" ? "Ein Stück" : menge)} Belag fehlt: CS2 kann diese Form "
-                            + "dort nicht darstellen.",
-                        $"{(menge == "" ? "A piece of" : menge + " of")} surface is missing: CS2 "
-                            + "cannot display this shape there.");
+                return flaeche > 0
+                    ? ("hinweis.belagFehltMenge", new (string, object)[] { ("flaeche", Sprachtexte.Dezimal(flaeche, 1)) })
+                    : ("hinweis.belagFehltStueck", keine);
             }
             if (warnung.Contains("Belagvorbereitung abgebrochen")
                 || warnung.Contains("Materialphase abgebrochen")
                 || warnung.Contains("Materialreparatur abgebrochen"))
-                return ("Die Flächen dieser Form wurden nicht vollständig fertig. Wenn etwas "
-                            + "fehlt, bitte einen Vorschau-Bericht schicken.",
-                        "The surfaces of this shape could not be completed. If something "
-                            + "looks missing, please send a preview report.");
-            return (warnung, warnung);
+                return ("hinweis.flaechenUnvollstaendig", keine);
+            return ("hinweis.roh", new (string, object)[] { ("text", warnung) });
         }
 
         private static double GroessteFlaeche(string warnung)
@@ -162,7 +162,7 @@ namespace ParkingLotTool.Geometry
         public static bool IstBelanglos(string warnung)
         {
             if (string.IsNullOrEmpty(warnung)) return false;
-            var bekannt = warnung.Contains("entartete Scherbe verworfen")
+            var bekannt = Scherbe.IsMatch(warnung)
                 || warnung.Contains("left out");
             if (!bekannt) return false;
             return NurWinzigeFlaechen(warnung);

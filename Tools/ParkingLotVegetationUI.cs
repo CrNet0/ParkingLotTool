@@ -69,8 +69,7 @@ namespace ParkingLotTool.Tools
                     var next = JsonConvert.SerializeObject(v);
                     var tool=Tool(); var before=tool?.CaptureUndoState();
                     if(UpdateValue(_vegetation,next)) {
-                        tool?.CommitUndoState(before, ParkingLotTexte.T("Vegetation geändert",
-                            "vegetation changed"));
+                        tool?.CommitUndoState(before, () => ParkingLotTexte.T("vegetationUI.vegetationChanged"));
                         tool?.RefreshVegetationPreview();
                     }
                 } catch (Exception e) { Mod.log.Warn("Vegetationseinstellung ungueltig: " + e.Message); }
@@ -116,7 +115,7 @@ namespace ParkingLotTool.Tools
             if (!TryWriteDefaults(next)) return;
             _defaults = next;
             _vegetationDefault.Update(VegetationStandard());
-            SetStatus(ParkingLotTexte.T("Vegetation als Standard gespeichert.", "Vegetation saved as default."));
+            SetStatus(ParkingLotTexte.T("vegetationUI.vegetationSavedAsDefault"));
         }
 
         private void SetzeVegetationZurueck()
@@ -128,10 +127,10 @@ namespace ParkingLotTool.Tools
             var tool = Tool(); var before = tool?.CaptureUndoState();
             if (UpdateValue(_vegetation, JsonConvert.SerializeObject(v)))
             {
-                tool?.CommitUndoState(before, ParkingLotTexte.T("Vegetation zurückgesetzt", "vegetation reset"));
+                tool?.CommitUndoState(before, () => ParkingLotTexte.T("vegetationUI.vegetationReset"));
                 tool?.RefreshVegetationPreview();
             }
-            SetStatus(ParkingLotTexte.T("Vegetation auf den Standard zurückgesetzt.", "Vegetation reset to your default."));
+            SetStatus(ParkingLotTexte.T("vegetationUI.vegetationResetToYourDefault"));
         }
 
         private void SaveVegetationSets()
@@ -141,6 +140,12 @@ namespace ParkingLotTool.Tools
             File.WriteAllText(tmp, JsonConvert.SerializeObject(_vegetationSets.Where(s => s.Custom), Formatting.Indented));
             if (File.Exists(VegetationSetsPath)) File.Replace(tmp, VegetationSetsPath, VegetationSetsPath + ".bak");
             else File.Move(tmp, VegetationSetsPath);
+        }
+        /** Feste Sets nach einem Sprachwechsel neu beschriften; eigene behalten ihren Namen. */
+        private void BenenneFesteVegetationSets()
+        {
+            foreach (var s in _vegetationSets)
+                if (!s.Custom) s.Name = ParkingLotTexte.T("vegetationSet." + s.Id);
         }
         private void PublishVegetation() => _vegetationCatalog.Update(JsonConvert.SerializeObject(new {
             Assets = _vegetationAssets, Sets = _vegetationSets }));
@@ -178,10 +183,10 @@ namespace ParkingLotTool.Tools
                 + string.Join("; ", _vegetationAssets.Select(a => a.Name + " [" + a.Id.Replace("StaticObjectPrefab:", "") + "] "
                     + (a.Hoehe >= VegetationSpecies.BaumHoehe ? "Baum" : "Busch") + (a.Tree ? "/TreeData" : "")
                     + " " + a.Hoehe.ToString("F1") + " m hoch, " + a.Spacing.ToString("F1") + " m breit")));
-            AddVegetationSet("wild-deciduous", "Wilde Laubbäume", "Wild deciduous trees", "TreesDeciduous",
+            AddVegetationSet("wild-deciduous", "TreesDeciduous",
                 "EU_AlderTree01", "BirchTree01", "NA_LondonPlaneTree01", "NA_LindenTree01", "NA_HickoryTree01", "EU_ChestnutTree01", "OakTree01");
-            AddVegetationSet("wild-coniferous", "Wilde Nadelbäume", "Wild coniferous trees", "TreesNeedle", "PineTree01", "SpruceTree01");
-            AddVegetationSet("wild-bushes", "Wilde Büsche", "Wild bushes", "Bushes", "GreenBushWild01", "GreenBushWild02", "FlowerBushWild01", "FlowerBushWild02");
+            AddVegetationSet("wild-coniferous", "TreesNeedle", "PineTree01", "SpruceTree01");
+            AddVegetationSet("wild-bushes", "Bushes", "GreenBushWild01", "GreenBushWild02", "FlowerBushWild01", "FlowerBushWild02");
             Mod.log.Info("PLT-Vegetationskatalog: " + _vegetationAssets.Count + " echte Pflanzen; "
                 + string.Join("; ", _vegetationSets.Select(set=>set.Name+"="+set.Species.Length)));
             try { if (File.Exists(VegetationSetsPath)) _vegetationSets.AddRange((JsonConvert.DeserializeObject<List<VegetationSet>>(File.ReadAllText(VegetationSetsPath)) ?? new List<VegetationSet>()).Where(s => s.Custom && s.Species != null)); }
@@ -191,9 +196,9 @@ namespace ParkingLotTool.Tools
         // Kompatible Set-Zusammensetzung nach den auf diesem Rechner installierten
         // Tree-Controller-31-Setdefinitionen (yenyang, MIT). Nur Asset-IDs/Daten,
         // kein fremder Programmcode; Referenz/Lizenz siehe VEGETATION-FIX-20260914.md.
-        private void AddVegetationSet(string id,string de,string en,string icon,params string[] names)
+        private void AddVegetationSet(string id,string icon,params string[] names)
         {
-            _vegetationSets.Add(new VegetationSet {Id=id,Name=ParkingLotTexte.T(de,en),Icon="coui://uil/Standard/"+icon+".svg",
+            _vegetationSets.Add(new VegetationSet {Id=id,Name=ParkingLotTexte.T("vegetationSet."+id),Icon="coui://uil/Standard/"+icon+".svg",
                 Species=_vegetationAssets.Where(a=>names.Any(n=>a.Id=="StaticObjectPrefab:"+n)).Select(a=>a.Id).ToArray()});
         }
         private static string VegetationName(PrefabBase prefab)

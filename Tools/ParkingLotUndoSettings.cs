@@ -79,7 +79,7 @@ namespace ParkingLotTool.Tools
         }
 
         /** Legt den Vorzustand nur ab, wenn die Aenderung wirklich griff. */
-        private bool ChangeDraftSetting(string action, Func<bool> change)
+        private bool ChangeDraftSetting(Func<string> action, Func<bool> change)
         {
             var tool = Tool();
             var before = tool?.CaptureUndoState();

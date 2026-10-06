@@ -121,7 +121,7 @@ export const ParkingFeeSection = () => {
         <div className={styles.fill} style={{ width: percent }} />
         <div className={styles.knob} style={{ left: percent }} />
       </div>
-      <div className={styles.betrag}>{t.waehrung}{shownFee}</div>
+      <div className={styles.betrag}>{t.betrag(shownFee)}</div>
     </div>
     </MitTooltip>
   );

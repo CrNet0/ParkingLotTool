@@ -119,7 +119,7 @@ namespace ParkingLotTool.Tools
                 const string text = "Kein PLT-Parkplatz gewählt. Erst den "
                     + "Parkplatz oder ein daran gewachsenes Gebäude auswählen.";
                 Mod.log.Warn(UePrefix + " " + text);
-                _uiSystem?.SetUeberlappungsstand(text);
+                _uiSystem?.SetUeberlappungsstand(ParkingLotTexte.T("ueberlappung.keinParkplatz"));
                 return;
             }
             _ueAuftraege.RemoveAll(a => a.Lot == lot && !a.Frueh);
@@ -130,7 +130,7 @@ namespace ParkingLotTool.Tools
                 Faellig = UnityEngine.Time.frameCount + 1,
                 Ausloeser = "Debug-Knopf",
             });
-            _uiSystem?.SetUeberlappungsstand("Diagnose vorgemerkt …");
+            _uiSystem?.SetUeberlappungsstand(ParkingLotTexte.T("ueberlappung.vorgemerkt"));
             Mod.log.Info($"{UePrefix} manueller Lauf fuer {Show(lot)} "
                 + $"aus Auswahl {Show(auswahl)} vorgemerkt.");
         }
@@ -159,7 +159,7 @@ namespace ParkingLotTool.Tools
             {
                 Mod.log.Error(exception, UePrefix + " Suchlauf fehlgeschlagen.");
                 _uiSystem?.SetUeberlappungsstand(
-                    "Diagnose fehlgeschlagen – Einzelheiten im Mod-Log.");
+                    ParkingLotTexte.T("ueberlappung.fehlgeschlagen"));
             }
         }
 
@@ -301,7 +301,19 @@ namespace ParkingLotTool.Tools
                 + (sauber ? "; alles sauber." : ".");
             Mod.log.Info(UePrefix + " BEFUND " + ergebnis);
             ParkingLotLiveLog.Zeile("ueberlappung befund | " + ergebnis);
-            _uiSystem?.SetUeberlappungsstand(ergebnis);
+            _uiSystem?.SetUeberlappungsstand(ParkingLotTexte.T("ueberlappung.befund",
+                ("objekte", objekte.Count), ("baumTreffer", baumTreffer),
+                ("overridden", overridden.Count), ("paare", paare.Count),
+                ("strassenpaare", strassenpaare), ("netzTreffer", netzTreffer),
+                ("flaechenTreffer", flaechenTreffer), ("paarPruefungen", paarPruefungen),
+                ("sonderfaelle", sonderfaelle),
+                ("ms", UeZahl(timer.Elapsed.TotalMilliseconds, 1)),
+                ("grenze", vollstaendig
+                    ? ParkingLotTexte.T("ueberlappung.grenzeNichtErreicht")
+                    : abgeschnitten
+                        ? ParkingLotTexte.T("ueberlappung.unvollstaendigBaum", ("grenze", UeKandidatenGrenze))
+                        : ParkingLotTexte.T("ueberlappung.unvollstaendigPaare", ("grenze", UePaarGrenze))),
+                ("schluss", ParkingLotTexte.T(sauber ? "ueberlappung.allesSauber" : "ueberlappung.punkt"))));
 
             if (auftrag.Frueh)
             {

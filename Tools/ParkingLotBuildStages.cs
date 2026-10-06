@@ -117,13 +117,8 @@ namespace ParkingLotTool.Tools
                                 + "nichts gebaut.");
                             // Vorher sah der Spieler hier gar nichts.
                             _uiSystem?.SetStatus(_points.Count < MinPolygonPoints
-                                ? T("Zum Bauen erst einen Umriss zeichnen: mindestens "
-                                        + "drei Punkte, dann den ersten Punkt erneut anklicken.",
-                                    "Draw an outline first: at least three points, then "
-                                        + "click the first point again to close it.")
-                                : T("Zum Bauen den Umriss schließen: den ersten Punkt "
-                                        + "erneut anklicken.",
-                                    "Close the outline to build: click the first point again."));
+                                ? T("buildStages.drawAnOutlineFirstAtLeast")
+                                : T("buildStages.closeTheOutlineToBuildClick"));
                             return false;
                         }
                         if (!DarfBauen)
@@ -171,22 +166,16 @@ namespace ParkingLotTool.Tools
                         // Frueher stand hier immer "Vorschau wird berechnet" -
                         // auch beim Ziehen und bei einer Vorschau ohne Zufahrt.
                         _uiSystem?.SetStatus(_dragPoint >= 0 || _dragEntrance >= 0
-                            ? T("Gebaut wird, sobald du loslässt.",
-                                "The lot is built as soon as you let go.")
+                            ? T("buildStages.theLotIsBuiltAsSoon")
                             : _editBaselinePending
-                            ? T("Bearbeitung wird vorbereitet - gebaut wird gleich.",
-                                "Preparing the edit - the lot is built in a moment.")
+                            ? T("buildStages.preparingTheEditTheLotIs")
                             : _areaPreviewLayout != null
                                 && _lastPreviewRevision == _geometryRevision
                                 && !_layoutDirty && _buildTask == null
                             // Fehlende Zufahrten faengt `DarfBauen` oben ab; hier
                             // hat die Vorschau eine gesetzte nicht uebernommen.
-                            ? T("Die Zufahrt ließ sich in der Vorschau nicht anschließen. "
-                                    + "Sie entlang der Kante verschieben, dann bauen.",
-                                "The entrance could not be connected in the preview. "
-                                    + "Move it along the edge, then build.")
-                            : T("Vorschau wird berechnet - gebaut wird, sobald sie fertig ist.",
-                                "Calculating preview - the lot is built as soon as it is ready."));
+                            ? T("buildStages.theEntranceCouldNotBeConnected")
+                            : T("buildStages.calculatingPreviewTheLotIsBuilt"));
                         return false;
                     }
                     if (TryFinishUnchangedEdit())
@@ -208,13 +197,8 @@ namespace ParkingLotTool.Tools
                             {
                                 _buildRequestedWhenReady = false;
                                 _uiSystem?.SetStatus(_unaufloesbareFlaeche != null
-                                    ? T($"Nichts gebaut: Fläche '{_unaufloesbareFlaeche}' "
-                                        + "ist nicht benutzbar.",
-                                        $"Nothing built: surface '{_unaufloesbareFlaeche}' "
-                                        + "is unavailable.")
-                                    : T("Nichts gebaut: die Flächenvorbereitung "
-                                        + "ist fehlgeschlagen.",
-                                        "Nothing built: surface preparation failed."));
+                                    ? T("buildStages.nothingBuiltSurfaceIsUnavailable", ("flaeche", _unaufloesbareFlaeche))
+                                    : T("buildStages.nothingBuiltSurfacePreparationFailed"));
                                 Mod.log.Warn("PLT-Bearbeiten: Neubau vor dem "
                                     + "Abriss gestoppt; Flaechenprefab "
                                     + "nicht benutzbar. Alte Wege bleiben.");
@@ -222,9 +206,7 @@ namespace ParkingLotTool.Tools
                             else
                             {
                                 BauwunschWartet("Flaechenprefabs werden vorbereitet");
-                                _uiSystem?.SetStatus(T(
-                                    "Flächenprefabs werden vorbereitet.",
-                                    "Preparing surface prefabs."));
+                                _uiSystem?.SetStatus(T("buildStages.preparingSurfacePrefabs"));
                             }
                             return false;
                         }
@@ -264,23 +246,18 @@ namespace ParkingLotTool.Tools
                         ParkingLotMessung.Punkt.Vorschau, uhrVorschau);
                     if (_vorflaechenPrefabFehlgeschlagen)
                     {
-                        _uiSystem?.SetStatus(T(
-                            "Nichts gebaut: Das Vorflächen-Prefab konnte nicht initialisiert werden.",
-                            "Nothing built: The apron prefab could not be initialized."));
+                        _uiSystem?.SetStatus(T("buildStages.nothingBuiltTheApronPrefabCould"));
                         _buildStage = BuildStage.Idle;
                         _buildRequestedWhenReady = false;
                         if (IsEditing)
                             AbortEdit("Vorflächen-Prefab des Neubaus fehlgeschlagen",
-                                "Umbau fehlgeschlagen; der alte Parkplatz wurde wiederhergestellt.",
-                                "Rebuild failed; the old parking lot was restored.");
+                                "editAbbruch.rebuildFailedTheOldParkingLot");
                         return false;
                     }
                     if (_vorflaechenPrefabAusstehend)
                     {
                         BauwunschWartet("Vorflaechen-Prefab wird initialisiert");
-                        _uiSystem?.SetStatus(T(
-                            "Vorflächen-Prefab wird initialisiert.",
-                            "Initializing apron prefab."));
+                        _uiSystem?.SetStatus(T("buildStages.initializingApronPrefab"));
                         return false;
                     }
                     if (!_ghostsActive)
@@ -291,12 +268,8 @@ namespace ParkingLotTool.Tools
                         // den Satz. Alles andere schickt den Nutzer suchen.
                         var flaeche = _unaufloesbareFlaeche;
                         _uiSystem?.SetStatus(flaeche != null
-                            ? T($"Nichts gebaut: die Fläche '{flaeche}' lässt "
-                                + "sich nicht verwenden. Bitte eine andere wählen.",
-                                $"Nothing built: the surface '{flaeche}' cannot "
-                                + "be used. Please pick another one.")
-                            : T("Nichts gebaut: es entstanden keine Bauteile.",
-                                "Nothing built: no build parts were created."));
+                            ? T("buildStages.nothingBuiltTheSurfaceCannotBe", ("flaeche", flaeche))
+                            : T("buildStages.nothingBuiltNoBuildPartsWere"));
                         Mod.log.Warn("PLT: Es entstanden keine Bau-Definitionen; "
                             + "nichts gebaut."
                             + (flaeche != null
@@ -307,8 +280,7 @@ namespace ParkingLotTool.Tools
                         _buildRequestedWhenReady = false;
                         if (IsEditing)
                             AbortEdit("Neubau erzeugte keine Bauteile",
-                                "Umbau fehlgeschlagen; der alte Parkplatz wurde wiederhergestellt.",
-                                "Rebuild failed; the old parking lot was restored.");
+                                "editAbbruch.rebuildFailedTheOldParkingLot");
                         return false;
                     }
                     VerwerfeEdithoehen();
@@ -329,11 +301,7 @@ namespace ParkingLotTool.Tools
                         // eine von einer Flaeche fertig war und die alte
                         // Zweierhuerde sie nie durchliess.
                         AreaTransferStand(out var fertig, out var gesamt);
-                        _uiSystem?.SetStatus(T(
-                            $"Nichts gebaut: {fertig} von {gesamt} Flächen wurden "
-                            + "rechtzeitig übernommen.",
-                            $"Nothing built: {fertig} of {gesamt} surfaces were "
-                            + "accepted in time."));
+                        _uiSystem?.SetStatus(T("buildStages.nothingBuiltOfSurfacesWereAccepted", ("fertig", fertig), ("gesamt", gesamt)));
                         Mod.log.Warn($"PLT: Nur {fertig} von {gesamt} Flächen "
                             + $"wurden nach {MaterializationTimeoutFrames} Frames "
                             + "zu Entities. Abgebrochen, damit kein Parkplatz "
@@ -342,8 +310,7 @@ namespace ParkingLotTool.Tools
                         _buildStage = BuildStage.Idle;
                         if (IsEditing)
                             AbortEdit("Bauteile des Neubaus wurden nicht materialisiert",
-                                "Umbau fehlgeschlagen; der alte Parkplatz wurde wiederhergestellt.",
-                                "Rebuild failed; the old parking lot was restored.");
+                                "editAbbruch.rebuildFailedTheOldParkingLot");
                         return false;
                     }
                     ProtokolliereBauschritt("WendeMaterialisiertenBauAn");
@@ -370,8 +337,7 @@ namespace ParkingLotTool.Tools
                 Mod.log.Error(exception,
                     "PLT-Umbau: unerwarteter Fehler im vorhandenen Apply-Weg.");
                 AbortEdit("Ausnahme beim Bau des Ersatz-Lots",
-                    "Umbau fehlgeschlagen; der alte Parkplatz wurde wiederhergestellt.",
-                    "Rebuild failed; the old parking lot was restored.");
+                    "editAbbruch.rebuildFailedTheOldParkingLot");
                 built = false;
             }
             _buildStage = BuildStage.Idle;

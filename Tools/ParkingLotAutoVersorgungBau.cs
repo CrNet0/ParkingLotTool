@@ -682,11 +682,7 @@ namespace ParkingLotTool.Tools
                     + "noch nicht begonnene Netze. Bereits angewandte Kurse werden weiter "
                     + "gemessen; der Rest wird beim naechsten Oeffnen des Werkzeugs "
                     + "fortgesetzt.");
-                _uiSystem?.SetStatus(ParkingLotTexte.T(
-                    _avNochOffeneNetze + " Versorgungsnetz(e) noch offen - beim "
-                    + "nächsten Öffnen des Werkzeugs wird weitergebaut.",
-                    _avNochOffeneNetze + " supply network(s) still open - they "
-                    + "will be finished the next time the tool is opened."));
+                _uiSystem?.SetStatus(ParkingLotTexte.TN("autoVersorgungBau.offeneNetze", _avNochOffeneNetze));
                 _avAusstehend.Clear();
             }
             _avKurse.AddRange(_avGebaut);

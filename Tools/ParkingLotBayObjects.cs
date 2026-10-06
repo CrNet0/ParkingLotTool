@@ -738,11 +738,7 @@ namespace ParkingLotTool.Tools
             Mod.log.Warn($"PLT-Markierung: Schalter AUS, aber '{UnsichtbarName}' "
                 + $"ist NICHT benutzbar ({grund}). Alle {decals} Buchten "
                 + "behalten deshalb ihre sichtbare Markierung.");
-            RecordPreviewDiagnostic("Warning", T(
-                "Markierungen sind abgeschaltet, aber das unsichtbare Prefab ist "
-                + $"nicht benutzbar ({grund}) - die Markierungen bleiben sichtbar.",
-                "Bay markings are switched off, but the invisible prefab is not "
-                + $"usable ({grund}) - the markings stay visible."));
+            RecordPreviewDiagnostic("Warning", T("bayObjects.bayMarkingsAreSwitchedOffBut", ("grund", grund)));
         }
 
         private bool CreateBayDecalDefinition(

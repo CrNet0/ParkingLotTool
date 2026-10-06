@@ -775,10 +775,8 @@ namespace ParkingLotTool.Tools
             // vorhandene Parkplaetze behalten also ihren Namen, auch wenn
             // spaeter die Sprache wechselt.
             var name = stalls == 1
-                ? ParkingLotTexte.T("Parkplatz (1 Stellplatz)",
-                    "Parking Lot (1 space)")
-                : ParkingLotTexte.T($"Parkplatz ({stalls} Stellplätze)",
-                    $"Parking Lot ({stalls} spaces)");
+                ? ParkingLotTexte.T("lotOwner.parkingLot1Space")
+                : ParkingLotTexte.T("lotOwner.parkingLotSpaces", ("stalls", stalls));
             try
             {
                 /**

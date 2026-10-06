@@ -1,23 +1,24 @@
+using ParkingLotTool.Geometry;
+
 namespace ParkingLotTool.Tools
 {
     /**
-     * Zweisprachige Meldungen fuer alles, was aus dem C#-Teil ins Panel geht.
+     * Texte fuer alles, was aus dem C#-Teil zum Spieler geht - Statuszeile,
+     * Hinweise, Einstellungsseite, Meldungen.
      *
-     * Das Panel selbst holt seine Texte aus `UI/src/mods/texte.ts`. Die
-     * Statuszeile und die Hinweise entstehen aber hier, oft mit eingesetzten
-     * Zahlen - sie koennen also nicht drueben liegen. Damit beide Seiten
-     * derselben Wahl folgen, fragt dieser Helfer dieselbe Einstellung ab.
-     *
-     * Aufbau bewusst simpel: `Sag(deutsch, englisch)`. Wer eine Meldung
-     * ergaenzt, sieht beide Fassungen nebeneinander und kann die zweite nicht
-     * vergessen - anders als bei einem Woerterbuch, in dem ein fehlender
-     * Schluessel erst im Spiel auffaellt.
+     * Seit 2026-10-06 stehen sie in `Lang/<sprache>.json` (siehe
+     * `Geometry/Sprachtexte`). `T("schluessel", ("name", wert), ...)` holt die
+     * Vorlage der eingestellten Sprache und setzt die Werte ein. Ein Text,
+     * der hier im Code steht statt in der Sprachdatei, ist ein Fehler - der
+     * Pruefslauf `--sprache` sucht danach.
      */
     internal static class ParkingLotTexte
     {
-        internal static bool Deutsch => Mod.Optionen?.SprachKuerzel() == "de";
+        internal static string T(string schluessel, params (string Name, object Wert)[] werte)
+            => Sprachtexte.Text(schluessel, werte);
 
-        internal static string T(string deutsch, string englisch)
-            => Deutsch ? deutsch : englisch;
+        /** Mehrzahl ueber `schluessel.one` / `schluessel.other`, Zahl als `{n}`. */
+        internal static string TN(string schluessel, long n, params (string Name, object Wert)[] werte)
+            => Sprachtexte.Anzahl(schluessel, n, werte);
     }
 }

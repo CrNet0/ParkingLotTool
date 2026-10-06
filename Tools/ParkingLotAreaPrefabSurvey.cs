@@ -106,8 +106,23 @@ namespace ParkingLotTool.Tools
                     MissFarbe(prefab, entity, name);
                 }
                 namen.Sort(StringComparer.Ordinal);
+                /*
+                 * DRITTES FELD: DER NAME, DEN DAS SPIEL ZEIGT.
+                 *
+                 * Gespeichert und verglichen wird der Prefab-Name; angezeigt
+                 * wird der Eintrag "Assets.NAME[...]" aus dem Woerterbuch des
+                 * Spiels - derselbe Weg wie bei Pflanzen und Laternen. Fehlt
+                 * er (Mod-Assets ohne Uebersetzung), bleibt der Prefab-Name.
+                 */
+                var woerter = Game.SceneFlow.GameManager.instance?.localizationManager?.activeDictionary;
                 for (var i = 0; i < namen.Count; i++)
-                    namen[i] = namen[i] + "\t" + symbole[namen[i]];
+                {
+                    var titel = woerter != null
+                        && woerter.TryGetValue("Assets.NAME[" + namen[i] + "]", out var uebersetzt)
+                        && !string.IsNullOrEmpty(uebersetzt) ? uebersetzt : namen[i];
+                    namen[i] = namen[i] + "\t" + symbole[namen[i]] + "\t"
+                        + titel.Replace('\t', ' ').Replace('\n', ' ');
+                }
                 _uiSystem.SetzeFlaechenliste(namen.ToArray());
             }
             catch (Exception ausnahme)

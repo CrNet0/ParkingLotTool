@@ -316,7 +316,7 @@ namespace ParkingLotTool.Tools
         {
             // Wird bei jeder Anzeige neu gebildet und folgt der Sprache
             // deshalb sofort - anders als der gespeicherte Name selbst.
-            var rueckfall = ParkingLotTexte.T("Parkplatz", "Parking Lot");
+            var rueckfall = ParkingLotTexte.T("listeUISystem.parkingLot");
             if (_namen == null) return rueckfall;
             var name = _namen.GetRenderedLabelName(lot);
             return string.IsNullOrEmpty(name) ? rueckfall : name;

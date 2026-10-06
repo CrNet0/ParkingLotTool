@@ -379,11 +379,7 @@ namespace ParkingLotTool.Tools
             }
             if (geaendert) _layoutDirty = _closed;
             if (verweigert > 0)
-                _uiSystem?.SetStatus(T(
-                    "Die Fläche bleibt im alten Winkel: gedreht passt sie "
-                        + "nicht in den Umriss.",
-                    "The patch keeps its old angle: rotated it would not "
-                        + "fit inside."));
+                _uiSystem?.SetStatus(T("zoning.thePatchKeepsItsOldAngle"));
             if (geaendert) _geometryRevision++;
         }
 
@@ -402,9 +398,8 @@ namespace ParkingLotTool.Tools
             _zoningLinienwahl = an;
             _uiSystem?.SetZoningLinienwahl(an);
             _uiSystem?.SetStatus(an
-                ? T("Jetzt eine Polygonlinie anklicken.",
-                    "Now click a line of the outline.")
-                : T("Linienwahl beendet.", "Line pick finished."));
+                ? T("zoning.nowClickALineOfThe")
+                : T("zoning.linePickFinished"));
         }
 
         internal void SetzeZoningReglerwinkel(double grad)
@@ -488,9 +483,7 @@ namespace ParkingLotTool.Tools
              */
             if (an && !_closed)
             {
-                _uiSystem?.SetStatus(T(
-                    "Erst das Polygon schließen, dann Zoning-Flächen setzen.",
-                    "Close the outline first, then place zoning patches."));
+                _uiSystem?.SetStatus(T("zoning.closeTheOutlineFirstThenPlace"));
                 return;
             }
             if (ZoningModus == an) return;
@@ -503,10 +496,8 @@ namespace ParkingLotTool.Tools
             _zoningSchiebt = -1;
             _uiSystem?.SetZoningModus(an);
             _uiSystem?.SetStatus(an
-                ? T("Zoning: Rechteck ziehen. Rechtsklick auf eine Fläche "
-                        + "löscht sie.",
-                    "Zoning: drag a rectangle. Right-click a patch to delete it.")
-                : T("Zoning beendet.", "Zoning finished."));
+                ? T("zoning.zoningDragARectangleRightClick")
+                : T("zoning.zoningFinished"));
         }
 
         /** Welche Flaeche liegt unter dem Zeiger? -1, wenn keine. */
@@ -581,8 +572,7 @@ namespace ParkingLotTool.Tools
                 if (!primaerGedrueckt) return true;
                 if (_hoverEdge < 0 || _points.Count < 2)
                 {
-                    _uiSystem?.SetStatus(T("Keine Linie unter dem Zeiger.",
-                        "No line under the cursor."));
+                    _uiSystem?.SetStatus(T("alignPick.noLineUnderTheCursor"));
                     return true;
                 }
                 var la = _points[_hoverEdge];
@@ -590,16 +580,13 @@ namespace ParkingLotTool.Tools
                 var richtung = lb - la;
                 if (math.lengthsq(richtung) < 1e-6f)
                 {
-                    _uiSystem?.SetStatus(T("Diese Linie hat keine Länge.",
-                        "That line has no length."));
+                    _uiSystem?.SetStatus(T("alignPick.thatLineHasNoLength"));
                     return true;
                 }
                 SetzeZoningAusrichtwinkel(
                     math.degrees(math.atan2(richtung.y, richtung.x)));
                 SetzeZoningLinienwahl(false);
-                _uiSystem?.SetStatus(T(
-                    "Parzellen folgen jetzt dieser Linie.",
-                    "Parcels now follow that line."));
+                _uiSystem?.SetStatus(T("zoning.parcelsNowFollowThatLine"));
                 return true;
             }
 
@@ -662,7 +649,7 @@ namespace ParkingLotTool.Tools
                 var vorher = CaptureUndoState();
                 _zoningflaechen.RemoveAt(_zoningHover);
                 _zoningHover = -1;
-                NachZoningaenderung(vorher, T("Zoning-Fläche gelöscht", "zoning patch deleted"));
+                NachZoningaenderung(vorher, () => T("zoning.zoningPatchDeleted"));
                 return true;
             }
 
@@ -787,7 +774,7 @@ namespace ParkingLotTool.Tools
                 _zoningRastGesetzt = false;
                 _zoningMauszielGesetzt = false;
                 _zoningSchiebtVorher = null;
-                NachZoningaenderung(vorher2, T("Zoning-Fläche verschoben", "zoning patch moved"));
+                NachZoningaenderung(vorher2, () => T("zoning.zoningPatchMoved"));
                 return true;
             }
 
@@ -823,9 +810,11 @@ namespace ParkingLotTool.Tools
                 _zoningflaechen.Add(fertig);
                 _zoningAuswahl = _zoningflaechen.Count - 1;
                 _uiSystem?.SetZoningAuswahl(_zoningAuswahl);
-                NachZoningaenderung(vorher3, T(
-                    "Zoning-Fläche " + fertig.Spalten + "x" + fertig.Reihen,
-                    "zoning patch " + fertig.Spalten + "x" + fertig.Reihen));
+                // Groesse jetzt festhalten: das Lambda laeuft erst beim
+                // Rueckgaengig, und die Flaeche kann bis dahin gezogen werden.
+                var spalten = fertig.Spalten;
+                var reihen = fertig.Reihen;
+                NachZoningaenderung(vorher3, () => T("zoning.zoningPatchX", ("fertigSpalten", spalten), ("fertigReihen", reihen)));
                 return true;
             }
 
@@ -895,9 +884,7 @@ namespace ParkingLotTool.Tools
                     // Schon die kleinste Parzelle passt hier nicht. Lieber
                     // gar nicht anfangen als einen Zug beginnen, der nie
                     // etwas ergeben kann.
-                    _uiSystem?.SetStatus(T(
-                        "Hier ist kein Platz für eine Parzelle.",
-                        "No room for a parcel here."));
+                    _uiSystem?.SetStatus(T("zoning.noRoomForAParcelHere"));
                     return true;
                 }
                 _zoningZugStart = zeiger;
@@ -921,18 +908,14 @@ namespace ParkingLotTool.Tools
                               bool breiteGekappt, bool tiefeGekappt)
         {
             var meter = ParkingGeometry.Zoningparzelle;
-            var text = f.Spalten + " × " + f.Reihen + " "
-                + T("Parzellen", "parcels") + " · "
-                + (f.Spalten * meter).ToString("0") + " × "
-                + (f.Reihen * meter).ToString("0") + " m";
+            var text = TN("zoning.zug", f.Spalten * f.Reihen,
+                ("spalten", f.Spalten), ("reihen", f.Reihen),
+                ("breite", (f.Spalten * meter).ToString("0")),
+                ("tiefe", (f.Reihen * meter).ToString("0")));
             if (breiteGekappt || tiefeGekappt)
-                text += "  —  " + T(
-                    "mehr geht nicht: CS2 baut höchstens "
-                        + ParkingGeometry.ZoningMaxBreite + " × "
-                        + ParkingGeometry.ZoningMaxTiefe + " Parzellen",
-                    "that is the limit: CS2 builds at most "
-                        + ParkingGeometry.ZoningMaxBreite + " by "
-                        + ParkingGeometry.ZoningMaxTiefe + " parcels");
+                text = T("zoning.zugGekappt", ("zug", text),
+                    ("maxBreite", ParkingGeometry.ZoningMaxBreite),
+                    ("maxTiefe", ParkingGeometry.ZoningMaxTiefe));
             _uiSystem?.SetZoningZug(text);
         }
 
@@ -1443,9 +1426,7 @@ namespace ParkingLotTool.Tools
             var parzellen = _zoningflaechen.Sum(f => f.Parzellen);
             _uiSystem?.SetZoningZahlen(_zoningflaechen.Count, parzellen);
             _uiSystem?.SetZoningAuswahl(ZoningAuswahl);
-            _uiSystem?.SetStatus(T(
-                weg + " Zoning-Fläche(n) gelöscht: nicht mehr ganz im Umriss.",
-                weg + " zoning patch(es) deleted: no longer fully inside."));
+            _uiSystem?.SetStatus(TN("zoning.flaechenGeloescht", weg));
             Mod.log.Info("PLT-Zoning: " + weg
                 + " Flaeche(n) verworfen, weil der Umriss sich darunter "
                 + "veraendert hat.");
@@ -1486,7 +1467,7 @@ namespace ParkingLotTool.Tools
         private ParkingLotUndoSnapshot _zoningSchiebtVorher;
 
         private void NachZoningaenderung(
-            ParkingLotUndoSnapshot vorher, string was)
+            ParkingLotUndoSnapshot vorher, System.Func<string> was)
         {
             /*
              * OHNE DAS RECHNET DIE VORSCHAU NICHT NEU.
@@ -1503,12 +1484,8 @@ namespace ParkingLotTool.Tools
             CommitUndoState(vorher, was);
             var parzellen = _zoningflaechen.Sum(f => f.Parzellen);
             _uiSystem?.SetZoningZahlen(_zoningflaechen.Count, parzellen);
-            _uiSystem?.SetStatus(T(
-                _zoningflaechen.Count + " Zoning-Fläche(n), "
-                    + parzellen + " Parzellen.",
-                _zoningflaechen.Count + " zoning patch(es), "
-                    + parzellen + " parcels."));
-            Mod.log.Info("PLT-Zoning: " + was + "; jetzt "
+            _uiSystem?.SetStatus(T("zoning.flaechenUndParzellen", ("flaechen", TN("zoning.flaechen", _zoningflaechen.Count)), ("parzellen", TN("zoning.parzellen", parzellen))));
+            Mod.log.Info("PLT-Zoning: " + was() + "; jetzt "
                 + _zoningflaechen.Count + " Flaeche(n), " + parzellen
                 + " Parzelle(n).");
         }
